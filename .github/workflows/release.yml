@@ -1,0 +1,66 @@
+name: Build and publish release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        working-directory: CRAS-Desktop
+        run: python -m pip install -r requirements.txt
+
+      - name: Run tests
+        working-directory: CRAS-Desktop
+        run: python -m unittest -v
+
+      - name: Build executable
+        working-directory: CRAS-Desktop
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME.TrimStart("v")
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Release tag must use vMAJOR.MINOR.PATCH, for example v1.2.3."
+          }
+          Set-Content -Path version.txt -Value $version -NoNewline
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --name CRAS-Desktop `
+            --collect-all webview `
+            --add-data "CRAS.html;." `
+            --add-data "dexie.min.js;." `
+            --add-data "version.txt;." `
+            main.py
+          if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed." }
+
+      - name: Create checksum
+        working-directory: CRAS-Desktop
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist\CRAS-Desktop.exe -Algorithm SHA256).Hash.ToLower()
+          Set-Content -Path dist\CRAS-Desktop.exe.sha256 -Value "$hash  CRAS-Desktop.exe" -Encoding ascii
+
+      - name: Publish GitHub release
+        working-directory: CRAS-Desktop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            dist\CRAS-Desktop.exe `
+            dist\CRAS-Desktop.exe.sha256 `
+            --title $env:GITHUB_REF_NAME `
+            --generate-notes
