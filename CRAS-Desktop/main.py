@@ -38,6 +38,8 @@ MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 PBKDF2_ITERATIONS = 200_000
 EMPTY_SNAPSHOT = {"appointments": [], "paaRecords": [], "settings": {}}
+VALID_USER_ROLES = {"assistant", "caseworker", "reception", "admin"}
+MISSING = object()
 
 
 class RevisionConflict(Exception):
@@ -323,6 +325,7 @@ class PeerStore:
                 )
                 self.node_id = self.get_or_create(db, "node_id", str(uuid.uuid4()))
                 self.pairing_key = self.get_or_create(db, "pairing_key", secrets.token_urlsafe(24))
+                self.active_role = self.get_or_create(db, "active_role", "")
 
     def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=15)
@@ -349,6 +352,7 @@ class PeerStore:
                     peer_id: json.loads(payload).get("settings", {})
                     for peer_id, payload in peer_rows
                 },
+                "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
             }
 
     def get_revision(self) -> int:
@@ -356,8 +360,14 @@ class PeerStore:
             row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
             return int(row[0]) if row else 0
 
-    def save_local_snapshot(self, snapshot: object, expected_revision: object) -> int:
+    def save_local_snapshot(
+        self, snapshot: object, expected_revision: object, actor_role: object = None
+    ) -> int:
         valid_snapshot = validate_snapshot(snapshot)
+        if actor_role is not None and (
+            not isinstance(actor_role, str) or actor_role not in VALID_USER_ROLES
+        ):
+            raise ValueError("O perfil do usuário local é inválido.")
         with self.lock, closing(self.connect()) as db:
             with db:
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
@@ -368,17 +378,32 @@ class PeerStore:
                     "UPDATE current_snapshot SET payload = ?, revision = revision + 1 WHERE id = 1",
                     (canonical(valid_snapshot),),
                 )
+                if actor_role is not None:
+                    db.execute(
+                        "UPDATE metadata SET value = ? WHERE key = 'active_role'",
+                        (actor_role,),
+                    )
+                    self.active_role = actor_role
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
                 return int(row[0])
 
     def accept_synced_snapshot(
-        self, peer_id: str, snapshot: object, peer_base: object, expected_revision: object
+        self,
+        peer_id: str,
+        snapshot: object,
+        peer_base: object,
+        expected_revision: object,
+        actor_role: object = None,
     ) -> int:
         if not isinstance(peer_id, str) or not peer_id.strip() or len(peer_id) > 100:
             raise ValueError("Identificação do computador remoto inválida.")
         valid_snapshot = validate_snapshot(snapshot)
         valid_peer_base = validate_snapshot(peer_base)
+        if actor_role is not None and (
+            not isinstance(actor_role, str) or actor_role not in VALID_USER_ROLES
+        ):
+            raise ValueError("O perfil do usuário local é inválido.")
         payload = canonical(valid_snapshot)
         with self.lock, closing(self.connect()) as db:
             with db:
@@ -395,11 +420,24 @@ class PeerStore:
                     "ON CONFLICT(peer_id) DO UPDATE SET payload = excluded.payload",
                     (peer_id, canonical(valid_peer_base)),
                 )
+                if actor_role is not None:
+                    db.execute(
+                        "UPDATE metadata SET value = ? WHERE key = 'active_role'",
+                        (actor_role,),
+                    )
+                    self.active_role = actor_role
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
                 return int(row[0])
 
-    def sync(self, peer_id: str, request_id: str, local_snapshot: object, resolutions: object) -> dict:
+    def sync(
+        self,
+        peer_id: str,
+        request_id: str,
+        local_snapshot: object,
+        resolutions: object,
+        peer_role: object = None,
+    ) -> dict:
         if not self.ready:
             raise ValueError("O outro computador ainda está inicializando. Tente sincronizar novamente em instantes.")
         if not isinstance(peer_id, str) or not peer_id.strip() or len(peer_id) > 100:
@@ -409,6 +447,10 @@ class PeerStore:
         local = validate_snapshot(local_snapshot)
         if not isinstance(resolutions, dict):
             raise ValueError("As resoluções de conflito estão inválidas.")
+        if peer_role is not None and (
+            not isinstance(peer_role, str) or peer_role not in VALID_USER_ROLES
+        ):
+            raise ValueError("O perfil do computador remoto é inválido.")
 
         with self.lock, closing(self.connect()) as db:
             with db:
@@ -421,14 +463,17 @@ class PeerStore:
                 remote = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
                 base_row = db.execute("SELECT payload FROM peer_bases WHERE peer_id = ?", (peer_id,)).fetchone()
                 base = validate_snapshot(json.loads(base_row[0])) if base_row else dict(EMPTY_SNAPSHOT)
-                conflicts: list[dict] = []
                 merged = {
-                    "appointments": self.merge_collection("appointments", base, local, remote, resolutions, conflicts),
-                    "paaRecords": self.merge_collection("paaRecords", base, local, remote, resolutions, conflicts),
-                    "settings": self.merge_settings(base, local, remote, resolutions, conflicts),
+                    "appointments": self.merge_collection(
+                        "appointments", base, local, remote, peer_role, self.active_role
+                    ),
+                    "paaRecords": self.merge_collection(
+                        "paaRecords", base, local, remote, peer_role, self.active_role
+                    ),
+                    "settings": self.merge_settings(
+                        base, local, remote, peer_role, self.active_role
+                    ),
                 }
-                if conflicts:
-                    return {"status": "conflicts", "conflicts": conflicts}
 
                 validate_snapshot(merged)
                 payload = canonical(merged)
@@ -451,71 +496,244 @@ class PeerStore:
                     "snapshot": merged,
                     "revision": revision,
                     "syncedAt": datetime.now(timezone.utc).isoformat(),
+                    "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
                     "unlinkedPaaIds": [],
                 }
 
     @staticmethod
     def merge_collection(
-        name: str, base: dict, local: dict, remote: dict, resolutions: dict, conflicts: list[dict]
+        name: str,
+        base: dict,
+        local: dict,
+        remote: dict,
+        local_role: object = None,
+        remote_role: object = None,
     ) -> list[dict]:
         base_items = {item["id"]: item for item in base.get(name, [])}
         local_items = {item["id"]: item for item in local[name]}
         remote_items = {item["id"]: item for item in remote[name]}
         merged: list[dict] = []
-        for item_id in base_items.keys() | local_items.keys() | remote_items.keys():
+        for item_id in sorted(base_items.keys() | local_items.keys() | remote_items.keys()):
             base_value = base_items.get(item_id)
             local_value = local_items.get(item_id)
             remote_value = remote_items.get(item_id)
-            local_changed = canonical(local_value) != canonical(base_value)
-            remote_changed = canonical(remote_value) != canonical(base_value)
-            if local_changed and remote_changed and canonical(local_value) != canonical(remote_value):
-                key = f"{name}:{item_id}"
-                choice = resolutions.get(key)
-                if choice not in ("local", "remote"):
-                    conflicts.append({
-                        "key": key,
-                        "collection": name,
-                        "id": item_id,
-                        "local": local_value,
-                        "remote": remote_value,
-                    })
-                    continue
-                value = local_value if choice == "local" else remote_value
-            else:
-                value = local_value if local_changed else remote_value
-            if value is not None:
+            value = PeerStore.merge_value(
+                base_value,
+                local_value,
+                remote_value,
+                name,
+                item_id,
+                local_role,
+                remote_role,
+                PeerStore.sync_metadata(local_value),
+                PeerStore.sync_metadata(remote_value),
+            )
+            if value is not MISSING:
                 merged.append(value)
         return merged
 
     @staticmethod
     def merge_settings(
-        base: dict, local: dict, remote: dict, resolutions: dict, conflicts: list[dict]
+        base: dict,
+        local: dict,
+        remote: dict,
+        local_role: object = None,
+        remote_role: object = None,
     ) -> dict:
         base_settings = base.get("settings", {})
         local_settings = local["settings"]
         remote_settings = remote["settings"]
         merged: dict = {}
-        for key in base_settings.keys() | local_settings.keys() | remote_settings.keys():
-            base_value = base_settings.get(key)
-            local_value = local_settings.get(key)
-            remote_value = remote_settings.get(key)
-            local_changed = canonical(local_value) != canonical(base_value)
-            remote_changed = canonical(remote_value) != canonical(base_value)
-            if local_changed and remote_changed and canonical(local_value) != canonical(remote_value):
-                conflict_key = f"settings:{key}"
-                choice = resolutions.get(conflict_key)
-                if choice not in ("local", "remote"):
-                    conflicts.append({
-                        "key": conflict_key,
-                        "collection": "settings",
-                        "id": key,
-                        "local": local_value,
-                        "remote": remote_value,
-                    })
-                    continue
-                value = local_value if choice == "local" else remote_value
+        for key in sorted(base_settings.keys() | local_settings.keys() | remote_settings.keys()):
+            value = PeerStore.merge_value(
+                base_settings.get(key, MISSING),
+                local_settings.get(key, MISSING),
+                remote_settings.get(key, MISSING),
+                "settings",
+                key,
+                local_role,
+                remote_role,
+            )
+            if value is not MISSING:
+                merged[key] = value
+        return merged
+
+    @staticmethod
+    def merge_value(
+        base: object,
+        local: object,
+        remote: object,
+        collection: str,
+        path: str,
+        local_role: object,
+        remote_role: object,
+        local_meta: dict | None = None,
+        remote_meta: dict | None = None,
+    ) -> object:
+        def equal(left: object, right: object) -> bool:
+            if left is MISSING or right is MISSING:
+                return left is right
+            return canonical(left) == canonical(right)
+
+        if equal(local, remote):
+            return remote
+        if equal(local, base):
+            return remote
+        if equal(remote, base):
+            return local
+
+        if isinstance(local, dict) and isinstance(remote, dict):
+            base_mapping = base if isinstance(base, dict) else {}
+            merged: dict = {}
+            keys = base_mapping.keys() | local.keys() | remote.keys()
+            for key in sorted(keys - {"_syncMeta"}):
+                value = PeerStore.merge_value(
+                    base_mapping.get(key, MISSING),
+                    local.get(key, MISSING),
+                    remote.get(key, MISSING),
+                    collection,
+                    f"{path}.{key}",
+                    local_role,
+                    remote_role,
+                    PeerStore.sync_metadata(local) or local_meta,
+                    PeerStore.sync_metadata(remote) or remote_meta,
+                )
+                if value is not MISSING:
+                    merged[key] = value
+            if "_syncMeta" in keys:
+                metadata = PeerStore.merge_sync_metadata(
+                    base_mapping.get("_syncMeta"),
+                    local.get("_syncMeta"),
+                    remote.get("_syncMeta"),
+                )
+                if metadata is not None:
+                    merged["_syncMeta"] = metadata
+            return merged
+
+        if (
+            isinstance(local, list)
+            and isinstance(remote, list)
+            and all(isinstance(item, dict) and isinstance(item.get("id"), str) for item in local + remote)
+        ):
+            base_items = {
+                item["id"]: item for item in base
+                if isinstance(item, dict) and isinstance(item.get("id"), str)
+            } if isinstance(base, list) else {}
+            local_items = {item["id"]: item for item in local}
+            remote_items = {item["id"]: item for item in remote}
+            merged_items = []
+            for item_id in sorted(base_items.keys() | local_items.keys() | remote_items.keys()):
+                value = PeerStore.merge_value(
+                    base_items.get(item_id, MISSING),
+                    local_items.get(item_id, MISSING),
+                    remote_items.get(item_id, MISSING),
+                    collection,
+                    f"{path}.{item_id}",
+                    local_role,
+                    remote_role,
+                    PeerStore.sync_metadata(local_items[item_id]) or local_meta
+                    if item_id in local_items else local_meta,
+                    PeerStore.sync_metadata(remote_items[item_id]) or remote_meta
+                    if item_id in remote_items else remote_meta,
+                )
+                if value is not MISSING:
+                    merged_items.append(value)
+            return merged_items
+
+        return local if PeerStore.local_has_precedence(
+            collection, path, local_meta, remote_meta, local_role, remote_role
+        ) else remote
+
+    @staticmethod
+    def sync_metadata(value: object) -> dict | None:
+        if not isinstance(value, dict):
+            return None
+        metadata = value.get("_syncMeta")
+        return metadata if isinstance(metadata, dict) else None
+
+    @staticmethod
+    def local_has_precedence(
+        collection: str,
+        path: str,
+        local_meta: dict | None,
+        remote_meta: dict | None,
+        local_role: object,
+        remote_role: object,
+    ) -> bool:
+        def metadata_role(metadata: dict | None, fallback: object) -> object:
+            if not isinstance(metadata, dict):
+                return fallback
+            if collection == "appointments":
+                queue = next(
+                    (name for name in ("assistencia", "cadastro") if f".{name}" in f".{path}"),
+                    None,
+                )
+                if queue:
+                    queues = metadata.get("queues")
+                    queue_meta = queues.get(queue) if isinstance(queues, dict) else None
+                    if isinstance(queue_meta, dict) and queue_meta.get("role") in VALID_USER_ROLES:
+                        return queue_meta["role"]
+            last_change = metadata.get("last")
+            if isinstance(last_change, dict) and last_change.get("role") in VALID_USER_ROLES:
+                return last_change["role"]
+            return fallback
+
+        local_actor = metadata_role(local_meta, local_role)
+        remote_actor = metadata_role(remote_meta, remote_role)
+
+        def priority(role: object) -> int:
+            if role == "admin":
+                return 100
+            if collection == "appointments":
+                if ".assistencia" in f".{path}" or ".cadastro" in f".{path}":
+                    queue = "assistencia" if ".assistencia" in f".{path}" else "cadastro"
+                    preferred_role = "assistant" if queue == "assistencia" else "caseworker"
+                    return 80 if role == preferred_role else 10
+                return 80 if role == "reception" else 10
+            if collection == "paaRecords":
+                return 80 if role == "reception" else 10
+            return 10
+
+        local_priority = priority(local_actor)
+        remote_priority = priority(remote_actor)
+        return local_priority > remote_priority
+
+    @staticmethod
+    def merge_sync_metadata(base: object, local: object, remote: object) -> object:
+        base_meta = base if isinstance(base, dict) else {}
+        local_meta = local if isinstance(local, dict) else {}
+        remote_meta = remote if isinstance(remote, dict) else {}
+
+        def merge_nodes(local_node: object, remote_node: object) -> object:
+            if isinstance(local_node, dict) and isinstance(remote_node, dict):
+                if "updatedAt" in local_node or "updatedAt" in remote_node:
+                    return (
+                        local_node
+                        if local_node.get("updatedAt", "") > remote_node.get("updatedAt", "")
+                        else remote_node
+                    )
+                return {
+                    key: merge_nodes(local_node.get(key), remote_node.get(key))
+                    if key in local_node and key in remote_node
+                    else local_node.get(key, remote_node.get(key))
+                    for key in local_node.keys() | remote_node.keys()
+                }
+            return remote_node if remote_node is not None else local_node
+
+        merged: dict = {}
+        keys = base_meta.keys() | local_meta.keys() | remote_meta.keys()
+        for key in keys:
+            base_value = base_meta.get(key)
+            local_value = local_meta.get(key)
+            remote_value = remote_meta.get(key)
+            if canonical(local_value) == canonical(remote_value):
+                value = remote_value
+            elif canonical(local_value) == canonical(base_value):
+                value = remote_value
+            elif canonical(remote_value) == canonical(base_value):
+                value = local_value
             else:
-                value = local_value if local_changed else remote_value
+                value = merge_nodes(local_value, remote_value)
             if value is not None:
                 merged[key] = value
         return merged
@@ -646,7 +864,9 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                     raise ValueError("Pacote local inválido.")
                 if path == "/api/local-snapshot":
                     revision = self.store.save_local_snapshot(
-                        payload.get("snapshot"), payload.get("expectedRevision")
+                        payload.get("snapshot"),
+                        payload.get("expectedRevision"),
+                        payload.get("actorRole"),
                     )
                 else:
                     revision = self.store.accept_synced_snapshot(
@@ -654,6 +874,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                         payload.get("snapshot"),
                         payload.get("peerBase"),
                         payload.get("expectedRevision"),
+                        payload.get("actorRole"),
                     )
                 self.send_json(200, {"revision": revision}, origin)
             except RevisionConflict as error:
@@ -684,6 +905,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 payload.get("requestId"),
                 payload.get("localSnapshot"),
                 payload.get("resolutions"),
+                payload.get("actorRole"),
             )
             self.send_json(200, encode_envelope(salt, self.store.pairing_key, result), origin)
         except Exception as error:

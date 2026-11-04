@@ -857,6 +857,7 @@
 
         .paa-row-actions {
             display: flex;
+            align-items: center;
             gap: 7px;
         }
 
@@ -944,6 +945,11 @@
             display: grid;
             grid-template-columns: minmax(0, 1fr);
             gap: 18px;
+        }
+
+        .queue-dashboards.single-queue {
+            grid-template-columns: minmax(0, 760px);
+            justify-content: center;
         }
 
         .queue-dashboard {
@@ -1302,6 +1308,8 @@
             padding: 14px;
             border-bottom: 1px solid #edf0ec;
             font-size: 13px;
+            user-select: text;
+            -webkit-user-select: text;
         }
 
         .history-table tbody tr:last-child td {
@@ -1314,33 +1322,39 @@
 
         .history-actions {
             display: flex;
-            gap: 6px;
+            align-items: center;
+            gap: 8px;
         }
 
-        .history-actions .button-secondary {
-            min-height: 34px;
-            padding: 0 9px;
-            font-size: 12px;
+        .history-actions .button-secondary,
+        .paa-row-actions .button-secondary {
+            min-height: 40px;
+            padding: 0 13px;
+            font-size: 13px;
+            font-weight: 700;
         }
 
-        .history-actions .button-delete {
-            min-height: 34px;
-            padding: 0 8px;
-            color: #77817b;
-            background: transparent;
-            border: 1px solid transparent;
-            border-radius: 5px;
-            font-size: 12px;
-            font-weight: 500;
-        }
-
-        .history-actions .button-delete:hover {
+        .history-actions .button-delete,
+        .paa-row-actions .button-delete {
+            min-height: 40px;
+            padding: 0 12px;
             color: var(--red);
             background: #fbf3f2;
-            border-color: #ead6d3;
+            border: 1px solid #ead6d3;
+            border-radius: 5px;
+            font-size: 13px;
+            font-weight: 700;
         }
 
-        .history-actions .button-delete:focus-visible {
+        .history-actions .button-delete:hover,
+        .paa-row-actions .button-delete:hover {
+            color: var(--red);
+            background: #f7e7e4;
+            border-color: #dfbbb5;
+        }
+
+        .history-actions .button-delete:focus-visible,
+        .paa-row-actions .button-delete:focus-visible {
             outline: 3px solid rgba(178, 58, 58, .2);
             outline-offset: 2px;
         }
@@ -3678,6 +3692,7 @@
             const STORAGE_PEER_SYNC_BASES = "cras-ouro-preto-peer-sync-bases-v1";
             const STORAGE_LOCAL_NODE_REVISION = "cras-ouro-preto-local-node-revision-v1";
             const STORAGE_LOCAL_NODE_BASE_SNAPSHOT = "cras-ouro-preto-local-node-base-snapshot-v1";
+            const STORAGE_LOCAL_ACTIVE_USER = "cras-ouro-preto-usuario-local-v1";
             const LEGACY_STORAGE_ETHNICITIES = "cras-ouro-preto-etnias-v1";
             const STORAGE_MIGRATION_MARKER = "legacy-local-storage-migrated-v1";
             const STORAGE_SETTINGS_KEYS = [
@@ -4010,6 +4025,7 @@
             assistants = users.filter(user => user.role === "assistant")
                 .map(({ name, color }) => ({ name, color }));
             let activeUser = null;
+            let rememberedUserId = "";
             let assistantAdminReturnToLogin = false;
             let adminPinHash = "";
             let routes = readStorage(STORAGE_ROUTES, null);
@@ -4050,6 +4066,9 @@
             }
             let syncInProgress = false;
             let syncStatusTimer = null;
+            let syncChangeTimer = null;
+            let syncRequestedAfterCurrent = false;
+            let queuedSyncRole = null;
             let syncBridgeReady = false;
             let syncBridgeTarget = null;
             const syncBridgeFrame = document.getElementById("sync-bridge");
@@ -4153,7 +4172,7 @@
 
             function renderLoginUsers() {
                 const loginSelect = document.getElementById("login-user");
-                const selectedId = loginSelect.value;
+                const selectedId = loginSelect.value || rememberedUserId;
                 loginSelect.innerHTML = users.map(user =>
                     `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} — ${escapeHtml(userRoleLabel(user.role))}</option>`
                 ).join("");
@@ -4178,16 +4197,44 @@
                     confirmWrap.hidden ? "PIN administrativo" : "Crie o PIN administrativo";
             }
 
-            function showUserLogin() {
+            function showUserLogin(preferredUserId = rememberedUserId) {
                 activeUser = null;
                 document.body.removeAttribute("data-user-role");
                 document.getElementById("user-login-status").textContent = "";
                 document.getElementById("login-admin-pin").value = "";
                 document.getElementById("login-admin-pin-confirm").value = "";
                 renderLoginUsers();
+                if (users.some(user => user.id === preferredUserId)) {
+                    document.getElementById("login-user").value = preferredUserId;
+                }
                 document.getElementById("user-login").hidden = false;
                 document.getElementById("login-user").focus();
+                updateLoginPinFields().then(() => {
+                    if (users.find(user => user.id === preferredUserId)?.role === "admin") {
+                        document.getElementById("login-admin-pin").focus();
+                    }
+                });
                 applyActiveUserLayout();
+            }
+
+            async function activateUser(selectedUser) {
+                await database.settings.put({
+                    key: STORAGE_LOCAL_ACTIVE_USER,
+                    value: selectedUser.id
+                });
+                rememberedUserId = selectedUser.id;
+                activeUser = {
+                    id: selectedUser.id,
+                    name: selectedUser.name,
+                    role: selectedUser.role,
+                    color: selectedUser.color
+                };
+                document.getElementById("user-login").hidden = true;
+                document.getElementById("login-admin-pin").value = "";
+                document.getElementById("login-admin-pin-confirm").value = "";
+                applyActiveUserLayout();
+                renderAll();
+                scheduleLocalSnapshotPersist(activeUser.role);
             }
 
             async function loginSelectedUser(event) {
@@ -4224,12 +4271,22 @@
                         });
                     }
                 }
-                activeUser = { id: selectedUser.id, name: selectedUser.name, role: selectedUser.role, color: selectedUser.color };
-                document.getElementById("user-login").hidden = true;
-                document.getElementById("login-admin-pin").value = "";
-                document.getElementById("login-admin-pin-confirm").value = "";
-                applyActiveUserLayout();
-                renderAll();
+                await activateUser(selectedUser);
+            }
+
+            async function restoreLocalUser() {
+                const savedUser = await database.settings.get(STORAGE_LOCAL_ACTIVE_USER);
+                rememberedUserId = typeof savedUser?.value === "string" ? savedUser.value : "";
+                const selectedUser = users.find(user => user.id === rememberedUserId);
+                if (!selectedUser) {
+                    showUserLogin();
+                    return;
+                }
+                if (selectedUser.role === "admin") {
+                    showUserLogin(selectedUser.id);
+                    return;
+                }
+                await activateUser(selectedUser);
             }
 
             function getSyncBridgeUrl(endpoint = preferences.syncEndpoint) {
@@ -4415,13 +4472,17 @@
                 }
             }
 
-            async function persistLocalSnapshotToServer(snapshot) {
+            async function persistLocalSnapshotToServer(snapshot, actorRole = activeUser?.role) {
                 let candidate = snapshot;
                 for (let attempt = 0; attempt < 4; attempt += 1) {
                     const response = await fetchPeer("/api/local-snapshot", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ snapshot: candidate, expectedRevision: localNodeRevision })
+                        body: JSON.stringify({
+                            snapshot: candidate,
+                            expectedRevision: localNodeRevision,
+                            actorRole
+                        })
                     });
                     const result = await response.json();
                     if (response.status === 409) {
@@ -4437,7 +4498,7 @@
                 throw new Error("O estado local P2P mudou repetidamente. Tente sincronizar novamente.");
             }
 
-            async function persistAcceptedPeerSnapshot(peerId, peerBase) {
+            async function persistAcceptedPeerSnapshot(peerId, peerBase, actorRole = activeUser?.role) {
                 for (let attempt = 0; attempt < 4; attempt += 1) {
                     const candidate = createSyncSnapshot();
                     const response = await fetchPeer("/api/accept-sync", {
@@ -4447,7 +4508,8 @@
                             peerId,
                             peerBase,
                             snapshot: candidate,
-                            expectedRevision: localNodeRevision
+                            expectedRevision: localNodeRevision,
+                            actorRole
                         })
                     });
                     const result = await response.json();
@@ -4495,22 +4557,46 @@
                 if (activePeerId && nextBases[activePeerId]) syncBaseSnapshot = nextBases[activePeerId];
             }
 
-            function scheduleLocalSnapshotPersist() {
+            function scheduleLocalSnapshotPersist(actorRole = activeUser?.role) {
                 if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) return;
                 window.clearTimeout(localSnapshotPersistTimer);
                 localSnapshotPersistTimer = window.setTimeout(async () => {
                     if (syncInProgress) {
-                        scheduleLocalSnapshotPersist();
+                        scheduleLocalSnapshotPersist(actorRole);
                         return;
                     }
                     try {
                         await refreshLocalNodeFromServer(true);
-                        await persistLocalSnapshotToServer(createSyncSnapshot());
+                        await persistLocalSnapshotToServer(createSyncSnapshot(), actorRole);
                     } catch (error) {
                         console.error("Não foi possível atualizar o estado P2P deste computador.", error);
                         showSyncStatus(`Os dados continuam salvos localmente, mas o estado P2P não foi atualizado: ${error.message}`, 0);
                     }
                 }, 400);
+            }
+
+            function schedulePeerSync(actorRole = activeUser?.role, warnIfUnconfigured = false) {
+                if (offlineMode) return;
+                if (window.CRASDesktop && !getSyncBridgeUrl()) {
+                    if (warnIfUnconfigured) {
+                        showSyncStatus(
+                            "Dados salvos neste computador, mas não enviados. Configure um computador parceiro em Configurações > Sincronização.",
+                            0
+                        );
+                    }
+                    return;
+                }
+                window.clearTimeout(syncChangeTimer);
+                queuedSyncRole = actorRole || queuedSyncRole || null;
+                syncChangeTimer = window.setTimeout(() => {
+                    if (syncInProgress) {
+                        syncRequestedAfterCurrent = true;
+                        return;
+                    }
+                    const role = queuedSyncRole;
+                    queuedSyncRole = null;
+                    void syncWithGoogle(false, role);
+                }, 650);
             }
 
             async function refreshLocalNodeFromServer(force = false, persistMerged = true) {
@@ -4530,13 +4616,14 @@
                     const state = await stateResponse.json();
                     const currentSnapshot = createSyncSnapshot();
                     const snapshotToApply = mergePeerSnapshots(
-                        localNodeBaseSnapshot, currentSnapshot, state.snapshot
+                        localNodeBaseSnapshot, currentSnapshot, state.snapshot,
+                        activeUser?.role, state.actorRole
                     );
                     await applySyncedSnapshot(snapshotToApply, state.snapshot, [], false);
                     await rememberPeerSettings(state.peerSettings);
                     await rememberLocalNodeState(state.snapshot, state.revision);
                     if (persistMerged && !syncValuesEqual(snapshotToApply, state.snapshot)) {
-                        await persistLocalSnapshotToServer(snapshotToApply);
+                        await persistLocalSnapshotToServer(snapshotToApply, activeUser?.role);
                     }
                 } catch (error) {
                     console.error("Não foi possível atualizar os dados recebidos de outro computador.", error);
@@ -4579,7 +4666,8 @@
                             requestId: crypto.randomUUID(),
                             peerId: desktopNodeInfo.nodeId,
                             localSnapshot: args[1],
-                            resolutions: args[2]
+                            resolutions: args[2],
+                            actorRole: args[3]
                         };
                         const cleartext = new TextEncoder().encode(JSON.stringify(payload));
                         const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
@@ -4702,6 +4790,10 @@
                 return JSON.stringify(canonicalSyncValue(left)) === JSON.stringify(canonicalSyncValue(right));
             }
 
+            function hasOwnValue(value, key, missing) {
+                return value && Object.hasOwn(value, key) ? value[key] : missing;
+            }
+
             function createSyncSnapshot() {
                 const cleanPaaRecords = paaRecords.map(record => {
                     const cleanRecord = { ...record, cpf: formatCpf(record.cpf), telefone: formatPhone(record.telefone) };
@@ -4782,123 +4874,206 @@
                 };
             }
 
-            function mergePeerSnapshots(baseSnapshot, localSnapshot, remoteSnapshot) {
-                const emptySnapshot = { appointments: [], paaRecords: [], settings: {} };
-                const base = baseSnapshot || emptySnapshot;
-                const buildMergedSnapshot = (resolutions, conflicts) => {
-                    const mergeCollection = collection => {
-                        const baseItems = new Map((base[collection] || []).map(item => [item.id, item]));
-                        const localItems = new Map(localSnapshot[collection].map(item => [item.id, item]));
-                        const remoteItems = new Map(remoteSnapshot[collection].map(item => [item.id, item]));
-                        const merged = [];
-                        const ids = new Set([...baseItems.keys(), ...localItems.keys(), ...remoteItems.keys()]);
-                        ids.forEach(id => {
-                            const baseValue = baseItems.has(id) ? baseItems.get(id) : null;
-                            const localValue = localItems.has(id) ? localItems.get(id) : null;
-                            const remoteValue = remoteItems.has(id) ? remoteItems.get(id) : null;
-                            const localChanged = !syncValuesEqual(localValue, baseValue);
-                            const remoteChanged = !syncValuesEqual(remoteValue, baseValue);
-                            let value;
-                            if (localChanged && remoteChanged && !syncValuesEqual(localValue, remoteValue)) {
-                                const key = `${collection}:${id}`;
-                                const choice = resolutions[key];
-                                if (choice !== "local" && choice !== "remote") {
-                                    conflicts.push({
-                                        key, collection, id, local: localValue, remote: remoteValue
-                                    });
-                                    return;
-                                }
-                                value = choice === "local" ? localValue : remoteValue;
-                            } else {
-                                value = localChanged ? localValue : remoteValue;
-                            }
-                            if (value !== null) merged.push(value);
-                        });
-                        return merged;
-                    };
-                    const baseSettings = base.settings || {};
-                    const localSettings = localSnapshot.settings;
-                    const remoteSettings = remoteSnapshot.settings;
-                    const settings = {};
-                    const keys = new Set([
-                        ...Object.keys(baseSettings),
-                        ...Object.keys(localSettings),
-                        ...Object.keys(remoteSettings)
-                    ]);
-                    keys.forEach(key => {
-                        const baseValue = Object.hasOwn(baseSettings, key) ? baseSettings[key] : null;
-                        const localValue = Object.hasOwn(localSettings, key) ? localSettings[key] : null;
-                        const remoteValue = Object.hasOwn(remoteSettings, key) ? remoteSettings[key] : null;
-                        const localChanged = !syncValuesEqual(localValue, baseValue);
-                        const remoteChanged = !syncValuesEqual(remoteValue, baseValue);
-                        let value;
-                        if (localChanged && remoteChanged && !syncValuesEqual(localValue, remoteValue)) {
-                            const conflictKey = `settings:${key}`;
-                            const choice = resolutions[conflictKey];
-                            if (choice !== "local" && choice !== "remote") {
-                                conflicts.push({
-                                    key: conflictKey,
-                                    collection: "settings",
-                                    id: key,
-                                    local: localValue,
-                                    remote: remoteValue
-                                });
-                                return;
-                            }
-                            value = choice === "local" ? localValue : remoteValue;
-                        } else {
-                            value = localChanged ? localValue : remoteValue;
-                        }
-                        if (value !== null) settings[key] = value;
-                    });
-                    return {
-                        appointments: mergeCollection("appointments"),
-                        paaRecords: mergeCollection("paaRecords"),
-                        settings
-                    };
-                };
-                const conflicts = [];
-                const merged = buildMergedSnapshot({}, conflicts);
-                if (!conflicts.length) return merged;
-                const resolutions = {};
-                conflicts.forEach(conflict => {
-                    resolutions[conflict.key] = window.confirm(describeSyncConflict(conflict)) ? "local" : "remote";
-                });
-                return buildMergedSnapshot(resolutions, []);
+            function syncMetadataRole(metadata, fallback, collection, path) {
+                if (!metadata || typeof metadata !== "object") return fallback;
+                if (collection === "appointments") {
+                    const queue = path.split("/").find(part =>
+                        part === "assistencia" || part === "cadastro");
+                    const queueMetadata = queue && metadata.queues?.[queue];
+                    if (queueMetadata?.role) return queueMetadata.role;
+                    if (metadata.general?.role) return metadata.general.role;
+                }
+                return metadata.last?.role || metadata.general?.role || fallback;
             }
 
-            function describeSyncConflict(conflict) {
-                const names = {
-                    appointments: "atendimento",
-                    paaRecords: "registro do PAA",
-                    settings: "configuração"
-                };
-                const describeValue = value => {
-                    if (value === null) return "excluído";
-                    if (conflict.collection === "settings") {
-                        const labels = {
-                            [STORAGE_ROUTES]: "encaminhamentos",
-                            [STORAGE_PREFERENCES]: "preferências",
-                            [STORAGE_ASSISTANTS]: "assistentes",
-                            [STORAGE_USERS]: "usuários",
-                            [STORAGE_NATIONALITIES]: "nacionalidades",
-                            [STORAGE_ROUTE_QUEUE_TAGS]: "filas de encaminhamento"
-                        };
-                        const label = labels[conflict.id] || conflict.id;
-                        return `${label}: ${JSON.stringify(value).slice(0, 180)}`;
+            function syncRolePriority(role, collection, path) {
+                if (role === "admin") return 100;
+                if (collection === "appointments") {
+                    const parts = path.split("/");
+                    if (parts.includes("assistencia")) return role === "assistant" ? 80 : 10;
+                    if (parts.includes("cadastro")) return role === "caseworker" ? 80 : 10;
+                    if (parts.includes("routeServices")) {
+                        return role === "assistant" || role === "caseworker" ? 70 : 10;
                     }
-                    const details = [
-                        value.nome || value.name || `registro ${conflict.id}`,
-                        value.cpf ? `CPF ${formatCpf(value.cpf)}` : "",
-                        value.month ? paaMonthLabel(value.month) : "",
-                        value.createdAt ? formatDateTime(value.createdAt) : "",
-                        value.encaminhamento || ""
-                    ].filter(Boolean);
-                    return details.join(" · ");
+                    return role === "reception" ? 80 : 10;
+                }
+                if (collection === "paaRecords") return role === "reception" ? 80 : 10;
+                return 10;
+            }
+
+            function mergeSyncMetadata(base, local, remote) {
+                const merge = (baseValue, localValue, remoteValue) => {
+                    if (syncValuesEqual(localValue, remoteValue)) return remoteValue;
+                    if (syncValuesEqual(localValue, baseValue)) return remoteValue;
+                    if (syncValuesEqual(remoteValue, baseValue)) return localValue;
+                    if (localValue && remoteValue && typeof localValue === "object"
+                        && typeof remoteValue === "object" && !Array.isArray(localValue)
+                        && !Array.isArray(remoteValue)) {
+                        if ("updatedAt" in localValue || "updatedAt" in remoteValue) {
+                            return (localValue.updatedAt || "") > (remoteValue.updatedAt || "")
+                                ? localValue : remoteValue;
+                        }
+                        const baseObject = baseValue && typeof baseValue === "object" ? baseValue : {};
+                        const merged = {};
+                        new Set([
+                            ...Object.keys(baseObject),
+                            ...Object.keys(localValue),
+                            ...Object.keys(remoteValue)
+                        ]).forEach(key => {
+                            const value = merge(baseObject[key], localValue[key], remoteValue[key]);
+                            if (value !== undefined) merged[key] = value;
+                        });
+                        return merged;
+                    }
+                    return remoteValue;
                 };
-                return `${names[conflict.collection] || "dado"}\n`
-                    + `Local: ${describeValue(conflict.local)}\nOutro computador: ${describeValue(conflict.remote)}\n\n`
-                    + "OK mantém a versão local; Cancelar usa a versão do outro computador.";
+                return merge(base, local, remote);
+            }
+
+            function mergeSyncValue(
+                base, local, remote, collection, path, localRole, remoteRole, localMeta, remoteMeta, missing
+            ) {
+                const equal = (left, right) => left === missing || right === missing
+                    ? left === right : syncValuesEqual(left, right);
+                if (equal(local, remote)) return remote;
+                if (equal(local, base)) return remote;
+                if (equal(remote, base)) return local;
+
+                if (local && remote && typeof local === "object" && typeof remote === "object"
+                    && !Array.isArray(local) && !Array.isArray(remote)) {
+                    const nextLocalMeta = local._syncMeta || localMeta;
+                    const nextRemoteMeta = remote._syncMeta || remoteMeta;
+                    const baseObject = base && typeof base === "object" && !Array.isArray(base) ? base : {};
+                    const merged = {};
+                    new Set([
+                        ...Object.keys(baseObject),
+                        ...Object.keys(local),
+                        ...Object.keys(remote)
+                    ]).forEach(key => {
+                        if (key === "_syncMeta") return;
+                        const value = mergeSyncValue(
+                            hasOwnValue(baseObject, key, missing),
+                            hasOwnValue(local, key, missing),
+                            hasOwnValue(remote, key, missing),
+                            collection,
+                            `${path}/${key}`,
+                            localRole,
+                            remoteRole,
+                            nextLocalMeta,
+                            nextRemoteMeta,
+                            missing
+                        );
+                        if (value !== missing) merged[key] = value;
+                    });
+                    if (local._syncMeta || remote._syncMeta) {
+                        merged._syncMeta = mergeSyncMetadata(
+                            baseObject._syncMeta, local._syncMeta, remote._syncMeta
+                        );
+                    }
+                    return merged;
+                }
+
+                if (Array.isArray(local) && Array.isArray(remote)
+                    && local.every(item => item && typeof item === "object" && !Array.isArray(item)
+                        && typeof item.id === "string")
+                    && remote.every(item => item && typeof item === "object" && !Array.isArray(item)
+                        && typeof item.id === "string")) {
+                    const baseItems = new Map((Array.isArray(base) ? base : [])
+                        .filter(item => item && typeof item.id === "string").map(item => [item.id, item]));
+                    const localItems = new Map(local.map(item => [item.id, item]));
+                    const remoteItems = new Map(remote.map(item => [item.id, item]));
+                    const merged = [];
+                    new Set([...baseItems.keys(), ...localItems.keys(), ...remoteItems.keys()])
+                        .forEach(id => {
+                            const value = mergeSyncValue(
+                                baseItems.get(id) ?? missing,
+                                localItems.get(id) ?? missing,
+                                remoteItems.get(id) ?? missing,
+                                collection,
+                                `${path}/${id}`,
+                                localRole,
+                                remoteRole,
+                                localItems.get(id)?._syncMeta || localMeta,
+                                remoteItems.get(id)?._syncMeta || remoteMeta,
+                                missing
+                            );
+                            if (value !== missing) merged.push(value);
+                        });
+                    return merged;
+                }
+
+                const localActor = syncMetadataRole(localMeta, localRole, collection, path);
+                const remoteActor = syncMetadataRole(remoteMeta, remoteRole, collection, path);
+                return syncRolePriority(localActor, collection, path)
+                    > syncRolePriority(remoteActor, collection, path) ? local : remote;
+            }
+
+            function chooseSyncConflict(conflict, localRole, remoteRole) {
+                const path = `${conflict.collection}/${conflict.id || ""}/${conflict.key || ""}`;
+                const localActor = syncMetadataRole(
+                    conflict.local?._syncMeta, localRole, conflict.collection, path
+                );
+                const remoteActor = syncMetadataRole(
+                    conflict.remote?._syncMeta, remoteRole, conflict.collection, path
+                );
+                return syncRolePriority(localActor, conflict.collection, path)
+                    > syncRolePriority(remoteActor, conflict.collection, path) ? "local" : "remote";
+            }
+
+            function mergePeerSnapshots(baseSnapshot, localSnapshot, remoteSnapshot, localRole, remoteRole) {
+                const missing = Symbol("missing");
+                const base = baseSnapshot || { appointments: [], paaRecords: [], settings: {} };
+                const mergeCollection = collection => {
+                    const baseItems = new Map((base[collection] || []).map(item => [item.id, item]));
+                    const localItems = new Map((localSnapshot[collection] || []).map(item => [item.id, item]));
+                    const remoteItems = new Map((remoteSnapshot[collection] || []).map(item => [item.id, item]));
+                    const merged = [];
+                    new Set([...baseItems.keys(), ...localItems.keys(), ...remoteItems.keys()])
+                        .forEach(id => {
+                            const value = mergeSyncValue(
+                                baseItems.get(id) ?? missing,
+                                localItems.get(id) ?? missing,
+                                remoteItems.get(id) ?? missing,
+                                collection,
+                                `${collection}/${id}`,
+                                localRole,
+                                remoteRole,
+                                localItems.get(id)?._syncMeta,
+                                remoteItems.get(id)?._syncMeta,
+                                missing
+                            );
+                            if (value !== missing) merged.push(value);
+                        });
+                    return merged;
+                };
+                const baseSettings = base.settings || {};
+                const localSettings = localSnapshot.settings || {};
+                const remoteSettings = remoteSnapshot.settings || {};
+                const settings = {};
+                new Set([
+                    ...Object.keys(baseSettings),
+                    ...Object.keys(localSettings),
+                    ...Object.keys(remoteSettings)
+                ]).forEach(key => {
+                    const value = mergeSyncValue(
+                        Object.hasOwn(baseSettings, key) ? baseSettings[key] : missing,
+                        Object.hasOwn(localSettings, key) ? localSettings[key] : missing,
+                        Object.hasOwn(remoteSettings, key) ? remoteSettings[key] : missing,
+                        "settings",
+                        `settings/${key}`,
+                        localRole,
+                        remoteRole,
+                        null,
+                        null,
+                        missing
+                    );
+                    if (value !== missing) settings[key] = value;
+                });
+                return {
+                    appointments: mergeCollection("appointments"),
+                    paaRecords: mergeCollection("paaRecords"),
+                    settings
+                };
             }
 
             function showSyncStatus(message, duration = 6000) {
@@ -5031,12 +5206,18 @@
                 renderAll();
             }
 
-            async function syncWithGoogle(manual = false) {
+            async function syncWithGoogle(manual = false, actorRole = activeUser?.role) {
                 if (offlineMode) {
                     if (manual) showSyncStatus("Modo offline ativo. Os dados continuam salvos neste dispositivo.", 0);
                     return;
                 }
-                if (syncInProgress) return;
+                if (syncInProgress) {
+                    if (!manual) {
+                        syncRequestedAfterCurrent = true;
+                        queuedSyncRole = actorRole || queuedSyncRole;
+                    }
+                    return;
+                }
                 if (!navigator.onLine) {
                     if (manual) showSyncStatus("Sem conexão com a rede. Os dados continuam salvos neste dispositivo.");
                     return;
@@ -5057,7 +5238,7 @@
                 try {
                     if (window.CRASDesktop) {
                         await refreshLocalNodeFromServer(true);
-                        await persistLocalSnapshotToServer(createSyncSnapshot());
+                        await persistLocalSnapshotToServer(createSyncSnapshot(), actorRole);
                         const peerInfo = await fetchPeerInfo();
                         activePeerId = peerInfo.nodeId;
                         syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
@@ -5067,7 +5248,9 @@
                     const resolutions = {};
                     let result;
                     for (let attempt = 0; attempt < 6; attempt += 1) {
-                        result = await callSyncBackend("syncCrASSnapshot", baseSnapshot, localSnapshot, resolutions);
+                        result = await callSyncBackend(
+                            "syncCrASSnapshot", baseSnapshot, localSnapshot, resolutions, actorRole
+                        );
                         if (!result || typeof result !== "object") {
                             throw new Error("O outro computador retornou uma resposta de sincronização inválida.");
                         }
@@ -5076,7 +5259,9 @@
                             throw new Error("O outro computador informou conflito sem detalhes suficientes.");
                         }
                         result.conflicts.forEach(conflict => {
-                            resolutions[conflict.key] = window.confirm(describeSyncConflict(conflict)) ? "local" : "remote";
+                            resolutions[conflict.key] = chooseSyncConflict(
+                                conflict, actorRole, result.actorRole
+                            );
                         });
                     }
                     if (!result || result.status !== "ok" || !result.snapshot) {
@@ -5086,13 +5271,15 @@
                     const snapshotToApply = preserveChangesMadeDuringSync(localSnapshot, result.snapshot, currentSnapshot);
                     await applySyncedSnapshot(snapshotToApply, result.snapshot, result.unlinkedPaaIds || []);
                     if (window.CRASDesktop) {
-                        await persistAcceptedPeerSnapshot(activePeerId, result.snapshot);
+                        await persistAcceptedPeerSnapshot(activePeerId, result.snapshot, actorRole);
                     }
-                    const timestamp = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(new Date(result.syncedAt || Date.now()));
-                    const unlinkedCount = Array.isArray(result.unlinkedPaaIds) ? result.unlinkedPaaIds.length : 0;
-                    showSyncStatus(`Sincronização concluída às ${timestamp}.${unlinkedCount
-                        ? ` ${unlinkedCount} registro(s) do PAA coincidem com linhas antigas e não vinculadas, que foram preservadas sem alteração.`
-                        : ""}`);
+                    if (manual) {
+                        const timestamp = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(new Date(result.syncedAt || Date.now()));
+                        const unlinkedCount = Array.isArray(result.unlinkedPaaIds) ? result.unlinkedPaaIds.length : 0;
+                        showSyncStatus(`Sincronização concluída às ${timestamp}.${unlinkedCount
+                            ? ` ${unlinkedCount} registro(s) do PAA coincidem com linhas antigas e não vinculadas, que foram preservadas sem alteração.`
+                            : ""}`);
+                    }
                 } catch (error) {
                     console.error("Falha ao sincronizar os dados do CRAS.", error);
                     showSyncStatus(`Não foi possível sincronizar: ${error.message}`, manual ? 0 : 10000);
@@ -5100,6 +5287,14 @@
                     syncInProgress = false;
                     button.disabled = false;
                     button.removeAttribute("aria-busy");
+                    if (syncRequestedAfterCurrent) {
+                        syncRequestedAfterCurrent = false;
+                        window.setTimeout(() => {
+                            const role = queuedSyncRole;
+                            queuedSyncRole = null;
+                            void syncWithGoogle(false, role);
+                        }, 0);
+                    }
                 }
             }
 
@@ -5154,8 +5349,66 @@
                 };
             }
 
+            function stampSyncAuthority(key, records, actorRole = activeUser?.role) {
+                if (!Array.isArray(records) || !actorRole) return records;
+                const previousRecords = storageCache.get(key) || [];
+                const previousById = new Map(previousRecords.map(record => [record.id, record]));
+                const queueOnlyFields = new Set([
+                    "routeServices", "encaminhamentos", "encaminhamento", "tags"
+                ]);
+                records.forEach((record, index) => {
+                    if (!record || typeof record !== "object" || typeof record.id !== "string") return;
+                    const previous = previousById.get(record.id);
+                    const previousContent = previous ? { ...previous } : null;
+                    if (previousContent) delete previousContent._syncMeta;
+                    const nextContent = { ...record };
+                    delete nextContent._syncMeta;
+                    if (previous && syncValuesEqual(previousContent, nextContent)) return;
+
+                    const updatedAt = new Date().toISOString();
+                    const metadata = record._syncMeta && typeof record._syncMeta === "object"
+                        ? structuredClone(record._syncMeta) : {};
+                    metadata.last = { role: actorRole, updatedAt };
+                    if (key === STORAGE_PAA_RECORDS) {
+                        metadata.general = { role: actorRole, updatedAt };
+                    } else {
+                        const previousFields = previous ? Object.keys(previousContent) : [];
+                        const nextFields = Object.keys(nextContent);
+                        const changedFields = new Set([...previousFields, ...nextFields].filter(field =>
+                            !queueOnlyFields.has(field)
+                            && !syncValuesEqual(previousContent?.[field], nextContent[field])));
+                        if (!previous || changedFields.size || actorRole === "admin") {
+                            metadata.general = { role: actorRole, updatedAt };
+                        }
+                        if (actorRole === "admin") {
+                            metadata.queues = {
+                                ...(metadata.queues || {}),
+                                assistencia: { role: actorRole, updatedAt },
+                                cadastro: { role: actorRole, updatedAt }
+                            };
+                        } else if (actorRole === "assistant" || actorRole === "caseworker") {
+                            const previousServices = previousContent?.routeServices || [];
+                            const nextServices = nextContent.routeServices || [];
+                            if (!syncValuesEqual(previousServices, nextServices)) {
+                                const queue = actorRole === "assistant" ? "assistencia" : "cadastro";
+                                metadata.queues = {
+                                    ...(metadata.queues || {}),
+                                    [queue]: { role: actorRole, updatedAt }
+                                };
+                            }
+                        }
+                    }
+                    records[index] = { ...record, _syncMeta: metadata };
+                });
+                return records;
+            }
+
             async function saveStorage(key, value) {
                 try {
+                    const actorRole = activeUser?.role;
+                    if (key === STORAGE_RECORDS || key === STORAGE_PAA_RECORDS) {
+                        stampSyncAuthority(key, value, actorRole);
+                    }
                     if (key === STORAGE_RECORDS) {
                         const { recordsToWrite, idsToDelete } = getAppointmentWriteChanges(value);
                         await database.transaction("rw", database.appointments, async () => {
@@ -5166,7 +5419,11 @@
                         await database.settings.put({ key, value });
                     }
                     storageCache.set(key, value);
-                    scheduleLocalSnapshotPersist();
+                    scheduleLocalSnapshotPersist(actorRole);
+                    schedulePeerSync(
+                        actorRole,
+                        key === STORAGE_RECORDS || key === STORAGE_PAA_RECORDS
+                    );
                     return true;
                 } catch (error) {
                     console.error("Falha ao salvar dados no IndexedDB.", error);
@@ -5189,6 +5446,9 @@
 
             async function saveImportedStorage(records, importedRoutes, importedAssistants, importedUsers, importedNationalities, importedRouteQueueTags, importedPaaRecords) {
                 try {
+                    const actorRole = activeUser?.role;
+                    stampSyncAuthority(STORAGE_RECORDS, records, actorRole);
+                    stampSyncAuthority(STORAGE_PAA_RECORDS, importedPaaRecords, actorRole);
                     const { recordsToWrite, idsToDelete } = getAppointmentWriteChanges(records);
                     await database.transaction("rw", database.appointments, database.settings, async () => {
                         if (idsToDelete.length) await database.appointments.bulkDelete(idsToDelete);
@@ -5210,7 +5470,8 @@
                     storageCache.set(STORAGE_USERS, importedUsers);
                     storageCache.set(STORAGE_NATIONALITIES, importedNationalities);
                     storageCache.set(STORAGE_PAA_RECORDS, importedPaaRecords);
-                    scheduleLocalSnapshotPersist();
+                    scheduleLocalSnapshotPersist(actorRole);
+                    schedulePeerSync(actorRole, true);
                     return true;
                 } catch (error) {
                     console.error("Falha ao importar dados para o IndexedDB.", error);
@@ -5348,10 +5609,11 @@
                     users = nextUsers;
                     storageCache.set(STORAGE_USERS, users);
                     storageCache.set(STORAGE_ASSISTANTS, nextAssistants);
-                    scheduleLocalSnapshotPersist();
                     assistants = nextAssistants;
                     const refreshedActiveUser = users.find(user => user.id === activeUser?.id);
                     if (refreshedActiveUser) activeUser = userSnapshot(refreshedActiveUser);
+                    scheduleLocalSnapshotPersist(activeUser?.role);
+                    schedulePeerSync(activeUser?.role);
                     applyActiveUserLayout();
                     renderAssistants();
                     renderLoginUsers();
@@ -6085,13 +6347,14 @@
                 const services = todaysAppointments.flatMap(record =>
                     getRecordServices(record).map(service => ({ record, service })));
                 document.getElementById("total-count").textContent = String(services.length);
-                const counts = Object.fromEntries(users.map(user => [user.id, 0]));
+                const dashboardUsers = users.filter(user => user.role !== "reception" && user.role !== "caseworker");
+                const counts = Object.fromEntries(dashboardUsers.map(user => [user.id, 0]));
                 services.forEach(({ record, service }) => {
                     getCreditedMembers(service, record).forEach(member => {
                         if (Object.hasOwn(counts, member.id)) counts[member.id] += 1;
                     });
                 });
-                document.getElementById("assistant-stats").innerHTML = users.map(user =>
+                document.getElementById("assistant-stats").innerHTML = dashboardUsers.map(user =>
                     `<div class="assistant-stat" style="--assistant-color:${escapeHtml(user.color)}"><span>${escapeHtml(user.name)}</span><strong>${counts[user.id] || 0}</strong></div>`
                 ).join("");
             }
@@ -6232,6 +6495,7 @@
                 const assistanceList = document.getElementById("assistance-queue-list");
                 cadastroList.closest(".queue-dashboard").hidden = !canSeeCadastro;
                 assistanceList.closest(".queue-dashboard").hidden = !canSeeAssistance;
+                queueDashboards.classList.toggle("single-queue", canSeeCadastro !== canSeeAssistance);
                 document.getElementById("cadastro-queue-count").textContent = String(cadastroEntries.length);
                 document.getElementById("assistance-queue-count").textContent = String(assistanceEntries.length);
                 cadastroList.innerHTML = cadastroEntries.length
@@ -7782,13 +8046,26 @@
                         "Não foi possível validar o acesso. Verifique o ambiente local e tente novamente.";
                 });
             });
-            document.getElementById("login-user").addEventListener("change", () => {
+            document.getElementById("login-user").addEventListener("change", async event => {
+                try {
+                    await database.settings.put({
+                        key: STORAGE_LOCAL_ACTIVE_USER,
+                        value: event.target.value
+                    });
+                    rememberedUserId = event.target.value;
+                } catch (error) {
+                    console.error("Não foi possível salvar o usuário escolhido neste dispositivo.", error);
+                    document.getElementById("user-login-status").textContent =
+                        "Não foi possível salvar localmente o usuário escolhido.";
+                }
                 updateLoginPinFields().catch(error => {
                     console.error("Não foi possível verificar a configuração do PIN administrativo.", error);
                     document.getElementById("user-login-status").textContent =
                         "Não foi possível verificar a configuração do PIN administrativo.";
                 });
-                document.getElementById("user-login-status").textContent = "";
+                if (!document.getElementById("user-login-status").textContent.startsWith("Não foi possível")) {
+                    document.getElementById("user-login-status").textContent = "";
+                }
             });
             document.getElementById("login-manage-users").addEventListener("click", openAssistantAdmin);
             document.getElementById("switch-user").addEventListener("click", showUserLogin);
@@ -8005,7 +8282,7 @@
             appointmentDateInput.value = currentLocalDateTime();
             applyPreferences();
             await setupAccessGate();
-            showUserLogin();
+            await restoreLocalUser();
             await refreshCurrentDay();
             await ensureQueueTimestamps();
             scheduleDayRefresh();
