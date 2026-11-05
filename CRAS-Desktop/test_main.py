@@ -1,14 +1,20 @@
+import hashlib
+import json
 import tempfile
 import unittest
+from unittest.mock import Mock, patch
 from pathlib import Path
 
+import truststore
 from cryptography.exceptions import InvalidTag
 
 from main import (
     PeerStore,
     RevisionConflict,
     decode_envelope,
+    download_update,
     encode_envelope,
+    latest_release,
     verify_update_checksum,
     version_tuple,
 )
@@ -25,12 +31,72 @@ class VersionTests(unittest.TestCase):
 
     def test_verifies_update_checksum(self):
         executable = b"release binary"
-        import hashlib
-
         checksum = hashlib.sha256(executable).hexdigest()
         verify_update_checksum(executable, f"{checksum}  CRAS-Desktop.exe")
         with self.assertRaisesRegex(ValueError, "checksum"):
             verify_update_checksum(executable, "0" * 64)
+
+    def test_update_downloads_use_system_certificate_store(self):
+        executable = b"release binary"
+        checksum = f"{hashlib.sha256(executable).hexdigest()}  CRAS-Desktop.exe"
+
+        def response_for(content):
+            response = Mock()
+            response.__enter__ = Mock(return_value=response)
+            response.__exit__ = Mock(return_value=False)
+            response.read.return_value = content
+            return response
+
+        release = {
+            "executable_url": "https://github.com/crasOP-dev/cras-desktop-updates/releases/download/v1.1.2/CRAS-Desktop.exe",
+            "checksum_url": "https://github.com/crasOP-dev/cras-desktop-updates/releases/download/v1.1.2/CRAS-Desktop.exe.sha256",
+        }
+        with tempfile.TemporaryDirectory() as temporary_directory, patch(
+            "main.urlopen",
+            side_effect=[
+                response_for(executable),
+                response_for(checksum.encode("ascii")),
+            ],
+        ) as mocked_urlopen:
+            path = download_update(release, Path(temporary_directory))
+            self.assertEqual(path.read_bytes(), executable)
+            self.assertEqual(mocked_urlopen.call_count, 2)
+            for call in mocked_urlopen.call_args_list:
+                self.assertIsInstance(call.kwargs["context"], truststore.SSLContext)
+
+    def test_latest_release_uses_system_certificate_store(self):
+        release_payload = {
+            "tag_name": "v1.1.2",
+            "assets": [
+                {
+                    "name": "CRAS-Desktop.exe",
+                    "browser_download_url": (
+                        "https://github.com/crasOP-dev/cras-desktop-updates/"
+                        "releases/download/v1.1.2/CRAS-Desktop.exe"
+                    ),
+                },
+                {
+                    "name": "CRAS-Desktop.exe.sha256",
+                    "browser_download_url": (
+                        "https://github.com/crasOP-dev/cras-desktop-updates/"
+                        "releases/download/v1.1.2/CRAS-Desktop.exe.sha256"
+                    ),
+                },
+            ],
+        }
+        response = Mock()
+        response.__enter__ = Mock(return_value=response)
+        response.__exit__ = Mock(return_value=False)
+        response.read.return_value = json.dumps(release_payload).encode("utf-8")
+
+        with patch("main.urlopen", return_value=response) as mocked_urlopen, patch(
+            "main.app_version", return_value="1.1.1"
+        ):
+            release = latest_release()
+
+        self.assertEqual(release["version"], "v1.1.2")
+        context = mocked_urlopen.call_args.kwargs["context"]
+        self.assertIsInstance(context, truststore.SSLContext)
 
 
 class PeerStoreTests(unittest.TestCase):

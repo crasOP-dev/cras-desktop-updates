@@ -10,6 +10,7 @@ import re
 import secrets
 import socket
 import sqlite3
+import ssl
 import subprocess
 import sys
 import threading
@@ -21,6 +22,7 @@ from urllib.parse import parse_qs, urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import truststore
 import webview
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -40,6 +42,10 @@ PBKDF2_ITERATIONS = 200_000
 EMPTY_SNAPSHOT = {"appointments": [], "paaRecords": [], "settings": {}}
 VALID_USER_ROLES = {"assistant", "caseworker", "reception", "admin"}
 MISSING = object()
+
+
+def update_ssl_context() -> ssl.SSLContext:
+    return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 
 class RevisionConflict(Exception):
@@ -77,7 +83,7 @@ def latest_release() -> dict | None:
         GITHUB_RELEASES_API,
         headers={"Accept": "application/vnd.github+json", "User-Agent": APP_NAME},
     )
-    with urlopen(request, timeout=8) as response:
+    with urlopen(request, timeout=20, context=update_ssl_context()) as response:
         release = json.loads(response.read().decode("utf-8"))
     if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
         return None
@@ -122,7 +128,7 @@ def latest_release() -> dict | None:
 def download_update(release: dict, directory: Path) -> Path:
     def download(url: str) -> bytes:
         request = Request(url, headers={"User-Agent": APP_NAME})
-        with urlopen(request, timeout=30) as response:
+        with urlopen(request, timeout=30, context=update_ssl_context()) as response:
             content = response.read(MAX_UPDATE_BYTES + 1)
         if len(content) > MAX_UPDATE_BYTES:
             raise ValueError("O arquivo de atualização excede o limite permitido.")

@@ -32,3 +32,9 @@ dispositivo e informa que eles ainda não foram enviados.
 No histórico, monte uma tabela personalizada informando o período, o técnico
 e as colunas desejadas. A tabela pode ser recolhida pelo próprio título do
 painel e exportada em `.ods`, formato compatível com LibreOffice Calc e Excel.
+
+## Atualizações
+
+O atualizador verifica o GitHub ao abrir o executável e valida os downloads
+com SHA-256. A conexão HTTPS usa o repositório de certificados confiáveis do
+Windows para respeitar certificados corporativos instalados no sistema.
