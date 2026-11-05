@@ -2248,6 +2248,21 @@
             font-weight: 650;
         }
 
+        .assistant-admin-row [data-admin-technical] {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .assistant-admin-row [data-admin-technical][hidden] {
+            display: none;
+        }
+
+        .assistant-admin-row [data-user-technical] {
+            margin: 0;
+        }
+
         .assistant-admin-row input[type="text"] {
             width: 100%;
             min-width: 0;
@@ -3264,13 +3279,13 @@
                                 </div>
                             </details>
                             <fieldset class="field field-assistant" style="border:0;padding:0;margin:0;">
-                                <legend class="field-label" id="assistant-legend">Assistente <span
+                                <legend class="field-label" id="assistant-legend">Técnico responsável <span
                                         id="assistant-required" class="required" hidden>*</span></legend>
                                 <div id="assistant-choices" role="radiogroup" aria-labelledby="assistant-legend"
                                     aria-required="false">
                                     <div id="assistant-choice-list" class="choice-row"></div>
                                 </div>
-                                <p class="hint">Obrigatória somente para o encaminhamento “Assistência”.</p>
+                                <p class="hint">Obrigatório somente para encaminhamentos de “Atendimento Técnico”.</p>
                             </fieldset>
                             <div class="field" id="caseworker-assignment-wrap" hidden>
                                 <label class="field-label" for="caseworker-assignment">Cadastradora responsável</label>
@@ -3348,7 +3363,7 @@
                             <div class="queue-dashboard-head">
                                 <div>
                                     <p class="eyebrow">Fila de atendimento</p>
-                                    <h2 id="assistance-queue-title">Assistências</h2>
+                                    <h2 id="assistance-queue-title">Atendimento Técnico</h2>
                                 </div>
                                 <span class="queue-dashboard-total" id="assistance-queue-count">0</span>
                             </div>
@@ -3431,7 +3446,7 @@
                             class="select-input" id="filter-nationality">
                             <option value="">Todas</option>
                         </select></div>
-                    <div><label class="filter-label" for="filter-assistant">Assistente</label><select
+                    <div><label class="filter-label" for="filter-assistant">Técnico</label><select
                             class="select-input" id="filter-assistant">
                             <option value="">Todas</option>
                         </select></div>
@@ -3444,14 +3459,14 @@
                 </div>
                 <details class="panel report-menu" id="report-menu">
                     <summary>Montar tabela personalizada por período</summary>
-                    <p class="report-menu-intro">Escolha as datas, a assistente (opcional) e as colunas que deseja
+                    <p class="report-menu-intro">Escolha as datas, o técnico (opcional) e as colunas que deseja
                         exibir. Todas as colunas começam selecionadas.</p>
                     <div class="report-controls">
                         <div><label class="filter-label" for="report-date-from">De</label><input class="text-input"
                                 id="report-date-from" type="date" required></div>
                         <div><label class="filter-label" for="report-date-to">Até</label><input class="text-input"
                                 id="report-date-to" type="date" required></div>
-                        <div><label class="filter-label" for="report-assistant">Assistente</label><select
+                        <div><label class="filter-label" for="report-assistant">Técnico</label><select
                                 class="select-input" id="report-assistant">
                                 <option value="">Todas</option>
                             </select></div>
@@ -3473,7 +3488,7 @@
                                 <label class="report-column-option"><input type="checkbox" name="report-column"
                                         value="nacionalidade" checked> Nacionalidade</label>
                                 <label class="report-column-option"><input type="checkbox" name="report-column"
-                                        value="assistente" checked> Assistente</label>
+                                        value="assistente" checked> Técnico(s)</label>
                                 <label class="report-column-option"><input type="checkbox" name="report-column"
                                         value="encaminhamento" checked> Encaminhamento</label>
                             </div>
@@ -3482,21 +3497,22 @@
                             tabela</button>
                         <p class="report-status" id="report-status" role="status" aria-live="polite"></p>
                     </div>
+                    <section class="panel report-results" id="report-results" aria-label="Tabela personalizada" hidden>
+                        <div class="report-results-head">
+                            <h3>Atendimentos no período</h3>
+                            <p class="report-results-count" id="report-results-count"></p>
+                            <button class="button-secondary" id="report-export-ods" type="button">Exportar .ods</button>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="history-table">
+                                <thead id="report-head"></thead>
+                                <tbody id="report-body"></tbody>
+                            </table>
+                        </div>
+                        <div class="report-empty" id="report-empty" hidden>Nenhum atendimento encontrado para os critérios
+                            escolhidos.</div>
+                    </section>
                 </details>
-                <section class="panel report-results" id="report-results" aria-label="Tabela personalizada" hidden>
-                    <div class="report-results-head">
-                        <h3>Atendimentos no período</h3>
-                        <p class="report-results-count" id="report-results-count"></p>
-                    </div>
-                    <div class="table-wrap">
-                        <table class="history-table">
-                            <thead id="report-head"></thead>
-                            <tbody id="report-body"></tbody>
-                        </table>
-                    </div>
-                    <div class="report-empty" id="report-empty" hidden>Nenhum atendimento encontrado para os critérios
-                        escolhidos.</div>
-                </section>
                 <div class="panel table-wrap">
                     <table class="history-table">
                         <thead>
@@ -3507,7 +3523,7 @@
                                 <th>CPF</th>
                                 <th>Telefone</th>
                                 <th>Nacionalidade</th>
-                                <th>Atendente(s)</th>
+                                <th>Técnico(s)</th>
                                 <th>Encaminhamento</th>
                                 <th>Ações</th>
                             </tr>
@@ -3618,13 +3634,13 @@
             <p class="route-queue-name" id="route-queue-name"></p>
             <div class="route-queue-choices">
                 <label class="route-queue-choice"><input id="new-route-tag-assistencia" type="checkbox"><span
-                        class="route-queue-number">1</span><span>Assistência</span></label>
+                        class="route-queue-number">1</span><span>Atendimento Técnico</span></label>
                 <label class="route-queue-choice"><input id="new-route-tag-cadastro" type="checkbox"><span
                         class="route-queue-number">2</span><span>Cadastro Único</span></label>
                 <label class="route-queue-choice"><input id="new-route-tag-none" type="checkbox"><span
                         class="route-queue-number">3</span><span>Nenhum</span></label>
             </div>
-            <p class="route-queue-help" id="route-queue-help">Use 1 para Assistência, 2 para Cadastro Único e 3 para
+            <p class="route-queue-help" id="route-queue-help">Use 1 para Atendimento Técnico, 2 para Cadastro Único e 3 para
                 Nenhum. As opções 1 e 2 podem ser combinadas; 3 é exclusiva. Confirme com Enter ou no botão.</p>
             <p class="route-queue-status" id="route-queue-status" role="status" aria-live="polite"></p>
             <div class="route-queue-actions"><button class="button-primary" id="confirm-route-queue" type="button"
@@ -3723,6 +3739,7 @@
             const ASSISTANCE_DURATION = 10 * 60 * 1000;
             const FORM_IDLE_DELAY = 2 * 60 * 1000;
             const DEFAULT_ROUTE_QUEUE_TAGS = {
+                "Atendimento Técnico": [QUEUE_TAGS.assistencia],
                 "Assistência": [QUEUE_TAGS.assistencia],
                 "Cadastro Único": [QUEUE_TAGS.cadastro],
                 Informação: [QUEUE_TAG_NONE]
@@ -3733,7 +3750,7 @@
                 { name: "Patricia", color: "#527c9b" },
                 { name: "Daiane", color: "#9a6e8e" }
             ];
-            const DEFAULT_ROUTES = ["Cadastro Único", "Assistência", "Informação"];
+            const DEFAULT_ROUTES = ["Cadastro Único", "Atendimento Técnico", "Informação"];
             const DEFAULT_NATIONALITIES = ["Venezuelano", "Uruguaio", "Argentino"];
             const DEFAULT_PREFERENCES = { darkMode: false, fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "" };
             const BACKUP_FORMAT = "cras-ouro-preto-backup";
@@ -4014,7 +4031,8 @@
                     id: typeof user.id === "string" && user.id ? user.id : createUserId(),
                     name: user.name.trim(),
                     color: user.color.toLowerCase(),
-                    role: user.role
+                    role: user.role,
+                    canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true
                 }))
                 .filter((user, index, list) => list.findIndex(item => item.id === user.id) === index);
             if (!users.length) users = DEFAULT_ASSISTANTS.map((assistant, index) => ({
@@ -4022,7 +4040,7 @@
                 ...assistant,
                 role: "assistant"
             }));
-            assistants = users.filter(user => user.role === "assistant")
+            assistants = users.filter(isTechnicalUser)
                 .map(({ name, color }) => ({ name, color }));
             let activeUser = null;
             let rememberedUserId = "";
@@ -4117,7 +4135,7 @@
                 queuesTab.hidden = !isStaff && !hostedAppsScript;
                 document.getElementById("switch-user").hidden = !activeUser;
                 document.getElementById("active-user-label").textContent = activeUser
-                    ? `${activeUser.name} · ${userRoleLabel(activeUser.role)}`
+                    ? `${activeUser.name} · ${userRoleLabel(activeUser.role)}${activeUser.canAttendTechnical ? " · Técnico" : ""}`
                     : "";
                 if (isStaff) {
                     if (queueDashboards && queueDashboards.parentElement !== queuesPanel) {
@@ -4136,11 +4154,16 @@
 
             function userRoleLabel(role) {
                 return ({
-                    assistant: "Assistente",
+                    assistant: "Técnico",
                     caseworker: "Cadastradora",
                     reception: "Recepção",
                     admin: "Admin"
                 })[role] || "Usuário";
+            }
+
+            function isTechnicalUser(user) {
+                return user?.role === "assistant"
+                    || user?.role === "admin" && user.canAttendTechnical === true;
             }
 
             function createUserId() {
@@ -4174,7 +4197,7 @@
                 const loginSelect = document.getElementById("login-user");
                 const selectedId = loginSelect.value || rememberedUserId;
                 loginSelect.innerHTML = users.map(user =>
-                    `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} — ${escapeHtml(userRoleLabel(user.role))}</option>`
+                    `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} — ${escapeHtml(userRoleLabel(user.role))}${user.canAttendTechnical ? " · Técnico" : ""}</option>`
                 ).join("");
                 if (users.some(user => user.id === selectedId)) loginSelect.value = selectedId;
                 updateLoginPinFields();
@@ -5133,9 +5156,13 @@
                 }
                 if (nextUsers.some(user => !user || typeof user.id !== "string" || typeof user.name !== "string"
                     || typeof user.color !== "string" || !/^#[0-9a-f]{6}$/i.test(user.color)
+                    || (user.canAttendTechnical !== undefined && typeof user.canAttendTechnical !== "boolean")
                     || !["assistant", "caseworker", "reception", "admin"].includes(user.role))) {
                     throw new Error("A lista de usuários retornada pelo outro computador é inválida.");
                 }
+                nextUsers.forEach(user => {
+                    user.canAttendTechnical = user.role === "admin" && user.canAttendTechnical === true;
+                });
                 const nextAppointments = snapshot.appointments;
                 const syncedPaaIds = new Set(baseSnapshot.paaRecords.map(record => record.id));
                 const unlinkedPaaIdSet = new Set(unlinkedPaaIds);
@@ -5193,7 +5220,7 @@
                 routes = nextRoutes;
                 preferences = nextPreferences;
                 users = nextUsers;
-                assistants = users.filter(user => user.role === "assistant")
+                assistants = users.filter(isTechnicalUser)
                     .map(({ name, color }) => ({ name, color }));
                 nationalities = nextNationalities;
                 routeQueueTags = nextRouteQueueTags;
@@ -5496,14 +5523,21 @@
                 list.innerHTML = items.map(user => `<div class="assistant-admin-row" data-user-id="${escapeHtml(user.id)}">
                     <label>Nome<input type="text" data-user-name value="${escapeHtml(user.name)}" maxlength="60" required></label>
                     <label>Perfil<select class="select-input" data-user-role>
-                        <option value="assistant" ${user.role === "assistant" ? "selected" : ""}>Assistente</option>
+                        <option value="assistant" ${user.role === "assistant" ? "selected" : ""}>Técnico</option>
                         <option value="caseworker" ${user.role === "caseworker" ? "selected" : ""}>Cadastradora</option>
                         <option value="reception" ${user.role === "reception" ? "selected" : ""}>Recepção</option>
                         <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
                     </select></label>
                     <label>Cor<input type="color" data-user-color value="${escapeHtml(user.color)}" aria-label="Cor de ${escapeHtml(user.name)}"></label>
                     <button type="button" data-user-remove aria-label="Remover ${escapeHtml(user.name)}" title="Remover">×</button>
+                    <label data-admin-technical ${user.role === "admin" ? "" : "hidden"}><input type="checkbox" data-user-technical ${user.canAttendTechnical === true ? "checked" : ""}> Também pode ser designado como Técnico</label>
                 </div>`).join("");
+                list.querySelectorAll("[data-user-role]").forEach(select => {
+                    select.addEventListener("change", () => {
+                        const row = select.closest(".assistant-admin-row");
+                        row.querySelector("[data-admin-technical]").hidden = select.value !== "admin";
+                    });
+                });
                 list.querySelectorAll("[data-user-remove]").forEach(button => {
                     button.addEventListener("click", () => {
                         const row = button.closest(".assistant-admin-row");
@@ -5570,19 +5604,25 @@
                         id: row.dataset.userId,
                         name: row.querySelector("[data-user-name]").value,
                         role: row.querySelector("[data-user-role]").value,
-                        color: row.querySelector("[data-user-color]").value
+                        color: row.querySelector("[data-user-color]").value,
+                        canAttendTechnical: row.querySelector("[data-user-technical]").checked
                     }));
                     items.push({ id: createUserId(), name: "", color, role: "assistant" });
                     renderAssistantAdminList(items);
                     document.querySelector(".assistant-admin-row:last-child [data-user-name]").focus();
                 });
                 document.getElementById("assistant-admin-save").addEventListener("click", async () => {
-                    const nextUsers = Array.from(document.querySelectorAll(".assistant-admin-row")).map(row => ({
-                        id: row.dataset.userId || createUserId(),
-                        name: row.querySelector("[data-user-name]").value.trim(),
-                        role: row.querySelector("[data-user-role]").value,
-                        color: row.querySelector("[data-user-color]").value.toLowerCase()
-                    }));
+                    const nextUsers = Array.from(document.querySelectorAll(".assistant-admin-row")).map(row => {
+                        const role = row.querySelector("[data-user-role]").value;
+                        return {
+                            id: row.dataset.userId || createUserId(),
+                            name: row.querySelector("[data-user-name]").value.trim(),
+                            role,
+                            color: row.querySelector("[data-user-color]").value.toLowerCase(),
+                            canAttendTechnical: role === "admin"
+                                && row.querySelector("[data-user-technical]").checked
+                        };
+                    });
                     if (!nextUsers.length || nextUsers.some(user => !user.name)) {
                         showToast("Mantenha pelo menos um usuário e preencha todos os nomes.");
                         return;
@@ -5592,7 +5632,7 @@
                         showToast("Cada usuário precisa ter um nome diferente.");
                         return;
                     }
-                    const nextAssistants = nextUsers.filter(user => user.role === "assistant")
+                    const nextAssistants = nextUsers.filter(isTechnicalUser)
                         .map(({ name, color }) => ({ name, color }));
                     try {
                         await database.transaction("rw", database.settings, async () => {
@@ -5758,8 +5798,8 @@
                 { key: "cpf", label: "CPF", value: record => formatCpf(record.cpf) },
                 { key: "telefone", label: "Telefone", value: record => formatPhone(record.telefone) },
                 { key: "nacionalidade", label: "Nacionalidade", value: record => record.nacionalidade ?? record.etnia ?? "" },
-                { key: "assistente", label: "Atendente(s)", value: record => record.assistente || "" },
-                { key: "encaminhamento", label: "Encaminhamento", value: record => record.encaminhamento || "" }
+                { key: "assistente", label: "Técnico(s)", value: record => record.assistente || "" },
+                { key: "encaminhamento", label: "Encaminhamento", value: record => displayRouteName(record.encaminhamento || "") }
             ];
 
             function normalizeAutocompleteText(value) {
@@ -6131,6 +6171,10 @@
                 return Array.isArray(tags) && tags.length ? [...tags] : [QUEUE_TAG_NONE];
             }
 
+            function displayRouteName(route) {
+                return route === "Assistência" ? "Atendimento Técnico" : route;
+            }
+
             async function saveRouteConfiguration(nextRoutes, nextRouteQueueTags) {
                 try {
                     await database.transaction("rw", database.settings, async () => {
@@ -6225,7 +6269,7 @@
                     input.checked = selected.includes(input.value);
                 });
                 routeValue.value = JSON.stringify(selected);
-                routeCurrent.textContent = selected.length ? selected.join(", ") : "Escolha uma opção";
+                routeCurrent.textContent = selected.length ? selected.map(displayRouteName).join(", ") : "Escolha uma opção";
                 routeCurrent.classList.toggle("placeholder", !selected.length);
                 routeTrigger.setAttribute("aria-expanded", String(!routeOptions.hidden));
                 updateAssistantRequirement();
@@ -6253,7 +6297,7 @@
                 const selected = getSelectedRoutes();
                 routeCarousel.innerHTML = routes.map((route, index) => {
                     const id = `route-option-${index}`;
-                    return `<div class="route-option"><input id="${id}" type="checkbox" name="encaminhamento" value="${escapeHtml(route)}" ${selected.includes(route) ? "checked" : ""}><label for="${id}">${escapeHtml(route)}</label><button class="delete-route" type="button" data-route-index="${index}" aria-label="Excluir encaminhamento ${escapeHtml(route)}" title="Excluir encaminhamento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3"/></svg></button></div>`;
+                    return `<div class="route-option"><input id="${id}" type="checkbox" name="encaminhamento" value="${escapeHtml(route)}" ${selected.includes(route) ? "checked" : ""}><label for="${id}">${escapeHtml(displayRouteName(route))}</label><button class="delete-route" type="button" data-route-index="${index}" aria-label="Excluir encaminhamento ${escapeHtml(displayRouteName(route))}" title="Excluir encaminhamento"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M5.5 7l1 13h11l1-13M9 7V4h6v3"/></svg></button></div>`;
                 }).join("");
                 filterOptionCarousel(routeCarousel, routeSearchInput, routeSearchEmpty);
                 setRouteSelection(selected);
@@ -6269,7 +6313,7 @@
                     button.addEventListener("click", async () => {
                         const index = Number(button.dataset.routeIndex);
                         const route = routes[index];
-                        if (!window.confirm(`Excluir o encaminhamento “${route}”?`)) return;
+                        if (!window.confirm(`Excluir o encaminhamento “${displayRouteName(route)}”?`)) return;
                         const nextRoutes = routes.filter((_, routeIndex) => routeIndex !== index);
                         const nextRouteQueueTags = { ...routeQueueTags };
                         delete nextRouteQueueTags[route];
@@ -6331,10 +6375,11 @@
                 const assistantSelected = assistantFilter.value;
                 const reportAssistantSelected = reportAssistantFilter.value;
                 const routeSelected = routeFilter.value;
-                const assistantOptions = users.map(user => `<option value="${escapeHtml(user.name)}">${escapeHtml(user.name)}</option>`).join("");
+                const assistantOptions = users.filter(isTechnicalUser)
+                    .map(user => `<option value="${escapeHtml(user.name)}">${escapeHtml(user.name)}</option>`).join("");
                 assistantFilter.innerHTML = `<option value="">Todas</option>${assistantOptions}`;
                 reportAssistantFilter.innerHTML = `<option value="">Todas</option>${assistantOptions}`;
-                routeFilter.innerHTML = `<option value="">Todos</option>${routes.map(route => `<option value="${escapeHtml(route)}">${escapeHtml(route)}</option>`).join("")}`;
+                routeFilter.innerHTML = `<option value="">Todos</option>${routes.map(route => `<option value="${escapeHtml(route)}">${escapeHtml(displayRouteName(route))}</option>`).join("")}`;
                 assistantFilter.value = assistantSelected;
                 reportAssistantFilter.value = reportAssistantSelected;
                 routeFilter.value = routeSelected;
@@ -6365,7 +6410,13 @@
             }
 
             function userSnapshot(user) {
-                return user ? { id: user.id, name: user.name, role: user.role, color: user.color } : null;
+                return user ? {
+                    id: user.id,
+                    name: user.name,
+                    role: user.role,
+                    color: user.color,
+                    ...(user.canAttendTechnical === true ? { canAttendTechnical: true } : {})
+                } : null;
             }
 
             function getRecordServices(record) {
@@ -6413,7 +6464,7 @@
                         queueTags: tags,
                         assignments: {
                             assistencia: assistants.find(user => user.name === record.assistente)
-                                ? userSnapshot(users.find(user => user.name === record.assistente && user.role === "assistant"))
+                                ? userSnapshot(users.find(user => user.name === record.assistente && isTechnicalUser(user)))
                                 : record.assistente ? { id: "", name: record.assistente, role: "assistant", color: "" } : null
                         },
                         startedBy: null,
@@ -6435,8 +6486,10 @@
             }
 
             function queueAssigneeOptions(queueType, selectedId) {
-                const expectedRole = queueType === "cadastro" ? "caseworker" : "assistant";
-                return users.filter(user => user.role === expectedRole).map(user =>
+                const eligibleUsers = queueType === "cadastro"
+                    ? users.filter(user => user.role === "caseworker")
+                    : users.filter(isTechnicalUser);
+                return eligibleUsers.map(user =>
                     `<option value="${escapeHtml(user.id)}" ${user.id === selectedId ? "selected" : ""}>${escapeHtml(user.name)}</option>`
                 ).join("");
             }
@@ -6449,17 +6502,18 @@
                 const assignee = service.assignments?.[queueType];
                 const assigneeName = assignee?.name || "Responsável não definido";
                 const routeOptions = routes.filter(route => getRouteQueueTags(route).includes(queueTypeTag(queueType)))
-                    .map(route => `<option value="${escapeHtml(route)}" ${route === service.route ? "selected" : ""}>${escapeHtml(route)}</option>`)
+                    .map(route => `<option value="${escapeHtml(route)}" ${route === service.route ? "selected" : ""}>${escapeHtml(displayRouteName(route))}</option>`)
                     .join("");
                 const collaborators = Array.isArray(service.collaborators) ? service.collaborators : [];
-                const teamOptions = users.filter(user => user.role === (queueType === "cadastro" ? "caseworker" : "assistant"))
+                const teamOptions = users.filter(user => queueType === "cadastro"
+                    ? user.role === "caseworker" : isTechnicalUser(user))
                     .map(user => `<option value="${escapeHtml(user.id)}" ${collaborators.some(member => member.id === user.id) ? "selected" : ""}>${escapeHtml(user.name)}</option>`)
                     .join("");
                 const creditedNames = [service.startedBy?.name, ...collaborators.map(member => member.name)]
                     .filter(Boolean).filter((name, index, list) => list.indexOf(name) === index);
                 return `<article class="queue-card ${queueType === "assistencia" ? "assistance-card" : ""}" style="--assistant-color:${escapeHtml(assignee?.color || "#6f8dba")}">
                     <div class="queue-card-heading"><strong>${escapeHtml(record.nome || "Sem nome")}</strong><span class="queue-status">${started ? "Em atendimento" : "Aguardando"}</span></div>
-                    <p class="queue-meta">${escapeHtml(service.route)} · ${escapeHtml(assigneeName)} · ${started ? "Iniciado" : "Na fila"} às ${escapeHtml(formatDateTime(timestamp))}</p>
+                    <p class="queue-meta">${escapeHtml(displayRouteName(service.route))} · ${escapeHtml(assigneeName)} · ${started ? "Iniciado" : "Na fila"} às ${escapeHtml(formatDateTime(timestamp))}</p>
                     ${service.startedBy ? `<p class="queue-meta">Iniciado por: ${escapeHtml(service.startedBy.name)}${creditedNames.length > 1 ? ` · Equipe: ${escapeHtml(creditedNames.join(", "))}` : ""}</p>` : ""}
                     <div class="queue-actions"><button class="queue-action" type="button" data-queue-action="${started ? "finish" : "start"}" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">${started ? "Finalizar atendimento" : "Iniciar atendimento"}</button></div>
                     <details class="queue-transfer">
@@ -6661,13 +6715,13 @@
                 if (!service) return;
                 pendingQueuePrompt = prompt;
                 queuePromptReturnFocus = document.activeElement;
-                const queueName = prompt.type === "cadastro" ? "Cadastro Único" : "Assistências";
+                const queueName = prompt.type === "cadastro" ? "Cadastro Único" : "Atendimento Técnico";
                 const waitMinutes = prompt.type === "cadastro" ? 25 : 15;
                 const status = getServiceState(service, prompt.type).started === true
                     ? "está em atendimento"
-                    : "está na fila";
+                    : "aguarda";
                 queueFollowupMessage.textContent =
-                    `${record.nome || "A pessoa"} · ${service.route} ${status} de ${queueName} há mais de ${waitMinutes} minutos. Ela foi atendida?`;
+                    `${record.nome || "A pessoa"} · ${displayRouteName(service.route)} ${status} há mais de ${waitMinutes} minutos na fila de ${queueName}. A pessoa foi atendida?`;
                 queueFollowupOverlay.hidden = false;
                 queueFollowupYes.focus();
             }
@@ -6702,6 +6756,14 @@
                 if (queuePromptReturnFocus?.isConnected) queuePromptReturnFocus.focus();
                 queuePromptReturnFocus = null;
                 await processQueueTimers();
+            }
+
+            function shouldShowQueuePrompt(type, service, user) {
+                if (type === "cadastro") return user?.role === "caseworker";
+                return type === "assistencia"
+                    && isTechnicalUser(user)
+                    && Boolean(user.id)
+                    && service.assignments?.assistencia?.id === user.id;
             }
 
             async function processQueueTimers() {
@@ -6743,7 +6805,7 @@
                             if (!Number.isFinite(baseTime)) return null;
                             const reminderAt = Date.parse(state.reminderAt || "") || baseTime;
                             const delay = QUEUE_PROMPT_DELAY[type];
-                            return now - reminderAt >= delay
+                            return now - reminderAt >= delay && shouldShowQueuePrompt(type, service, activeUser)
                                 ? { type, recordId: record.id, serviceId: service.id, dueAt: reminderAt + delay }
                                 : null;
                         }).filter(Boolean)));
@@ -6859,7 +6921,7 @@
                     <td>${escapeHtml(formatPhone(record.telefone))}</td>
                     <td>${escapeHtml(record.nacionalidade ?? record.etnia ?? "")}</td>
                     <td>${escapeHtml(record.assistente)}</td>
-                    <td>${escapeHtml(record.encaminhamento)}</td>
+                    <td>${escapeHtml(displayRouteName(record.encaminhamento))}</td>
                     <td>
                         <div class="history-actions">
                             <button class="button-secondary" type="button" data-action="edit" data-record-id="${escapeHtml(record.id)}">Editar</button>
@@ -6886,12 +6948,15 @@
                     `${records.length} ${records.length === 1 ? "atendimento" : "atendimentos"}${records.length !== totalServices ? ` de ${totalServices}` : ""}`;
             }
 
+            let customReportExport = null;
+
             function generateCustomReport() {
                 const dateFrom = document.getElementById("report-date-from");
                 const dateTo = document.getElementById("report-date-to");
                 const assistant = document.getElementById("report-assistant").value;
                 const status = document.getElementById("report-status");
                 const reportResults = document.getElementById("report-results");
+                customReportExport = null;
                 reportResults.hidden = true;
                 status.textContent = "";
                 const selectedColumns = Array.from(document.querySelectorAll("input[name='report-column']:checked"))
@@ -6932,8 +6997,139 @@
                     `${records.length} ${records.length === 1 ? "atendimento" : "atendimentos"} · ${fromLabel} a ${toLabel}${assistant ? ` · ${assistant}` : ""}`;
                 reportEmpty.hidden = records.length > 0;
                 reportResults.hidden = false;
+                customReportExport = {
+                    records,
+                    columns: selectedColumns,
+                    dateFrom: dateFrom.value,
+                    dateTo: dateTo.value
+                };
                 status.textContent = "Tabela atualizada.";
                 reportResults.scrollIntoView({ behavior: "smooth", block: "start" });
+            }
+
+            function crc32(bytes) {
+                const table = new Uint32Array(256);
+                for (let index = 0; index < table.length; index += 1) {
+                    let value = index;
+                    for (let bit = 0; bit < 8; bit += 1) {
+                        value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0);
+                    }
+                    table[index] = value >>> 0;
+                }
+                let crc = 0xffffffff;
+                for (const byte of bytes) {
+                    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+                }
+                return (crc ^ 0xffffffff) >>> 0;
+            }
+
+            function zipStoredFiles(files) {
+                const encoder = new TextEncoder();
+                const localParts = [];
+                const centralParts = [];
+                let localOffset = 0;
+                let centralSize = 0;
+
+                files.forEach(({ name, content }) => {
+                    const nameBytes = encoder.encode(name);
+                    const contentBytes = encoder.encode(content);
+                    const checksum = crc32(contentBytes);
+                    const localHeader = new Uint8Array(30 + nameBytes.length);
+                    const localView = new DataView(localHeader.buffer);
+                    localView.setUint32(0, 0x04034b50, true);
+                    localView.setUint16(4, 20, true);
+                    localView.setUint16(6, 0x0800, true);
+                    localView.setUint16(12, 0x0021, true);
+                    localView.setUint32(14, checksum, true);
+                    localView.setUint32(18, contentBytes.length, true);
+                    localView.setUint32(22, contentBytes.length, true);
+                    localView.setUint16(26, nameBytes.length, true);
+                    localHeader.set(nameBytes, 30);
+                    localParts.push(localHeader, contentBytes);
+
+                    const centralHeader = new Uint8Array(46 + nameBytes.length);
+                    const centralView = new DataView(centralHeader.buffer);
+                    centralView.setUint32(0, 0x02014b50, true);
+                    centralView.setUint16(4, 20, true);
+                    centralView.setUint16(6, 20, true);
+                    centralView.setUint16(8, 0x0800, true);
+                    centralView.setUint16(14, 0x0021, true);
+                    centralView.setUint32(16, checksum, true);
+                    centralView.setUint32(20, contentBytes.length, true);
+                    centralView.setUint32(24, contentBytes.length, true);
+                    centralView.setUint16(28, nameBytes.length, true);
+                    centralView.setUint32(42, localOffset, true);
+                    centralHeader.set(nameBytes, 46);
+                    centralParts.push(centralHeader);
+                    localOffset += localHeader.length + contentBytes.length;
+                    centralSize += centralHeader.length;
+                });
+
+                const entryCount = files.length;
+                const endRecord = new Uint8Array(22);
+                const endView = new DataView(endRecord.buffer);
+                endView.setUint32(0, 0x06054b50, true);
+                endView.setUint16(8, entryCount, true);
+                endView.setUint16(10, entryCount, true);
+                endView.setUint32(12, centralSize, true);
+                endView.setUint32(16, localOffset, true);
+                const archive = new Uint8Array(localOffset + centralSize + endRecord.length);
+                let offset = 0;
+                [...localParts, ...centralParts, endRecord].forEach(part => {
+                    archive.set(part, offset);
+                    offset += part.length;
+                });
+                return new Blob([archive], { type: "application/vnd.oasis.opendocument.spreadsheet" });
+            }
+
+            function exportCustomReportToOds() {
+                if (!customReportExport) return;
+                const xmlEscape = value => String(value ?? "")
+                    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
+                    .replace(/[&<>"']/g, character => ({
+                        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;"
+                    })[character]);
+                const tableRows = [
+                    customReportExport.columns.map(column => column.label),
+                    ...customReportExport.records.map(record =>
+                        customReportExport.columns.map(column => column.value(record)))
+                ];
+                const rowsXml = tableRows.map(row => `<table:table-row>${row.map(value =>
+                    `<table:table-cell office:value-type="string"><text:p>${xmlEscape(value)}</text:p></table:table-cell>`
+                ).join("")}</table:table-row>`).join("");
+                const contentXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" office:version="1.2"><office:automatic-styles/><office:body><office:spreadsheet><table:table table:name="Atendimentos">${rowsXml}</table:table></office:spreadsheet></office:body></office:document-content>`;
+                const stylesXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" office:version="1.2"><office:styles/><office:automatic-styles/><office:master-styles/></office:document-styles>`;
+                const metaXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-meta xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" xmlns:dc="http://purl.org/dc/elements/1.1/" office:version="1.2"><office:meta><dc:title>Atendimentos CRAS Ouro Preto</dc:title><meta:generator>CRAS Desktop</meta:generator></office:meta></office:document-meta>`;
+                const settingsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-settings xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" office:version="1.2"><office:settings/></office:document-settings>`;
+                const manifestXml = `<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.2"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/></manifest:manifest>`;
+                try {
+                    const blob = zipStoredFiles([
+                        { name: "mimetype", content: "application/vnd.oasis.opendocument.spreadsheet" },
+                        { name: "content.xml", content: contentXml },
+                        { name: "styles.xml", content: stylesXml },
+                        { name: "meta.xml", content: metaXml },
+                        { name: "settings.xml", content: settingsXml },
+                        { name: "META-INF/manifest.xml", content: manifestXml }
+                    ]);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = `atendimentos-${customReportExport.dateFrom}-a-${customReportExport.dateTo}.ods`;
+                    document.body.appendChild(link);
+                    link.click();
+                    link.remove();
+                    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    showToast(`${customReportExport.records.length} ${customReportExport.records.length === 1
+                        ? "atendimento exportado" : "atendimentos exportados"} para .ods.`);
+                } catch (error) {
+                    console.error("Falha ao exportar a tabela personalizada para ODS.", error);
+                    showToast("Não foi possível gerar o arquivo .ods. Tente novamente.");
+                }
             }
 
             deleteConfirmCancel.addEventListener("click", () => closeDeleteConfirmation());
@@ -7254,8 +7450,8 @@
                     ["CPF", record => formatCpf(record.cpf)],
                     ["Telefone", record => formatPhone(record.telefone)],
                     ["Nacionalidade", record => record.nacionalidade ?? record.etnia ?? ""],
-                    ["Atendente(s)", record => record.assistente],
-                    ["Encaminhamento", record => record.encaminhamento]
+                    ["Técnico(s)", record => record.assistente],
+                    ["Encaminhamento", record => displayRouteName(record.encaminhamento)]
                 ];
                 const escapeXml = value => String(value ?? "")
                     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
@@ -7441,17 +7637,17 @@
                 });
                 let importedAssistants = [];
                 if (backup.assistants !== undefined) {
-                    if (!Array.isArray(backup.assistants)) throw new Error("A lista de assistentes do arquivo está inválida.");
+                    if (!Array.isArray(backup.assistants)) throw new Error("A lista de técnicos do arquivo está inválida.");
                     importedAssistants = backup.assistants.map((assistant, index) => {
                         if (!assistant || typeof assistant.name !== "string" || !assistant.name.trim()
                             || assistant.name.trim().length > 60
                             || typeof assistant.color !== "string" || !/^#[0-9a-f]{6}$/i.test(assistant.color)) {
-                            throw new Error(`A assistente ${index + 1} do arquivo está inválida.`);
+                            throw new Error(`O técnico ${index + 1} do arquivo está inválido.`);
                         }
                         return { name: assistant.name.trim(), color: assistant.color.toLowerCase() };
                     });
                     if (new Set(importedAssistants.map(assistant => assistant.name.toLocaleLowerCase("pt-BR"))).size !== importedAssistants.length) {
-                        throw new Error("A lista de assistentes do arquivo contém nomes repetidos.");
+                        throw new Error("A lista de técnicos do arquivo contém nomes repetidos.");
                     }
                 }
                 let importedUsers;
@@ -7461,10 +7657,17 @@
                         if (!user || typeof user.id !== "string" || !user.id.trim()
                             || typeof user.name !== "string" || !user.name.trim() || user.name.trim().length > 60
                             || typeof user.color !== "string" || !/^#[0-9a-f]{6}$/i.test(user.color)
+                            || (user.canAttendTechnical !== undefined && typeof user.canAttendTechnical !== "boolean")
                             || !["assistant", "caseworker", "reception", "admin"].includes(user.role)) {
                             throw new Error(`O usuário ${index + 1} do arquivo está inválido.`);
                         }
-                        return { id: user.id, name: user.name.trim(), color: user.color.toLowerCase(), role: user.role };
+                        return {
+                            id: user.id,
+                            name: user.name.trim(),
+                            color: user.color.toLowerCase(),
+                            role: user.role,
+                            canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true
+                        };
                     });
                     if (new Set(importedUsers.map(user => user.name.toLocaleLowerCase("pt-BR"))).size !== importedUsers.length) {
                         throw new Error("A lista de usuários do arquivo contém nomes repetidos.");
@@ -7561,7 +7764,7 @@
                         ? { ...user, id: createUserId() }
                         : user);
                     const mergedUsers = mergeUnique(users, importUsers, user => user.name);
-                    const mergedAssistants = mergedUsers.filter(user => user.role === "assistant")
+                    const mergedAssistants = mergedUsers.filter(isTechnicalUser)
                         .map(({ name, color }) => ({ name, color }));
                     const mergedPaaRecords = mergeUnique(
                         paaRecords,
@@ -7842,7 +8045,7 @@
                 if (!form.reportValidity()) {
                     formStatus.textContent = selectedRoutes.some(route =>
                         getRouteQueueTags(route).includes(QUEUE_TAGS.assistencia)) && !selectedAssistant
-                        ? "Selecione uma assistente para o encaminhamento Assistência."
+                        ? "Selecione um Técnico para o encaminhamento Atendimento Técnico."
                         : "Confira os campos obrigatórios e os formatos indicados.";
                     return;
                 }
@@ -7868,7 +8071,7 @@
                         : getRecordServices(currentRecord)
                     : [];
                 const assistantUser = selectedAssistant
-                    ? users.find(user => user.role === "assistant" && user.name === selectedAssistant.value)
+                    ? users.find(user => isTechnicalUser(user) && user.name === selectedAssistant.value)
                     : null;
                 const caseworkerUser = users.find(user => user.role === "caseworker"
                     && user.id === caseworkerAssignment.value);
@@ -7987,6 +8190,7 @@
                 control.addEventListener("change", renderHistory);
             });
             document.getElementById("report-generate").addEventListener("click", generateCustomReport);
+            document.getElementById("report-export-ods").addEventListener("click", exportCustomReportToOds);
             document.getElementById("history-undo").addEventListener("click", undoHistoryAction);
             document.getElementById("clear-filters").addEventListener("click", () => {
                 document.querySelectorAll(".filter-panel input, .filter-panel select").forEach(control => { control.value = ""; });
@@ -8149,18 +8353,18 @@
                 { selector: "#endereco", title: "Registre o endereço", description: "O endereço também é opcional. Se preenchê-lo, o número do imóvel passa a ser obrigatório; use “s/n” se não houver número." },
                 { selector: "#nationality-trigger", title: "Informe a nacionalidade", description: "A nacionalidade é opcional. Escolha uma opção, selecione “Não informada” ou adicione outra nacionalidade no topo da lista. Pesquise pelo campo ou clique na lista e digite; acentos, espaços e pontuação são ignorados." },
                 { selector: "#date-disclosure summary", title: "Informe quando aconteceu", description: "Normalmente, o registro usa a data e a hora atuais. Para registrar um atendimento feito no papel, abra esta opção e informe quando ele ocorreu." },
-                { selector: "#route-trigger", title: "Escolha o encaminhamento", description: "Abra as opções e selecione o encaminhamento adequado. Pesquise pelo campo ou clique na lista e digite; acentos, espaços e pontuação são ignorados. Para “Assistência”, também é necessário selecionar a assistente responsável." },
-                { selector: "#add-route-form", title: "Cadastre outro encaminhamento", description: "Se a opção desejada não estiver na lista, digite o nome e clique em Adicionar. No pop-up, escolha as filas associadas: 1 para Assistência, 2 para Cadastro Único, ambas podem ser combinadas, e 3 para Nenhum." },
-                { selector: "#assistant-choices", title: "Selecione a assistente", description: "Escolha quem realizou o atendimento. Clique novamente na assistente selecionada para desmarcá-la. A seleção é obrigatória para o encaminhamento “Assistência” e opcional nos demais." },
+                { selector: "#route-trigger", title: "Escolha o encaminhamento", description: "Abra as opções e selecione o encaminhamento adequado. Pesquise pelo campo ou clique na lista e digite; acentos, espaços e pontuação são ignorados. Para “Atendimento Técnico”, também é necessário selecionar o técnico responsável." },
+                { selector: "#add-route-form", title: "Cadastre outro encaminhamento", description: "Se a opção desejada não estiver na lista, digite o nome e clique em Adicionar. No pop-up, escolha as filas associadas: 1 para Atendimento Técnico, 2 para Cadastro Único, ambas podem ser combinadas, e 3 para Nenhum." },
+                { selector: "#assistant-choices", title: "Selecione o técnico", description: "Escolha quem realizou o atendimento. Clique novamente na pessoa selecionada para desmarcá-la. A seleção é obrigatória para o encaminhamento “Atendimento Técnico” e opcional nos demais." },
                 { selector: "#appointment-form button[type='submit']", title: "Salve o registro", description: "Confira os dados e clique em Registrar atendimento. O registro fica salvo neste navegador e aparece no histórico." },
-                { selector: "#dashboard-title", title: "Acompanhe os atendimentos do dia", description: "Este painel mostra somente o total de hoje e a quantidade por assistente. Atendimentos registrados com datas anteriores não entram nessa contagem." },
-                { selector: ".queue-dashboards", title: "Controle as filas", description: "No Cadastro Único, um aviso aparece após 25 minutos sem finalizar. Em Assistências, há um aviso após 15 minutos na fila e o atendimento encerra automaticamente 10 minutos após ser iniciado. Se estiver preenchendo o formulário, o aviso aguarda 2 minutos sem atividade. Essas ações não alteram a data e a hora do histórico." },
-                { selector: ".filter-panel", title: "Encontre um registro", description: "No histórico, filtre por data, nome, endereço, CPF, telefone, assistente ou encaminhamento. Você pode combinar vários filtros." },
+                { selector: "#dashboard-title", title: "Acompanhe os atendimentos do dia", description: "Este painel mostra somente o total de hoje e a quantidade por técnico. Atendimentos registrados com datas anteriores não entram nessa contagem." },
+                { selector: ".queue-dashboards", title: "Controle as filas", description: "No Cadastro Único, as cadastradoras recebem um aviso após 25 minutos. No Atendimento Técnico, somente a pessoa responsável recebe um aviso após 15 minutos; o atendimento encerra automaticamente 10 minutos após ser iniciado. A recepção não recebe esses avisos. Se estiver preenchendo o formulário, o aviso aguarda 2 minutos sem atividade." },
+                { selector: ".filter-panel", title: "Encontre um registro", description: "No histórico, filtre por data, nome, endereço, CPF, telefone, técnico ou encaminhamento. Você pode combinar vários filtros." },
                 { selector: "#clear-filters", title: "Limpe os filtros", description: "Clique em Limpar filtros para remover todos os critérios e voltar a ver o histórico completo." },
-                { selector: "#report-menu summary", title: "Monte uma tabela por período", description: "Escolha as datas inicial e final, filtre por assistente se desejar e marque as colunas que quer incluir na tabela." },
+                { selector: "#report-menu summary", title: "Monte uma tabela por período", description: "Escolha as datas inicial e final, filtre por técnico se desejar e marque as colunas que quer incluir. Exporte a tabela em .ods ou clique novamente neste título para recolhê-la." },
                 { selector: "#export-toggle", title: "Abra Exportação", description: "Clique em Exportação para acessar as opções de planilha e de backup do histórico." },
                 { selector: "#spreadsheet-export-title", title: "Exporte para planilha", description: "Exporte o último dia com registros, escolha uma data ou mês específico, ou exporte todos os atendimentos. O arquivo pode ser aberto no Excel." },
-                { selector: "#json-export-title", title: "Exporte ou importe o histórico", description: "Exporte um backup JSON para guardar uma cópia do histórico, das assistentes, dos encaminhamentos e das preferências. Ao importar, novos atendimentos, assistentes e encaminhamentos são adicionados; o que já está salvo e suas preferências são preservados." },
+                { selector: "#json-export-title", title: "Exporte ou importe o histórico", description: "Exporte um backup JSON para guardar uma cópia do histórico, dos técnicos, dos encaminhamentos e das preferências. Ao importar, novos atendimentos, técnicos e encaminhamentos são adicionados; o que já está salvo e suas preferências são preservados." },
                 { selector: "#accessibility-toggle", title: "Ajuste a acessibilidade", description: "Abra este menu para alternar entre os modos claro e escuro, aumentar a fonte, ocultar os textos explicativos ou ativar o preenchimento automático dos dados do histórico." }
             ];
             const tutorialCard = document.getElementById("tutorial-card");
