@@ -220,6 +220,68 @@ class PeerStoreTests(unittest.TestCase):
                 "preferred",
             )
 
+    def test_reception_can_finish_either_queue_during_sync(self):
+        for queue, specialist_role in (
+            ("assistencia", "assistant"),
+            ("cadastro", "caseworker"),
+        ):
+            base = {
+                "appointments": [{
+                    "id": "appointment-1",
+                    "routeServices": [{
+                        "id": "service-1",
+                        "states": {queue: {"finishedAt": ""}},
+                    }],
+                }],
+                "paaRecords": [],
+                "settings": {},
+            }
+            reception_snapshot = {
+                **base,
+                "appointments": [{
+                    **base["appointments"][0],
+                    "routeServices": [{
+                        "id": "service-1",
+                        "states": {queue: {"finishedAt": "reception-finished"}},
+                    }],
+                    "_syncMeta": {
+                        "last": {"role": "reception", "updatedAt": "2026-01-02T10:00:00Z"},
+                        "queues": {
+                            queue: {"role": "reception", "updatedAt": "2026-01-02T10:00:00Z"}
+                        },
+                    },
+                }],
+            }
+            specialist_snapshot = {
+                **base,
+                "appointments": [{
+                    **base["appointments"][0],
+                    "routeServices": [{
+                        "id": "service-1",
+                        "states": {queue: {"finishedAt": "specialist-finished"}},
+                    }],
+                    "_syncMeta": {
+                        "last": {"role": specialist_role, "updatedAt": "2026-01-02T11:00:00Z"},
+                        "queues": {
+                            queue: {"role": specialist_role, "updatedAt": "2026-01-02T11:00:00Z"}
+                        },
+                    },
+                }],
+            }
+
+            merged = PeerStore.merge_collection(
+                "appointments",
+                base,
+                reception_snapshot,
+                specialist_snapshot,
+                "reception",
+                specialist_role,
+            )
+            self.assertEqual(
+                merged[0]["routeServices"][0]["states"][queue]["finishedAt"],
+                "reception-finished",
+            )
+
     def test_rejects_replayed_successful_request(self):
         snapshot = {"appointments": [], "paaRecords": [], "settings": {}}
         self.store.sync("peer-a", "replay-me", snapshot, {})

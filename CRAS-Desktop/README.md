@@ -18,7 +18,9 @@ entram automaticamente; o perfil Admin continua exigindo o PIN local.
 No Atendimento Técnico, somente a pessoa designada recebe o aviso de ociosidade.
 Todas as cadastradoras recebem o aviso do Cadastro Único; a Recepção não recebe
 esses avisos. Um Admin pode ser habilitado na Gestão de usuários para também ser
-designado como Técnico, mantendo suas permissões administrativas.
+designado como Técnico, mantendo suas permissões administrativas. A Recepção
+pode encerrar diretamente qualquer fila, inclusive enquanto ainda aguarda; essa
+ação tem prioridade na sincronização com os computadores parceiros.
 
 Para o envio automático funcionar, configure um computador parceiro e o código
 de pareamento em Configurações → Sincronização no computador que registra ou

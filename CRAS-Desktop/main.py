@@ -688,7 +688,11 @@ class PeerStore:
                 if ".assistencia" in f".{path}" or ".cadastro" in f".{path}":
                     queue = "assistencia" if ".assistencia" in f".{path}" else "cadastro"
                     preferred_role = "assistant" if queue == "assistencia" else "caseworker"
+                    if role == "reception":
+                        return 90
                     return 80 if role == preferred_role else 10
+                if ".routeServices" in f".{path}" and role == "reception":
+                    return 90
                 return 80 if role == "reception" else 10
             if collection == "paaRecords":
                 return 80 if role == "reception" else 10

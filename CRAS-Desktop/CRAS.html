@@ -1044,6 +1044,7 @@
         .queue-actions {
             display: flex;
             justify-content: flex-end;
+            gap: 8px;
         }
 
         .queue-action {
@@ -4913,10 +4914,10 @@
                 if (role === "admin") return 100;
                 if (collection === "appointments") {
                     const parts = path.split("/");
-                    if (parts.includes("assistencia")) return role === "assistant" ? 80 : 10;
-                    if (parts.includes("cadastro")) return role === "caseworker" ? 80 : 10;
+                    if (parts.includes("assistencia")) return role === "reception" ? 90 : role === "assistant" ? 80 : 10;
+                    if (parts.includes("cadastro")) return role === "reception" ? 90 : role === "caseworker" ? 80 : 10;
                     if (parts.includes("routeServices")) {
-                        return role === "assistant" || role === "caseworker" ? 70 : 10;
+                        return role === "reception" ? 90 : role === "assistant" || role === "caseworker" ? 70 : 10;
                     }
                     return role === "reception" ? 80 : 10;
                 }
@@ -5421,6 +5422,16 @@
                                 metadata.queues = {
                                     ...(metadata.queues || {}),
                                     [queue]: { role: actorRole, updatedAt }
+                                };
+                            }
+                        } else if (actorRole === "reception") {
+                            const previousServices = previousContent?.routeServices || [];
+                            const nextServices = nextContent.routeServices || [];
+                            if (!syncValuesEqual(previousServices, nextServices)) {
+                                metadata.queues = {
+                                    ...(metadata.queues || {}),
+                                    assistencia: { role: actorRole, updatedAt },
+                                    cadastro: { role: actorRole, updatedAt }
                                 };
                             }
                         }
@@ -6515,7 +6526,7 @@
                     <div class="queue-card-heading"><strong>${escapeHtml(record.nome || "Sem nome")}</strong><span class="queue-status">${started ? "Em atendimento" : "Aguardando"}</span></div>
                     <p class="queue-meta">${escapeHtml(displayRouteName(service.route))} · ${escapeHtml(assigneeName)} · ${started ? "Iniciado" : "Na fila"} às ${escapeHtml(formatDateTime(timestamp))}</p>
                     ${service.startedBy ? `<p class="queue-meta">Iniciado por: ${escapeHtml(service.startedBy.name)}${creditedNames.length > 1 ? ` · Equipe: ${escapeHtml(creditedNames.join(", "))}` : ""}</p>` : ""}
-                    <div class="queue-actions"><button class="queue-action" type="button" data-queue-action="${started ? "finish" : "start"}" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">${started ? "Finalizar atendimento" : "Iniciar atendimento"}</button></div>
+                    <div class="queue-actions"><button class="queue-action" type="button" data-queue-action="${started ? "finish" : "start"}" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">${started ? "Finalizar atendimento" : "Iniciar atendimento"}</button>${!started && activeUser?.role === "reception" ? `<button class="button-secondary" type="button" data-queue-action="finish" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">Finalizar fila</button>` : ""}</div>
                     <details class="queue-transfer">
                         <summary>Alterar encaminhamento ou equipe</summary>
                         <label class="field-label">Encaminhamento<select class="select-input" data-transfer-route>${routeOptions}</select></label>
