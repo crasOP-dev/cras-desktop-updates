@@ -3293,7 +3293,10 @@
                             <label class="field-label" for="sync-mobile-fingerprint">Impressão digital do certificado</label>
                             <input class="text-input" id="sync-mobile-fingerprint" type="text" readonly>
                             <p class="hint">Instale o certificado raiz nos celulares e confira esta impressão digital antes
-                                de abrir o endereço HTTPS. Use somente uma rede privada e confiável.</p>
+                                de abrir o endereço HTTPS. Se o endereço não abrir, confirme que os dois dispositivos
+                                estão na mesma rede Wi-Fi privada (não rede de convidados) e que o Firewall do Windows
+                                permite o CRAS Desktop na rede privada; o acesso usa a porta TCP 8766. O certificado
+                                valida a conexão, mas não libera a porta.</p>
                         </div>
                     </section>
                 </div>
@@ -7198,6 +7201,7 @@
                             if (activeUser.role === "reception") {
                                 state.finishedBy = userSnapshot(activeUser);
                                 delete state.finishedFollowupAt;
+                                delete state.attendedBy;
                             } else {
                                 delete state.finishedBy;
                                 delete state.finishedFollowupAt;
@@ -7340,12 +7344,16 @@
                     if (attended) {
                         state.finished = true;
                         state.finishedAt = new Date().toISOString();
-                        if (prompt.receptionFinished) state.finishedFollowupAt = new Date().toISOString();
+                        if (prompt.receptionFinished) {
+                            state.finishedFollowupAt = new Date().toISOString();
+                            if (prompt.type === "assistencia") state.attendedBy = userSnapshot(activeUser);
+                        }
                     } else if (prompt.receptionFinished) {
                         state.finished = false;
                         delete state.finishedAt;
                         delete state.finishedBy;
                         delete state.finishedFollowupAt;
+                        delete state.attendedBy;
                         state.reminderAt = new Date().toISOString();
                     } else {
                         state.reminderAt = new Date().toISOString();
@@ -7475,7 +7483,13 @@
             }
 
             function getCreditedMembers(service, record) {
-                const credited = [service.startedBy, ...(Array.isArray(service.collaborators) ? service.collaborators : [])]
+                const assistanceState = service.states?.assistencia;
+                const receptionConfirmedAttendance = assistanceState?.finishedBy?.role === "reception"
+                    && Boolean(assistanceState.finishedFollowupAt);
+                const attendedBy = receptionConfirmedAttendance
+                    ? assistanceState.attendedBy || service.assignments?.assistencia
+                    : service.startedBy;
+                const credited = [attendedBy, ...(Array.isArray(service.collaborators) ? service.collaborators : [])]
                     .filter(member => member && typeof member.name === "string" && member.name);
                 if (!credited.length && service.id.startsWith("legacy-")) {
                     return Object.values(service.assignments || {}).filter(member => member?.name);
@@ -8204,7 +8218,8 @@
                                         state[key] !== undefined && (typeof state[key] !== "string"
                                             || Number.isNaN(Date.parse(state[key]))));
                                     return invalidStatus || invalidTimestamp
-                                        || (state.finishedBy !== undefined && !validMember(state.finishedBy));
+                                        || (state.finishedBy !== undefined && !validMember(state.finishedBy))
+                                        || (state.attendedBy !== undefined && !validMember(state.attendedBy));
                                 })))) {
                             throw new Error(`O serviço ${serviceIndex + 1} do registro ${index + 1} está inválido.`);
                         }

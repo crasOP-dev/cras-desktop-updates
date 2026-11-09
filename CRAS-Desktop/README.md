@@ -39,7 +39,11 @@ confira sua impressão digital e instale-o como certificado confiável em cada
 celular autorizado. Depois, abra no celular um dos endereços HTTPS exibidos,
 informe o código e selecione o usuário. As alterações da fila são sincronizadas
 com o computador; o celular atualiza a tela periodicamente. Não use essa função
-em Wi-Fi público nem exponha as portas do aplicativo à Internet.
+em Wi-Fi público nem exponha as portas do aplicativo à Internet. Se o endereço
+não abrir, confirme que os dois dispositivos estão na mesma rede Wi-Fi (não em
+uma rede de convidados) e permita o CRAS Desktop na rede privada do Firewall do
+Windows. O servidor móvel usa a porta TCP 8766; instalar a CA valida o
+certificado, mas não libera a conexão através do firewall.
 
 Para o envio automático funcionar, configure um computador parceiro e o código
 de pareamento em Configurações → Sincronização no computador que registra ou
@@ -55,5 +59,10 @@ painel e exportada em `.ods`, formato compatível com LibreOffice Calc e Excel.
 ## Atualizações
 
 O atualizador verifica o GitHub ao abrir o executável e valida os downloads
-com SHA-256. A conexão HTTPS usa o repositório de certificados confiáveis do
-Windows para respeitar certificados corporativos instalados no sistema.
+com SHA-256. Só oferece uma versão publicada mais nova que a instalada e pede
+confirmação antes de baixar e instalar. A conexão HTTPS usa o repositório de
+certificados confiáveis do Windows para respeitar certificados corporativos
+instalados no sistema. Se a troca do executável falhar, consulte
+`%LOCALAPPDATA%\CRAS-Desktop\update.log`. A correção do instalador precisa ser
+publicada em uma nova release; computadores cuja atualização anterior falhou
+podem precisar instalar essa primeira versão corrigida manualmente.

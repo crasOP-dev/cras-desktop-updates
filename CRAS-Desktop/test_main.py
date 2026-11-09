@@ -18,6 +18,7 @@ from main import (
     encode_envelope,
     encode_mobile_payload,
     ensure_mobile_tls_certificates,
+    launch_update_helper,
     latest_release,
     verify_update_checksum,
     version_tuple,
@@ -39,6 +40,24 @@ class VersionTests(unittest.TestCase):
         verify_update_checksum(executable, f"{checksum}  CRAS-Desktop.exe")
         with self.assertRaisesRegex(ValueError, "checksum"):
             verify_update_checksum(executable, "0" * 64)
+
+    def test_update_helper_uses_unicode_script_and_logs_installation(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            update_path = directory / "CRAS-Desktop-update.exe"
+            executable_path = directory / "CRAS Desktop.exe"
+            update_path.write_bytes(b"updated binary")
+
+            with patch("main.subprocess.Popen") as mocked_popen:
+                launch_update_helper(update_path, executable_path, 1234, directory)
+
+            script_path = directory / "apply-update.ps1"
+            self.assertTrue(script_path.read_bytes().startswith(b"\xef\xbb\xbf"))
+            script = script_path.read_text(encoding="utf-8-sig")
+            self.assertIn("[System.IO.File]::Replace($staged, $target, $backup)", script)
+            self.assertIn("A versão anterior foi restaurada.", script)
+            self.assertIn(str(directory / "update.log"), script)
+            self.assertEqual(mocked_popen.call_args.args[0][-1], str(script_path))
 
     def test_update_downloads_use_system_certificate_store(self):
         executable = b"release binary"

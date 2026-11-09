@@ -166,38 +166,59 @@ def powershell_literal(value: str) -> str:
 
 def launch_update_helper(update_path: Path, executable_path: Path, process_id: int, directory: Path) -> None:
     script_path = directory / "apply-update.ps1"
+    log_path = directory / "update.log"
     script = f"""$ErrorActionPreference = 'Stop'
 $appProcessId = {process_id}
 $source = {powershell_literal(str(update_path))}
 $target = {powershell_literal(str(executable_path))}
 $staged = "$target.update"
 $backup = "$target.previous"
+$logPath = {powershell_literal(str(log_path))}
+function Write-UpdateLog($message) {{
+    Add-Content -LiteralPath $logPath -Encoding UTF8 -Value "$(Get-Date -Format o) $message"
+}}
 try {{
+    Write-UpdateLog "Aguardando o CRAS Desktop encerrar (PID $appProcessId)."
     if (Get-Process -Id $appProcessId -ErrorAction SilentlyContinue) {{
         Wait-Process -Id $appProcessId -Timeout 120
     }}
-    Copy-Item -LiteralPath $source -Destination $staged -Force
-    Move-Item -LiteralPath $target -Destination $backup -Force
-    try {{
-        Move-Item -LiteralPath $staged -Destination $target -Force
-    }} catch {{
-        Move-Item -LiteralPath $backup -Destination $target -Force
-        throw
+    if (Get-Process -Id $appProcessId -ErrorAction SilentlyContinue) {{
+        throw "O CRAS Desktop não encerrou dentro do prazo."
     }}
+    if (Test-Path -LiteralPath $backup) {{
+        Remove-Item -LiteralPath $backup -Force
+    }}
+    Write-UpdateLog "Preparando o executável atualizado."
+    Copy-Item -LiteralPath $source -Destination $staged -Force
+    [System.IO.File]::Replace($staged, $target, $backup)
+    Write-UpdateLog "Executável substituído. Abrindo a nova versão."
     Start-Process -FilePath $target
-    Remove-Item -LiteralPath $backup, $source -Force
-    Remove-Item -LiteralPath $PSCommandPath -Force
+    Write-UpdateLog "Atualização concluída."
+    try {{
+        Remove-Item -LiteralPath $backup, $source -Force
+    }} catch {{
+        Write-UpdateLog "Aviso: não foi possível limpar os arquivos temporários: $($_.Exception.Message)"
+    }}
 }} catch {{
+    $failure = $_.Exception.Message
+    Write-UpdateLog "Falha na atualização: $failure"
+    if (Test-Path -LiteralPath $backup) {{
+        if (Test-Path -LiteralPath $target) {{
+            Remove-Item -LiteralPath $target -Force
+        }}
+        Move-Item -LiteralPath $backup -Destination $target -Force
+        Write-UpdateLog "A versão anterior foi restaurada."
+    }}
     Add-Type -AssemblyName System.Windows.Forms
     [System.Windows.Forms.MessageBox]::Show(
-        "A atualização não foi concluída. O CRAS Desktop anterior foi mantido, quando possível.`n`n$($_.Exception.Message)",
+        "A atualização não foi concluída. O CRAS Desktop anterior foi mantido, quando possível.`n`n$failure`n`nRegistro: $logPath",
         "CRAS Desktop",
         [System.Windows.Forms.MessageBoxButtons]::OK,
         [System.Windows.Forms.MessageBoxIcon]::Error
     ) | Out-Null
 }}
 """
-    script_path.write_text(script, encoding="utf-8")
+    script_path.write_text(script, encoding="utf-8-sig")
     subprocess.Popen(
         [
             "powershell.exe",
