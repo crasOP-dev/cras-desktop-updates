@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f1f6fa">
     <title>Atendimento | CRAS Ouro Preto</title>
+    <script>
+        window.CRASDesktop = ["127.0.0.1", "localhost"].includes(location.hostname);
+        window.CRASMobile = !window.CRASDesktop && location.protocol === "https:" && location.port === "8766";
+        if (window.CRASMobile) document.documentElement.classList.add("mobile-client");
+    </script>
     <style>
         :root {
             color-scheme: light;
@@ -1327,6 +1332,94 @@
             gap: 8px;
         }
 
+        .history-record-table {
+            table-layout: fixed;
+            white-space: normal;
+        }
+
+        .history-record-table th,
+        .history-record-table td {
+            padding: 8px 7px;
+            overflow-wrap: anywhere;
+            font-size: 11px;
+        }
+
+        .history-record-table th:nth-child(1) { width: 10%; }
+        .history-record-table th:nth-child(2) { width: 13%; }
+        .history-record-table th:nth-child(3) { width: 16%; }
+        .history-record-table th:nth-child(4) { width: 8%; }
+        .history-record-table th:nth-child(5) { width: 9%; }
+        .history-record-table th:nth-child(6) { width: 10%; }
+        .history-record-table th:nth-child(7) { width: 12%; }
+        .history-record-table th:nth-child(8) { width: 12%; }
+        .history-record-table th:nth-child(9) { width: 10%; }
+
+        .history-record-table .history-actions {
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+
+        .history-record-table .history-actions button {
+            min-height: 30px;
+            padding: 0 7px;
+            font-size: 11px;
+        }
+
+        @media (max-width: 760px) {
+            .history-table-wrap {
+                overflow-x: visible;
+            }
+
+            .history-record-table,
+            .history-record-table tbody {
+                display: block;
+                width: 100%;
+            }
+
+            .history-record-table thead {
+                display: none;
+            }
+
+            .history-record-table tbody tr {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 7px 10px;
+                margin: 8px;
+                padding: 10px;
+                border: 1px solid var(--line);
+                border-radius: 6px;
+            }
+
+            .history-record-table tbody td {
+                min-width: 0;
+                padding: 0;
+                border: 0;
+                font-size: 12px;
+            }
+
+            .history-record-table tbody td::before {
+                display: block;
+                margin-bottom: 2px;
+                color: var(--muted);
+                font-size: 9px;
+                font-weight: 700;
+                text-transform: uppercase;
+                content: attr(data-label);
+            }
+
+            .history-record-table tbody td:nth-child(1),
+            .history-record-table tbody td:nth-child(2),
+            .history-record-table tbody td:nth-child(3),
+            .history-record-table tbody td:nth-child(8),
+            .history-record-table tbody td:nth-child(9) {
+                grid-column: 1 / -1;
+            }
+
+            .history-record-table .history-actions {
+                justify-content: flex-start;
+            }
+        }
+
         .history-actions .button-secondary,
         .paa-row-actions .button-secondary {
             min-height: 40px;
@@ -1727,6 +1820,30 @@
             font-size: 13px;
         }
 
+        .mobile-access-card {
+            display: none;
+        }
+
+        html.mobile-client:not(.mobile-authenticated) body > *:not(#access-gate) {
+            visibility: hidden;
+        }
+
+        html.mobile-client:not(.mobile-authenticated) #access-gate {
+            display: grid;
+        }
+
+        html.mobile-client:not(.mobile-authenticated) #access-gate-form {
+            display: none;
+        }
+
+        html.mobile-client:not(.mobile-authenticated) .mobile-access-card {
+            display: block;
+        }
+
+        html.mobile-client .access-gate-status {
+            color: var(--red);
+        }
+
         .user-login {
             position: fixed;
             z-index: 1100;
@@ -1780,9 +1897,9 @@
             font-size: 13px;
         }
 
-        body:not([data-user-role="reception"]):not([data-user-role="admin"]) #assistant-admin-open,
-        body:not([data-user-role="reception"]):not([data-user-role="admin"]) #attendance-tab,
-        body:not([data-user-role="reception"]):not([data-user-role="admin"]) #paa-tab {
+        body:not([data-user-role="reception"]):not([data-user-role="intern"]):not([data-user-role="admin"]) #assistant-admin-open,
+        body:not([data-user-role="reception"]):not([data-user-role="intern"]):not([data-user-role="admin"]) #attendance-tab,
+        body:not([data-user-role="reception"]):not([data-user-role="intern"]):not([data-user-role="admin"]) #paa-tab {
             display: none !important;
         }
 
@@ -2229,6 +2346,19 @@
             display: grid;
             gap: 8px;
             margin: 14px 0;
+        }
+
+        .mobile-admin-settings {
+            margin-top: 14px;
+            padding: 16px;
+        }
+
+        .mobile-admin-settings h3 {
+            margin: 0 0 7px;
+        }
+
+        .mobile-admin-settings .text-input {
+            margin-bottom: 10px;
         }
 
         .assistant-admin-row {
@@ -2818,15 +2948,48 @@
             .queue-panel-content .queue-dashboards {
                 grid-template-columns: 1fr;
             }
+
+            .main-tabs {
+                gap: 8px;
+                overflow-x: auto;
+                padding-bottom: 4px;
+            }
+
+            .main-tab {
+                min-height: 44px;
+                flex: 0 0 auto;
+            }
+
+            .queue-card {
+                padding: 14px;
+            }
+
+            .queue-actions {
+                display: grid;
+                grid-template-columns: 1fr;
+            }
+
+            .queue-actions button {
+                width: 100%;
+                min-height: 46px;
+            }
         }
 
         @media (max-width: 560px) {
             .topbar {
+                align-items: flex-start;
+                flex-direction: column;
                 padding: 12px 16px;
             }
 
             .topbar-actions {
+                width: 100%;
+                flex-wrap: wrap;
                 gap: 10px;
+            }
+
+            .utility-buttons {
+                margin-left: auto;
             }
 
             .assistant-shortcut {
@@ -2910,6 +3073,10 @@
 
             .field-assistant .choice-row {
                 gap: 6px;
+            }
+
+            .mobile-access-card {
+                padding: 22px;
             }
 
             .choice-chip label {
@@ -2997,6 +3164,18 @@
                 <button class="button-secondary" id="access-offline" type="button" disabled>Continuar offline</button>
             </div>
             <p class="access-gate-status" id="access-gate-status" role="status" aria-live="polite">Carregando os dados locais…</p>
+        </form>
+        <form class="access-gate-card mobile-access-card" id="mobile-access-form">
+            <p class="eyebrow">Acesso pela rede local</p>
+            <h1>CRAS Ouro Preto</h1>
+            <p>Digite o código móvel configurado pelo Admin no computador. Use somente uma rede Wi-Fi privada e confiável.</p>
+            <label class="field-label" for="mobile-access-pin">Código de acesso móvel</label>
+            <input class="text-input" id="mobile-access-pin" type="password" minlength="12" maxlength="128"
+                autocomplete="current-password" required>
+            <div class="access-gate-actions">
+                <button class="button-primary" id="mobile-access-submit" type="submit">Entrar</button>
+            </div>
+            <p class="access-gate-status" id="mobile-access-status" role="status" aria-live="polite"></p>
         </form>
     </section>
     <section class="user-login" id="user-login" role="dialog" aria-modal="true"
@@ -3107,6 +3286,14 @@
                             <input class="text-input" id="sync-local-key" type="text" readonly>
                             <p class="hint">Copie os endereços e o código deste computador para o outro. Cada computador
                                 pode iniciar a sincronização. Os dados trafegam criptografados.</p>
+                            <label class="field-label" for="sync-mobile-addresses">Endereço HTTPS para celulares</label>
+                            <input class="text-input" id="sync-mobile-addresses" type="text" readonly>
+                            <label class="field-label" for="sync-mobile-ca">Endereço para baixar o certificado móvel</label>
+                            <input class="text-input" id="sync-mobile-ca" type="text" readonly>
+                            <label class="field-label" for="sync-mobile-fingerprint">Impressão digital do certificado</label>
+                            <input class="text-input" id="sync-mobile-fingerprint" type="text" readonly>
+                            <p class="hint">Instale o certificado raiz nos celulares e confira esta impressão digital antes
+                                de abrir o endereço HTTPS. Use somente uma rede privada e confiável.</p>
                         </div>
                     </section>
                 </div>
@@ -3514,8 +3701,8 @@
                             escolhidos.</div>
                     </section>
                 </details>
-                <div class="panel table-wrap">
-                    <table class="history-table">
+                <div class="panel table-wrap history-table-wrap">
+                    <table class="history-table history-record-table">
                         <thead>
                             <tr>
                                 <th>Data e hora</th>
@@ -3620,6 +3807,21 @@
                 <button class="button-primary" type="submit">Acessar</button>
             </form>
             <div class="assistant-admin-content" id="assistant-admin-content" hidden>
+                <section class="panel mobile-admin-settings" id="mobile-admin-settings" hidden>
+                    <h3>Acesso pelo celular</h3>
+                    <p class="hint">Defina um código com pelo menos 12 caracteres. Use o celular somente em uma rede Wi-Fi privada e confiável.</p>
+                    <label class="field-label" for="mobile-admin-pin">Novo código de acesso móvel</label>
+                    <input class="text-input" id="mobile-admin-pin" type="password" minlength="12" maxlength="128"
+                        autocomplete="new-password">
+                    <label class="field-label" for="mobile-admin-pin-confirm">Confirme o código</label>
+                    <input class="text-input" id="mobile-admin-pin-confirm" type="password" minlength="12"
+                        maxlength="128" autocomplete="new-password">
+                    <div class="assistant-admin-actions">
+                        <button class="button-primary" id="mobile-access-save" type="button">Salvar código móvel</button>
+                        <button class="button-secondary" id="mobile-access-disable" type="button">Desativar acesso móvel</button>
+                    </div>
+                    <p class="form-status" id="mobile-access-admin-status" role="status" aria-live="polite"></p>
+                </section>
                 <div class="assistant-admin-list" id="assistant-admin-list"></div>
                 <div class="assistant-admin-actions">
                     <button id="assistant-admin-add" type="button">Adicionar usuário</button>
@@ -3690,7 +3892,6 @@
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
     <script src="./dexie.min.js"></script>
-    <script>window.CRASDesktop = true;</script>
     <script>
         (async () => {
             if (!window.Dexie) {
@@ -3812,6 +4013,7 @@
             const paaPanel = document.getElementById("paa-panel");
             const queuesPanel = document.getElementById("queues-panel");
             const hostedAppsScript = Boolean(window.google?.script?.run);
+            const mobileClient = Boolean(window.CRASMobile);
             const queueDashboards = document.querySelector(".queue-dashboards");
             const queueDashboardsHome = queueDashboards?.parentElement || null;
             const historySuggestionElements = {
@@ -4027,7 +4229,7 @@
             }
             users = users.filter(user => user && typeof user.name === "string" && user.name.trim()
                 && typeof user.color === "string" && /^#[0-9a-f]{6}$/i.test(user.color)
-                && ["assistant", "caseworker", "reception", "admin"].includes(user.role))
+                && ["assistant", "caseworker", "reception", "intern", "admin"].includes(user.role))
                 .map(user => ({
                     id: typeof user.id === "string" && user.id ? user.id : createUserId(),
                     name: user.name.trim(),
@@ -4095,6 +4297,10 @@
             let accessToken = "";
             let offlineMode = false;
             let desktopNodeInfo = null;
+            let mobileAccessKey = null;
+            let mobileNodeRevision = 0;
+            let mobileNodeBaseSnapshot = null;
+            let mobileRefreshInProgress = false;
             let activePeerId = "";
             let localNodeRevision = Number(readStorage(STORAGE_LOCAL_NODE_REVISION, 0)) || 0;
             let localNodeRefreshInProgress = false;
@@ -4133,16 +4339,17 @@
                 const role = activeUser?.role || "";
                 document.body.dataset.userRole = role;
                 const isStaff = role === "assistant" || role === "caseworker";
-                queuesTab.hidden = !isStaff && !hostedAppsScript;
+                const mobileIntern = mobileClient && role === "intern";
+                queuesTab.hidden = !isStaff && !hostedAppsScript && !mobileIntern;
                 document.getElementById("switch-user").hidden = !activeUser;
                 document.getElementById("active-user-label").textContent = activeUser
                     ? `${activeUser.name} · ${userRoleLabel(activeUser.role)}${activeUser.canAttendTechnical ? " · Técnico" : ""}`
                     : "";
-                if (isStaff) {
+                if (isStaff || mobileIntern) {
                     if (queueDashboards && queueDashboards.parentElement !== queuesPanel) {
                         document.getElementById("queue-panel-content").appendChild(queueDashboards);
                     }
-                    attendancePanel.hidden = true;
+                    attendancePanel.hidden = isStaff;
                     selectMainTab("queues");
                     return;
                 }
@@ -4158,6 +4365,7 @@
                     assistant: "Técnico",
                     caseworker: "Cadastradora",
                     reception: "Recepção",
+                    intern: "Estagiário",
                     admin: "Admin"
                 })[role] || "Usuário";
             }
@@ -4370,6 +4578,70 @@
                 submitButton.disabled = false;
                 offlineButton.disabled = hostedAppsScript;
                 status.textContent = "";
+                if (mobileClient) {
+                    gate.hidden = false;
+                    const mobileForm = document.getElementById("mobile-access-form");
+                    const pinInput = document.getElementById("mobile-access-pin");
+                    const mobileStatus = document.getElementById("mobile-access-status");
+                    const mobileSubmit = document.getElementById("mobile-access-submit");
+                    let info = null;
+                    mobileSubmit.disabled = true;
+                    return new Promise(resolve => {
+                        mobileForm.addEventListener("submit", async event => {
+                            event.preventDefault();
+                            if (!info?.enabled || !info.ready) return;
+                            mobileSubmit.disabled = true;
+                            mobileStatus.textContent = "Validando o código e carregando os dados…";
+                            try {
+                                mobileAccessKey = await deriveMobileAccessKey(pinInput.value, info);
+                                const state = await mobileRequest({ operation: "read" });
+                                if (!state || !Array.isArray(state.snapshot?.appointments)
+                                    || !Array.isArray(state.snapshot?.paaRecords)
+                                    || !Number.isSafeInteger(state.revision)) {
+                                    throw new Error("O computador retornou dados móveis inválidos.");
+                                }
+                                mobileNodeRevision = state.revision;
+                                mobileNodeBaseSnapshot = state.snapshot;
+                                await applySyncedSnapshot(
+                                    state.snapshot,
+                                    { appointments: [], paaRecords: [], settings: {} },
+                                    [],
+                                    false
+                                );
+                                document.documentElement.classList.add("mobile-authenticated");
+                                gate.hidden = true;
+                                document.getElementById("sync-now").hidden = true;
+                                document.querySelector(".offline").textContent = "Conectado ao computador pela rede local";
+                                resolve();
+                            } catch (error) {
+                                mobileAccessKey = null;
+                                mobileStatus.textContent = error.message || "Não foi possível abrir o sistema.";
+                            } finally {
+                                mobileSubmit.disabled = !info?.enabled || !info.ready;
+                                pinInput.value = "";
+                                if (!gate.hidden) pinInput.focus();
+                            }
+                        });
+                        fetch("/api/mobile-info", { cache: "no-store" })
+                            .then(response => {
+                                if (!response.ok) throw new Error("Não foi possível consultar o computador.");
+                                return response.json();
+                            })
+                            .then(mobileInfo => {
+                                info = mobileInfo;
+                                mobileSubmit.disabled = !info.enabled || !info.ready;
+                                mobileStatus.textContent = !info.enabled
+                                    ? "O Admin precisa configurar o código móvel no computador."
+                                    : !info.ready
+                                        ? "O computador ainda está inicializando. Tente novamente em instantes."
+                                        : "";
+                                pinInput.focus();
+                            })
+                            .catch(error => {
+                                mobileStatus.textContent = error.message || "Não foi possível localizar o computador.";
+                            });
+                    });
+                }
                 if (window.CRASDesktop) {
                     try {
                         const response = await fetch("/api/info?details=1", { cache: "no-store" });
@@ -4382,6 +4654,15 @@
                         document.getElementById("sync-local-addresses").value =
                             (desktopNodeInfo.addresses || []).map(address => `http://${address}:${desktopNodeInfo.port}`).join(", ")
                             || `http://127.0.0.1:${desktopNodeInfo.port}`;
+                        document.getElementById("sync-mobile-addresses").value =
+                            desktopNodeInfo.mobileHttpsReady
+                                ? (desktopNodeInfo.mobileAddresses || [])
+                                    .map(address => `https://${address}:${desktopNodeInfo.mobilePort}`).join(", ")
+                                : "Acesso HTTPS móvel indisponível";
+                        document.getElementById("sync-mobile-ca").value = (desktopNodeInfo.addresses || [])
+                            .map(address => `http://${address}:${desktopNodeInfo.port}/api/mobile-ca`).join(", ");
+                        document.getElementById("sync-mobile-fingerprint").value =
+                            desktopNodeInfo.mobileCaFingerprint || "Certificado HTTPS não configurado";
                         document.querySelector(".offline").textContent = "Dados salvos neste dispositivo · P2P";
                         gate.hidden = true;
                         showSyncStatus("Aplicativo desktop pronto. Configure o endereço e o código de outro computador nas Configurações.", 0);
@@ -4470,6 +4751,60 @@
 
             function base64ToBytes(value) {
                 return Uint8Array.from(atob(value), character => character.charCodeAt(0));
+            }
+
+            async function deriveMobileAccessKey(password, info) {
+                const material = await crypto.subtle.importKey(
+                    "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]
+                );
+                return crypto.subtle.deriveKey(
+                    {
+                        name: "PBKDF2",
+                        salt: base64ToBytes(info.salt),
+                        iterations: info.iterations,
+                        hash: "SHA-256"
+                    },
+                    material,
+                    { name: "AES-GCM", length: 256 },
+                    false,
+                    ["encrypt", "decrypt"]
+                );
+            }
+
+            async function encryptMobilePayload(payload, key) {
+                const nonce = crypto.getRandomValues(new Uint8Array(12));
+                const ciphertext = await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: nonce },
+                    key,
+                    new TextEncoder().encode(JSON.stringify(payload))
+                );
+                return {
+                    nonce: bytesToBase64(nonce),
+                    ciphertext: bytesToBase64(new Uint8Array(ciphertext))
+                };
+            }
+
+            async function mobileRequest(payload) {
+                if (!mobileAccessKey) throw new Error("O acesso móvel expirou. Digite o código novamente.");
+                const envelope = await encryptMobilePayload(payload, mobileAccessKey);
+                const response = await fetchPeer("/api/mobile-snapshot", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(envelope)
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    const error = new Error(result.error || "Não foi possível acessar os dados do computador.");
+                    error.status = response.status;
+                    error.revision = result.revision;
+                    throw error;
+                }
+                const plaintext = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: base64ToBytes(result.nonce) },
+                    mobileAccessKey,
+                    base64ToBytes(result.ciphertext)
+                );
+                return JSON.parse(new TextDecoder().decode(plaintext));
             }
 
             async function fetchPeerInfo(endpoint = getSyncBridgeUrl()) {
@@ -4582,7 +4917,11 @@
             }
 
             function scheduleLocalSnapshotPersist(actorRole = activeUser?.role) {
-                if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) return;
+                if (mobileClient) {
+                    if (!mobileAccessKey) return;
+                } else if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) {
+                    return;
+                }
                 window.clearTimeout(localSnapshotPersistTimer);
                 localSnapshotPersistTimer = window.setTimeout(async () => {
                     if (syncInProgress) {
@@ -4590,6 +4929,10 @@
                         return;
                     }
                     try {
+                        if (mobileClient) {
+                            await persistMobileSnapshotToServer(createSyncSnapshot(), actorRole);
+                            return;
+                        }
                         await refreshLocalNodeFromServer(true);
                         await persistLocalSnapshotToServer(createSyncSnapshot(), actorRole);
                     } catch (error) {
@@ -4600,7 +4943,7 @@
             }
 
             function schedulePeerSync(actorRole = activeUser?.role, warnIfUnconfigured = false) {
-                if (offlineMode) return;
+                if (offlineMode || mobileClient) return;
                 if (window.CRASDesktop && !getSyncBridgeUrl()) {
                     if (warnIfUnconfigured) {
                         showSyncStatus(
@@ -4854,6 +5197,90 @@
                 }));
             }
 
+            async function persistMobileSnapshotToServer(snapshot, actorRole = activeUser?.role) {
+                let candidate = snapshot;
+                for (let attempt = 0; attempt < 4; attempt += 1) {
+                    try {
+                        const result = await mobileRequest({
+                            operation: "write",
+                            snapshot: candidate,
+                            expectedRevision: mobileNodeRevision,
+                            actorRole
+                        });
+                        if (!Number.isSafeInteger(result.revision) || result.revision < 0) {
+                            throw new Error("O computador retornou uma revisão móvel inválida.");
+                        }
+                        mobileNodeRevision = result.revision;
+                        mobileNodeBaseSnapshot = candidate;
+                        return;
+                    } catch (error) {
+                        if (error.status !== 409) throw error;
+                        const current = await mobileRequest({ operation: "read" });
+                        const merged = mergePeerSnapshots(
+                            mobileNodeBaseSnapshot,
+                            candidate,
+                            current.snapshot,
+                            actorRole,
+                            current.actorRole
+                        );
+                        await applySyncedSnapshot(
+                            merged,
+                            { appointments: [], paaRecords: [], settings: {} },
+                            [],
+                            false
+                        );
+                        mobileNodeRevision = current.revision;
+                        mobileNodeBaseSnapshot = current.snapshot;
+                        candidate = createSyncSnapshot();
+                        if (attempt === 3) {
+                            throw new Error("Os dados mudaram repetidamente. Tente sincronizar novamente.");
+                        }
+                    }
+                }
+            }
+
+            async function refreshMobileSnapshotFromServer() {
+                if (!mobileClient || !mobileAccessKey || mobileRefreshInProgress
+                    || document.visibilityState !== "visible") return;
+                mobileRefreshInProgress = true;
+                try {
+                    const state = await mobileRequest({ operation: "read" });
+                    if (!Number.isSafeInteger(state.revision) || state.revision <= mobileNodeRevision) return;
+                    const currentSnapshot = createSyncSnapshot();
+                    const merged = mergePeerSnapshots(
+                        mobileNodeBaseSnapshot,
+                        currentSnapshot,
+                        state.snapshot,
+                        activeUser?.role,
+                        state.actorRole
+                    );
+                    await applySyncedSnapshot(
+                        merged,
+                        { appointments: [], paaRecords: [], settings: {} },
+                        [],
+                        false
+                    );
+                    mobileNodeRevision = state.revision;
+                    mobileNodeBaseSnapshot = state.snapshot;
+                    if (!syncValuesEqual(merged, state.snapshot)) {
+                        scheduleLocalSnapshotPersist(activeUser?.role);
+                    }
+                } catch (error) {
+                    if (error.status === 401 || error.status === 403) {
+                        mobileAccessKey = null;
+                        document.documentElement.classList.remove("mobile-authenticated");
+                        document.getElementById("access-gate").hidden = false;
+                        document.getElementById("mobile-access-status").textContent =
+                            "O acesso móvel foi desativado ou o código mudou. Atualize a página e autentique-se novamente.";
+                    } else {
+                        console.error("Não foi possível atualizar a fila no celular.", error);
+                        showSyncStatus(`Não foi possível atualizar os dados do computador: ${error.message}`, 10000);
+                    }
+                } finally {
+                    mobileRefreshInProgress = false;
+                }
+            }
+
             function preserveChangesMadeDuringSync(capturedSnapshot, serverSnapshot, currentSnapshot) {
                 const preserveCollectionChanges = (collection, capturedItems, serverItems, currentItems) => {
                     const captured = new Map(capturedItems.map(item => [item.id, item]));
@@ -4914,14 +5341,14 @@
                 if (role === "admin") return 100;
                 if (collection === "appointments") {
                     const parts = path.split("/");
-                    if (parts.includes("assistencia")) return role === "reception" ? 90 : role === "assistant" ? 80 : 10;
-                    if (parts.includes("cadastro")) return role === "reception" ? 90 : role === "caseworker" ? 80 : 10;
+                    if (parts.includes("assistencia")) return role === "reception" || role === "intern" ? 90 : role === "assistant" ? 80 : 10;
+                    if (parts.includes("cadastro")) return role === "reception" || role === "intern" ? 90 : role === "caseworker" ? 80 : 10;
                     if (parts.includes("routeServices")) {
-                        return role === "reception" ? 90 : role === "assistant" || role === "caseworker" ? 70 : 10;
+                        return role === "reception" || role === "intern" ? 90 : role === "assistant" || role === "caseworker" ? 70 : 10;
                     }
-                    return role === "reception" ? 80 : 10;
+                    return role === "reception" || role === "intern" ? 80 : 10;
                 }
-                if (collection === "paaRecords") return role === "reception" ? 80 : 10;
+                if (collection === "paaRecords") return role === "reception" || role === "intern" ? 80 : 10;
                 return 10;
             }
 
@@ -5158,7 +5585,7 @@
                 if (nextUsers.some(user => !user || typeof user.id !== "string" || typeof user.name !== "string"
                     || typeof user.color !== "string" || !/^#[0-9a-f]{6}$/i.test(user.color)
                     || (user.canAttendTechnical !== undefined && typeof user.canAttendTechnical !== "boolean")
-                    || !["assistant", "caseworker", "reception", "admin"].includes(user.role))) {
+                    || !["assistant", "caseworker", "reception", "intern", "admin"].includes(user.role))) {
                     throw new Error("A lista de usuários retornada pelo outro computador é inválida.");
                 }
                 nextUsers.forEach(user => {
@@ -5424,7 +5851,7 @@
                                     [queue]: { role: actorRole, updatedAt }
                                 };
                             }
-                        } else if (actorRole === "reception") {
+                        } else if (actorRole === "reception" || actorRole === "intern") {
                             const previousServices = previousContent?.routeServices || [];
                             const nextServices = nextContent.routeServices || [];
                             if (!syncValuesEqual(previousServices, nextServices)) {
@@ -5537,6 +5964,7 @@
                         <option value="assistant" ${user.role === "assistant" ? "selected" : ""}>Técnico</option>
                         <option value="caseworker" ${user.role === "caseworker" ? "selected" : ""}>Cadastradora</option>
                         <option value="reception" ${user.role === "reception" ? "selected" : ""}>Recepção</option>
+                        <option value="intern" ${user.role === "intern" ? "selected" : ""}>Estagiário</option>
                         <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
                     </select></label>
                     <label>Cor<input type="color" data-user-color value="${escapeHtml(user.color)}" aria-label="Cor de ${escapeHtml(user.name)}"></label>
@@ -5558,6 +5986,24 @@
                 });
             }
 
+            async function refreshMobileAccessStatus() {
+                const section = document.getElementById("mobile-admin-settings");
+                section.hidden = !window.CRASDesktop || activeUser?.role !== "admin";
+                if (section.hidden) return;
+                const status = document.getElementById("mobile-access-admin-status");
+                try {
+                    const response = await fetch("/api/mobile-info", { cache: "no-store" });
+                    const info = await response.json();
+                    if (!response.ok) throw new Error(info.error || "Não foi possível consultar o acesso móvel.");
+                    status.textContent = info.enabled
+                        ? "Acesso móvel ativado. O código atual não pode ser consultado."
+                        : "Acesso móvel desativado.";
+                } catch (error) {
+                    console.error("Não foi possível consultar o acesso móvel.", error);
+                    status.textContent = error.message || "Não foi possível consultar o acesso móvel.";
+                }
+            }
+
             function openAssistantAdmin() {
                 if (activeUser?.role === "assistant" || activeUser?.role === "caseworker") return;
                 const login = document.getElementById("user-login");
@@ -5569,7 +6015,10 @@
                 document.getElementById("assistant-admin-content").hidden = !isAdmin;
                 document.getElementById("assistant-admin-password").value = "";
                 overlay.hidden = false;
-                if (isAdmin) renderAssistantAdminList();
+                if (isAdmin) {
+                    renderAssistantAdminList();
+                    refreshMobileAccessStatus();
+                }
                 else document.getElementById("assistant-admin-password").focus();
             }
 
@@ -5607,6 +6056,64 @@
                     content.hidden = false;
                     renderAssistantAdminList();
                     document.getElementById("assistant-admin-add").focus();
+                });
+                document.getElementById("mobile-access-save").addEventListener("click", async () => {
+                    if (activeUser?.role !== "admin" || !window.CRASDesktop) return;
+                    const pin = document.getElementById("mobile-admin-pin").value;
+                    const confirmation = document.getElementById("mobile-admin-pin-confirm").value;
+                    const status = document.getElementById("mobile-access-admin-status");
+                    if (pin.length < 12 || pin.length > 128) {
+                        status.textContent = "Use um código com pelo menos 12 caracteres.";
+                        return;
+                    }
+                    if (pin !== confirmation) {
+                        status.textContent = "Os códigos não coincidem.";
+                        return;
+                    }
+                    const button = document.getElementById("mobile-access-save");
+                    button.disabled = true;
+                    status.textContent = "Salvando o código móvel…";
+                    try {
+                        const response = await fetch("/api/mobile-config", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ mobilePin: pin })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.error || "Não foi possível salvar o código móvel.");
+                        status.textContent = "Código móvel salvo. Informe-o apenas à equipe autorizada.";
+                        document.getElementById("mobile-admin-pin").value = "";
+                        document.getElementById("mobile-admin-pin-confirm").value = "";
+                    } catch (error) {
+                        console.error("Não foi possível salvar o código móvel.", error);
+                        status.textContent = error.message || "Não foi possível salvar o código móvel.";
+                    } finally {
+                        button.disabled = false;
+                    }
+                });
+                document.getElementById("mobile-access-disable").addEventListener("click", async () => {
+                    if (activeUser?.role !== "admin" || !window.CRASDesktop
+                        || !window.confirm("Desativar o acesso pelo celular?")) return;
+                    const status = document.getElementById("mobile-access-admin-status");
+                    const button = document.getElementById("mobile-access-disable");
+                    button.disabled = true;
+                    try {
+                        const response = await fetch("/api/mobile-config", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ mobilePin: "" })
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.error || "Não foi possível desativar o acesso móvel.");
+                        status.textContent = "Acesso móvel desativado.";
+                        document.getElementById("mobile-admin-pin").value = "";
+                        document.getElementById("mobile-admin-pin-confirm").value = "";
+                    } catch (error) {
+                        console.error("Não foi possível desativar o acesso móvel.", error);
+                        status.textContent = error.message || "Não foi possível desativar o acesso móvel.";
+                    } finally {
+                        button.disabled = false;
+                    }
                 });
                 document.getElementById("assistant-admin-add").addEventListener("click", () => {
                     const palette = ["#4b8061", "#bd8950", "#527c9b", "#9a6e8e", "#6f8d57", "#8a6eae"];
@@ -6403,7 +6910,8 @@
                 const services = todaysAppointments.flatMap(record =>
                     getRecordServices(record).map(service => ({ record, service })));
                 document.getElementById("total-count").textContent = String(services.length);
-                const dashboardUsers = users.filter(user => user.role !== "reception" && user.role !== "caseworker");
+                const dashboardUsers = users.filter(user =>
+                    user.role !== "reception" && user.role !== "intern" && user.role !== "caseworker");
                 const counts = Object.fromEntries(dashboardUsers.map(user => [user.id, 0]));
                 services.forEach(({ record, service }) => {
                     getCreditedMembers(service, record).forEach(member => {
@@ -6516,17 +7024,24 @@
                     .map(route => `<option value="${escapeHtml(route)}" ${route === service.route ? "selected" : ""}>${escapeHtml(displayRouteName(route))}</option>`)
                     .join("");
                 const collaborators = Array.isArray(service.collaborators) ? service.collaborators : [];
+                const acquiredBy = queueType === "assistencia" ? service.assistanceAcquiredBy : null;
                 const teamOptions = users.filter(user => queueType === "cadastro"
                     ? user.role === "caseworker" : isTechnicalUser(user))
                     .map(user => `<option value="${escapeHtml(user.id)}" ${collaborators.some(member => member.id === user.id) ? "selected" : ""}>${escapeHtml(user.name)}</option>`)
                     .join("");
                 const creditedNames = [service.startedBy?.name, ...collaborators.map(member => member.name)]
                     .filter(Boolean).filter((name, index, list) => list.indexOf(name) === index);
+                const folderAction = acquiredBy?.id === activeUser?.id
+                    ? `<button class="button-secondary" type="button" data-folder-action="release" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">Devolver pasta</button>`
+                    : !acquiredBy && queueType === "assistencia" && activeUser?.role === "intern" && !started
+                        ? `<button class="button-primary" type="button" data-folder-action="acquire" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">Adquirir pasta</button>`
+                        : "";
                 return `<article class="queue-card ${queueType === "assistencia" ? "assistance-card" : ""}" style="--assistant-color:${escapeHtml(assignee?.color || "#6f8dba")}">
                     <div class="queue-card-heading"><strong>${escapeHtml(record.nome || "Sem nome")}</strong><span class="queue-status">${started ? "Em atendimento" : "Aguardando"}</span></div>
                     <p class="queue-meta">${escapeHtml(displayRouteName(service.route))} · ${escapeHtml(assigneeName)} · ${started ? "Iniciado" : "Na fila"} às ${escapeHtml(formatDateTime(timestamp))}</p>
+                    ${acquiredBy ? `<p class="queue-meta">Pasta adquirida por ${escapeHtml(acquiredBy.name || "Estagiário")}${service.assistanceAcquiredAt ? ` às ${escapeHtml(formatDateTime(service.assistanceAcquiredAt))}` : ""}</p>` : ""}
                     ${service.startedBy ? `<p class="queue-meta">Iniciado por: ${escapeHtml(service.startedBy.name)}${creditedNames.length > 1 ? ` · Equipe: ${escapeHtml(creditedNames.join(", "))}` : ""}</p>` : ""}
-                    <div class="queue-actions"><button class="queue-action" type="button" data-queue-action="${started ? "finish" : "start"}" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">${started ? "Finalizar atendimento" : "Iniciar atendimento"}</button>${!started && activeUser?.role === "reception" ? `<button class="button-secondary" type="button" data-queue-action="finish" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">Finalizar fila</button>` : ""}</div>
+                    <div class="queue-actions"><button class="queue-action" type="button" data-queue-action="${started ? "finish" : "start"}" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">${started ? "Finalizar atendimento" : "Iniciar atendimento"}</button>${!started && ["reception", "intern"].includes(activeUser?.role) ? `<button class="button-secondary" type="button" data-queue-action="finish" data-queue-type="${queueType}" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(service.id)}">Finalizar fila</button>` : ""}${folderAction}</div>
                     <details class="queue-transfer">
                         <summary>Alterar encaminhamento ou equipe</summary>
                         <label class="field-label">Encaminhamento<select class="select-input" data-transfer-route>${routeOptions}</select></label>
@@ -6554,8 +7069,10 @@
                 const cadastroEntries = getEntries("cadastro");
                 const assistanceEntries = getEntries("assistencia");
                 const role = activeUser?.role;
-                const canSeeCadastro = role === "admin" || role === "reception" || role === "caseworker";
-                const canSeeAssistance = role === "admin" || role === "reception" || role === "assistant";
+                const mobileIntern = mobileClient && role === "intern";
+                const canSeeCadastro = !mobileIntern
+                    && (role === "admin" || role === "reception" || role === "intern" || role === "caseworker");
+                const canSeeAssistance = role === "admin" || role === "reception" || role === "intern" || role === "assistant";
                 const cadastroList = document.getElementById("cadastro-queue-list");
                 const assistanceList = document.getElementById("assistance-queue-list");
                 cadastroList.closest(".queue-dashboard").hidden = !canSeeCadastro;
@@ -6589,15 +7106,77 @@
                 const updatedAppointments = appointments.map(item => item.id === recordId ? updatedRecord : item);
                 if (!await saveStorage(STORAGE_RECORDS, updatedAppointments)) return false;
                 appointments = updatedAppointments;
+                if (mobileClient && mobileAccessKey) {
+                    window.clearTimeout(localSnapshotPersistTimer);
+                    try {
+                        await persistMobileSnapshotToServer(createSyncSnapshot(), activeUser?.role);
+                    } catch (error) {
+                        console.error("Não foi possível registrar a ação da fila no computador.", error);
+                        showSyncStatus(`A alteração continua salva neste celular, mas não chegou ao computador: ${error.message}`, 0);
+                        renderAll();
+                        return false;
+                    }
+                }
                 renderAll();
                 return true;
             }
 
             async function handleQueueAction(event) {
                 const action = event.target.closest("[data-queue-action]");
+                const folderAction = event.target.closest("[data-folder-action]");
                 const transfer = event.target.closest("[data-save-transfer]");
                 const saveTeam = event.target.closest("[data-save-team]");
                 if (!activeUser) return;
+                if (folderAction) {
+                    if (activeUser.role !== "intern") {
+                        showToast("Somente o perfil Estagiário pode adquirir ou devolver a pasta.");
+                        return;
+                    }
+                    const { folderAction: actionType, recordId, serviceId } = folderAction.dataset;
+                    const record = appointments.find(item => item.id === recordId);
+                    const currentService = record && getRecordServices(record).find(item => item.id === serviceId);
+                    if (!record || !currentService || !currentService.queueTags.includes(QUEUE_TAGS.assistencia)) {
+                        showToast("Não foi possível localizar a pasta na fila do Atendimento Técnico.");
+                        return;
+                    }
+                    const state = getServiceState(currentService, "assistencia");
+                    if (actionType === "acquire"
+                        && (state.started === true || state.finished === true
+                            || currentService.assistanceAcquiredBy?.id)) {
+                        showToast("Esta pasta já foi iniciada ou adquirida por outra pessoa.");
+                        return;
+                    }
+                    if (actionType === "release" && currentService.assistanceAcquiredBy?.id !== activeUser.id) {
+                        showToast("Você só pode devolver uma pasta adquirida por você.");
+                        return;
+                    }
+                    let acquisitionConflict = false;
+                    const saved = await updateQueueService(recordId, serviceId, service => {
+                        if (actionType === "acquire") {
+                            if (service.assistanceAcquiredBy?.id && service.assistanceAcquiredBy.id !== activeUser.id) {
+                                acquisitionConflict = true;
+                                return service;
+                            }
+                            service.assistanceAcquiredBy = userSnapshot(activeUser);
+                            service.assistanceAcquiredAt = new Date().toISOString();
+                        } else {
+                            delete service.assistanceAcquiredBy;
+                            delete service.assistanceAcquiredAt;
+                        }
+                        return service;
+                    });
+                    const latestRecord = appointments.find(item => item.id === recordId);
+                    const latestService = latestRecord && getRecordServices(latestRecord)
+                        .find(item => item.id === serviceId);
+                    const acquisitionWasLost = actionType === "acquire"
+                        && latestService?.assistanceAcquiredBy?.id !== activeUser.id;
+                    if (saved && (acquisitionConflict || acquisitionWasLost)) {
+                        showToast("Outra pessoa adquiriu esta pasta antes de você.");
+                    } else if (saved) {
+                        showToast(actionType === "acquire" ? "Pasta adquirida." : "Pasta devolvida à fila.");
+                    }
+                    return;
+                }
                 if (action) {
                     const { queueAction, queueType, recordId, serviceId } = action.dataset;
                     if (activeUser?.role === "assistant" && queueType !== "assistencia"
@@ -6616,6 +7195,13 @@
                         } else {
                             state.finished = true;
                             state.finishedAt = now;
+                            if (activeUser.role === "reception") {
+                                state.finishedBy = userSnapshot(activeUser);
+                                delete state.finishedFollowupAt;
+                            } else {
+                                delete state.finishedBy;
+                                delete state.finishedFollowupAt;
+                            }
                         }
                         service.states[queueType] = state;
                         return service;
@@ -6731,8 +7317,9 @@
                 const status = getServiceState(service, prompt.type).started === true
                     ? "está em atendimento"
                     : "aguarda";
-                queueFollowupMessage.textContent =
-                    `${record.nome || "A pessoa"} · ${displayRouteName(service.route)} ${status} há mais de ${waitMinutes} minutos na fila de ${queueName}. A pessoa foi atendida?`;
+                queueFollowupMessage.textContent = prompt.receptionFinished
+                    ? `A Recepção finalizou a fila de ${queueName} para ${record.nome || "a pessoa"} · ${displayRouteName(service.route)}. A pessoa foi atendida?`
+                    : `${record.nome || "A pessoa"} · ${displayRouteName(service.route)} ${status} há mais de ${waitMinutes} minutos na fila de ${queueName}. A pessoa foi atendida?`;
                 queueFollowupOverlay.hidden = false;
                 queueFollowupYes.focus();
             }
@@ -6753,6 +7340,13 @@
                     if (attended) {
                         state.finished = true;
                         state.finishedAt = new Date().toISOString();
+                        if (prompt.receptionFinished) state.finishedFollowupAt = new Date().toISOString();
+                    } else if (prompt.receptionFinished) {
+                        state.finished = false;
+                        delete state.finishedAt;
+                        delete state.finishedBy;
+                        delete state.finishedFollowupAt;
+                        state.reminderAt = new Date().toISOString();
                     } else {
                         state.reminderAt = new Date().toISOString();
                     }
@@ -6775,6 +7369,16 @@
                     && isTechnicalUser(user)
                     && Boolean(user.id)
                     && service.assignments?.assistencia?.id === user.id;
+            }
+
+            function shouldShowReceptionFinishedPrompt(type, service, user, state) {
+                if (state.finished !== true || state.finishedFollowupAt
+                    || state.finishedBy?.role !== "reception") return false;
+                const assignee = service.assignments?.[type];
+                if (!assignee?.id || assignee.id !== user?.id) return false;
+                return type === "cadastro"
+                    ? user.role === "caseworker"
+                    : type === "assistencia" && isTechnicalUser(user);
             }
 
             async function processQueueTimers() {
@@ -6809,7 +7413,17 @@
                                 : tag === QUEUE_TAGS.assistencia ? "assistencia" : "";
                             if (!type) return null;
                             const state = getServiceState(service, type);
-                            if (state.finished === true) return null;
+                            if (state.finished === true) {
+                                return shouldShowReceptionFinishedPrompt(type, service, activeUser, state)
+                                    ? {
+                                        type,
+                                        recordId: record.id,
+                                        serviceId: service.id,
+                                        dueAt: Date.parse(state.finishedAt || "") || now,
+                                        receptionFinished: true
+                                    }
+                                    : null;
+                            }
                             const baseTime = Date.parse(state.started === true
                                 ? state.startedAt || state.enteredAt
                                 : state.enteredAt);
@@ -6925,15 +7539,15 @@
             function renderHistory() {
                 const records = getFilteredAppointments();
                 historyBody.innerHTML = records.map(record => `<tr>
-                    <td>${escapeHtml(formatDateTime(record.createdAt))}</td>
-                    <td>${escapeHtml(record.nome)}</td>
-                    <td>${escapeHtml(formattedAddress(record))}</td>
-                    <td>${escapeHtml(formatCpf(record.cpf))}</td>
-                    <td>${escapeHtml(formatPhone(record.telefone))}</td>
-                    <td>${escapeHtml(record.nacionalidade ?? record.etnia ?? "")}</td>
-                    <td>${escapeHtml(record.assistente)}</td>
-                    <td>${escapeHtml(displayRouteName(record.encaminhamento))}</td>
-                    <td>
+                    <td data-label="Data e hora">${escapeHtml(formatDateTime(record.createdAt))}</td>
+                    <td data-label="Nome">${escapeHtml(record.nome)}</td>
+                    <td data-label="Endereço">${escapeHtml(formattedAddress(record))}</td>
+                    <td data-label="CPF">${escapeHtml(formatCpf(record.cpf))}</td>
+                    <td data-label="Telefone">${escapeHtml(formatPhone(record.telefone))}</td>
+                    <td data-label="Nacionalidade">${escapeHtml(record.nacionalidade ?? record.etnia ?? "")}</td>
+                    <td data-label="Técnico(s)">${escapeHtml(record.assistente)}</td>
+                    <td data-label="Encaminhamento">${escapeHtml(displayRouteName(record.encaminhamento))}</td>
+                    <td data-label="Ações">
                         <div class="history-actions">
                             <button class="button-secondary" type="button" data-action="edit" data-record-id="${escapeHtml(record.id)}">Editar</button>
                             <button class="button-delete" type="button" data-action="delete" data-record-id="${escapeHtml(record.id)}">Excluir</button>
@@ -7227,13 +7841,14 @@
 
             function selectMainTab(tab) {
                 const isStaff = activeUser?.role === "assistant" || activeUser?.role === "caseworker";
+                const mobileIntern = mobileClient && activeUser?.role === "intern";
                 const showPaa = !isStaff && tab === "paa" && Boolean(preferences.paaEnabled);
-                const showQueues = tab === "queues" && (hostedAppsScript || isStaff);
+                const showQueues = tab === "queues" && (hostedAppsScript || isStaff || mobileIntern);
                 queuesTab.setAttribute("aria-selected", String(showQueues));
                 attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues));
                 paaTab.setAttribute("aria-selected", String(showPaa));
                 queuesPanel.hidden = !showQueues;
-                attendancePanel.hidden = isStaff || showPaa;
+                attendancePanel.hidden = isStaff || showPaa || mobileIntern && showQueues;
                 paaPanel.hidden = !showPaa;
             }
 
@@ -7567,6 +8182,10 @@
                         if (!service || typeof service !== "object" || typeof service.id !== "string"
                             || !service.id || typeof service.route !== "string" || !service.route
                             || (service.cancelled !== undefined && typeof service.cancelled !== "boolean")
+                            || (service.assistanceAcquiredBy !== undefined && !validMember(service.assistanceAcquiredBy))
+                            || (service.assistanceAcquiredAt !== undefined
+                                && (typeof service.assistanceAcquiredAt !== "string"
+                                    || Number.isNaN(Date.parse(service.assistanceAcquiredAt))))
                             || (service.queueTags !== undefined && (!Array.isArray(service.queueTags)
                                 || service.queueTags.some(tag => !Object.values(QUEUE_TAGS).includes(tag))))
                             || (service.assignments !== undefined && (!service.assignments
@@ -7580,10 +8199,12 @@
                                     if (!state || typeof state !== "object") return true;
                                     const invalidStatus = ["started", "finished"].some(key =>
                                         state[key] !== undefined && typeof state[key] !== "boolean");
-                                    const invalidTimestamp = ["enteredAt", "startedAt", "finishedAt", "reminderAt"].some(key =>
+                                    const invalidTimestamp = ["enteredAt", "startedAt", "finishedAt", "reminderAt",
+                                        "finishedFollowupAt"].some(key =>
                                         state[key] !== undefined && (typeof state[key] !== "string"
                                             || Number.isNaN(Date.parse(state[key]))));
-                                    return invalidStatus || invalidTimestamp;
+                                    return invalidStatus || invalidTimestamp
+                                        || (state.finishedBy !== undefined && !validMember(state.finishedBy));
                                 })))) {
                             throw new Error(`O serviço ${serviceIndex + 1} do registro ${index + 1} está inválido.`);
                         }
@@ -7669,7 +8290,7 @@
                             || typeof user.name !== "string" || !user.name.trim() || user.name.trim().length > 60
                             || typeof user.color !== "string" || !/^#[0-9a-f]{6}$/i.test(user.color)
                             || (user.canAttendTechnical !== undefined && typeof user.canAttendTechnical !== "boolean")
-                            || !["assistant", "caseworker", "reception", "admin"].includes(user.role)) {
+                            || !["assistant", "caseworker", "reception", "intern", "admin"].includes(user.role)) {
                             throw new Error(`O usuário ${index + 1} do arquivo está inválido.`);
                         }
                         return {
@@ -8482,6 +9103,7 @@
             appointmentDateInput.addEventListener("change", () => { appointmentDateEdited = true; });
             document.addEventListener("visibilitychange", () => {
                 if (document.visibilityState === "visible") {
+                    void refreshMobileSnapshotFromServer();
                     refreshCurrentDay().then(async () => {
                         await ensureQueueTimestamps();
                         scheduleDayRefresh();
@@ -8510,7 +9132,14 @@
             renderAll();
             await processQueueTimers();
             window.setInterval(processQueueTimers, 30_000);
-            scheduleLocalSnapshotPersist();
+            if (window.CRASDesktop) {
+                scheduleLocalSnapshotPersist();
+                window.setInterval(() => {
+                    if (document.visibilityState === "visible") void refreshLocalNodeFromServer();
+                }, 5000);
+            } else if (mobileClient) {
+                window.setInterval(() => void refreshMobileSnapshotFromServer(), 5000);
+            }
         })();
     </script>
 </body>

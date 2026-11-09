@@ -6,14 +6,18 @@ from unittest.mock import Mock, patch
 from pathlib import Path
 
 import truststore
+from cryptography import x509
 from cryptography.exceptions import InvalidTag
 
 from main import (
     PeerStore,
     RevisionConflict,
     decode_envelope,
+    decode_mobile_payload,
     download_update,
     encode_envelope,
+    encode_mobile_payload,
+    ensure_mobile_tls_certificates,
     latest_release,
     verify_update_checksum,
     version_tuple,
@@ -370,6 +374,77 @@ class EncryptionTests(unittest.TestCase):
         self.assertEqual(decoded_payload, payload)
         with self.assertRaises(InvalidTag):
             decode_envelope(envelope, "incorrect-code")
+
+    def test_mobile_payload_is_encrypted_and_authenticated(self):
+        key = b"m" * 32
+        payload = {"operation": "read", "snapshot": {"appointments": []}}
+        envelope = encode_mobile_payload(key, payload)
+        self.assertEqual(decode_mobile_payload(envelope, key), payload)
+        with self.assertRaises(InvalidTag):
+            decode_mobile_payload(envelope, b"x" * 32)
+
+
+class MobileAccessTests(unittest.TestCase):
+    def test_mobile_access_uses_a_salted_key_and_requires_a_long_code(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = PeerStore(Path(temporary_directory) / "mobile.sqlite3")
+            info = store.mobile_access_info()
+            self.assertFalse(info["enabled"])
+
+            with self.assertRaisesRegex(ValueError, "12 e 128"):
+                store.configure_mobile_access("short")
+
+            store.configure_mobile_access("a-long-team-code")
+            info = store.mobile_access_info()
+            self.assertTrue(info["enabled"])
+            self.assertEqual(len(info["salt"]), 24)
+            self.assertEqual(len(store.mobile_access_key()), 32)
+
+            store.configure_mobile_access("")
+            self.assertFalse(store.mobile_access_info()["enabled"])
+            self.assertIsNone(store.mobile_access_key())
+
+    def test_intern_role_is_accepted_and_has_reception_queue_priority(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            store = PeerStore(Path(temporary_directory) / "mobile.sqlite3")
+            store.save_local_snapshot(
+                {"appointments": [], "paaRecords": [], "settings": {}},
+                0,
+                "intern",
+            )
+            self.assertEqual(store.get_local_state()["actorRole"], "intern")
+            self.assertTrue(PeerStore.local_has_precedence(
+                "appointments",
+                "routeServices.service.assistanceAcquiredBy",
+                None,
+                None,
+                "intern",
+                "assistant",
+            ))
+
+    def test_mobile_tls_certificate_is_signed_by_a_persistent_local_ca(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            ca_path, server_path, key_path, fingerprint = ensure_mobile_tls_certificates(
+                directory,
+                ["192.168.1.25"],
+            )
+            ca_cert = x509.load_pem_x509_certificate(ca_path.read_bytes())
+            server_cert = x509.load_pem_x509_certificate(server_path.read_bytes())
+            names = server_cert.extensions.get_extension_for_class(
+                x509.SubjectAlternativeName
+            ).value
+            self.assertIn("192.168.1.25", [str(value) for value in names.get_values_for_type(x509.IPAddress)])
+            self.assertTrue(fingerprint)
+            self.assertTrue(key_path.exists())
+
+            second_ca_path, _, _, second_fingerprint = ensure_mobile_tls_certificates(
+                directory,
+                ["192.168.1.25"],
+            )
+            self.assertEqual(second_ca_path.read_bytes(), ca_path.read_bytes())
+            self.assertEqual(second_fingerprint, fingerprint)
+            self.assertEqual(server_cert.issuer, ca_cert.subject)
 
 
 if __name__ == "__main__":

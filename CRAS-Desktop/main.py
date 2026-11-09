@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from contextlib import closing
 import hashlib
+import ipaddress
 import json
 import logging
 import os
@@ -14,8 +15,9 @@ import ssl
 import subprocess
 import sys
 import threading
+import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -24,10 +26,14 @@ from urllib.request import Request, urlopen
 
 import truststore
 import webview
+from cryptography import x509
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 
 APP_NAME = "CRAS-Desktop"
@@ -36,11 +42,16 @@ GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/release
 UPDATE_ASSET_NAME = "CRAS-Desktop.exe"
 MAX_UPDATE_BYTES = 250 * 1024 * 1024
 PORT = 8765
+MOBILE_PORT = 8766
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 PBKDF2_ITERATIONS = 200_000
 EMPTY_SNAPSHOT = {"appointments": [], "paaRecords": [], "settings": {}}
-VALID_USER_ROLES = {"assistant", "caseworker", "reception", "admin"}
+VALID_USER_ROLES = {"assistant", "caseworker", "reception", "intern", "admin"}
+MOBILE_ACCESS_ITERATIONS = 600_000
+MOBILE_ACCESS_MIN_LENGTH = 12
+MOBILE_ACCESS_MAX_ATTEMPTS = 5
+MOBILE_ACCESS_WINDOW_SECONDS = 300
 MISSING = object()
 
 
@@ -281,6 +292,37 @@ def derive_key(password: str, salt: bytes) -> bytes:
     ).derive(password.encode("utf-8"))
 
 
+def derive_mobile_access_key(password: str, salt: bytes) -> bytes:
+    return PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=MOBILE_ACCESS_ITERATIONS,
+    ).derive(password.encode("utf-8"))
+
+
+def encode_mobile_payload(key: bytes, payload: dict) -> dict:
+    nonce = secrets.token_bytes(12)
+    ciphertext = AESGCM(key).encrypt(nonce, canonical(payload).encode("utf-8"), None)
+    return {
+        "nonce": base64.b64encode(nonce).decode("ascii"),
+        "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
+    }
+
+
+def decode_mobile_payload(envelope: object, key: bytes) -> dict:
+    if not isinstance(envelope, dict):
+        raise ValueError("Pacote móvel inválido.")
+    nonce = base64.b64decode(envelope.get("nonce", ""), validate=True)
+    ciphertext = base64.b64decode(envelope.get("ciphertext", ""), validate=True)
+    if len(nonce) != 12 or not ciphertext or len(ciphertext) > MAX_BODY_BYTES:
+        raise ValueError("Pacote móvel inválido.")
+    payload = json.loads(AESGCM(key).decrypt(nonce, ciphertext, None).decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("Conteúdo móvel inválido.")
+    return payload
+
+
 def decode_envelope(envelope: object, password: str) -> tuple[bytes, dict]:
     if not isinstance(envelope, dict):
         raise ValueError("Pacote criptografado inválido.")
@@ -345,6 +387,52 @@ class PeerStore:
             return str(row[0])
         db.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", (key, value))
         return value
+
+    def configure_mobile_access(self, password: str) -> None:
+        with self.lock, closing(self.connect()) as db:
+            with db:
+                if not password:
+                    db.execute(
+                        "DELETE FROM metadata WHERE key IN ('mobile_access_salt', 'mobile_access_key')"
+                    )
+                    return
+                if not isinstance(password, str) or not (
+                    MOBILE_ACCESS_MIN_LENGTH <= len(password) <= 128
+                ):
+                    raise ValueError(
+                        f"O código móvel deve ter entre {MOBILE_ACCESS_MIN_LENGTH} e 128 caracteres."
+                    )
+                salt = secrets.token_bytes(16)
+                key = derive_mobile_access_key(password, salt)
+                db.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('mobile_access_salt', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (base64.b64encode(salt).decode("ascii"),),
+                )
+                db.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('mobile_access_key', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (base64.b64encode(key).decode("ascii"),),
+                )
+
+    def mobile_access_info(self) -> dict:
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'mobile_access_salt'"
+            ).fetchone()
+            return {
+                "enabled": row is not None,
+                "salt": str(row[0]) if row else "",
+                "iterations": MOBILE_ACCESS_ITERATIONS,
+                "minLength": MOBILE_ACCESS_MIN_LENGTH,
+            }
+
+    def mobile_access_key(self) -> bytes | None:
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'mobile_access_key'"
+            ).fetchone()
+            return base64.b64decode(row[0], validate=True) if row else None
 
     def get_local_state(self) -> dict:
         with self.lock, closing(self.connect()) as db:
@@ -694,14 +782,14 @@ class PeerStore:
                 if ".assistencia" in f".{path}" or ".cadastro" in f".{path}":
                     queue = "assistencia" if ".assistencia" in f".{path}" else "cadastro"
                     preferred_role = "assistant" if queue == "assistencia" else "caseworker"
-                    if role == "reception":
+                    if role in {"reception", "intern"}:
                         return 90
                     return 80 if role == preferred_role else 10
-                if ".routeServices" in f".{path}" and role == "reception":
+                if ".routeServices" in f".{path}" and role in {"reception", "intern"}:
                     return 90
-                return 80 if role == "reception" else 10
+                return 80 if role in {"reception", "intern"} else 10
             if collection == "paaRecords":
-                return 80 if role == "reception" else 10
+                return 80 if role in {"reception", "intern"} else 10
             return 10
 
         local_priority = priority(local_actor)
@@ -761,9 +849,128 @@ def lan_addresses() -> list[str]:
     return sorted(results)
 
 
+def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tuple[Path, Path, Path, str]:
+    directory.mkdir(parents=True, exist_ok=True)
+    ca_key_path = directory / "mobile-root-ca.key"
+    ca_cert_path = directory / "mobile-root-ca.crt"
+    server_key_path = directory / "mobile-server.key"
+    server_cert_path = directory / "mobile-server.crt"
+    ca_exists = ca_key_path.exists(), ca_cert_path.exists()
+    if any(ca_exists) and not all(ca_exists):
+        raise ValueError("Os arquivos da autoridade certificadora móvel estão incompletos.")
+
+    if all(ca_exists):
+        ca_key = serialization.load_pem_private_key(ca_key_path.read_bytes(), password=None)
+        ca_cert = x509.load_pem_x509_certificate(ca_cert_path.read_bytes())
+        key_public = ca_key.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        cert_public = ca_cert.public_key().public_bytes(
+            serialization.Encoding.DER,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        if key_public != cert_public or not ca_cert.extensions.get_extension_for_class(
+            x509.BasicConstraints
+        ).value.ca:
+            raise ValueError("A autoridade certificadora móvel não corresponde à chave privada.")
+    else:
+        ca_key = ec.generate_private_key(ec.SECP256R1())
+        ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CRAS Desktop Mobile CA")])
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        ca_cert = (
+            x509.CertificateBuilder()
+            .subject_name(ca_name)
+            .issuer_name(ca_name)
+            .public_key(ca_key.public_key())
+            .serial_number(x509.random_serial_number())
+            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_after(now + timedelta(days=3650))
+            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            .add_extension(
+                x509.KeyUsage(
+                    digital_signature=True,
+                    content_commitment=False,
+                    key_encipherment=False,
+                    data_encipherment=False,
+                    key_agreement=False,
+                    key_cert_sign=True,
+                    crl_sign=True,
+                    encipher_only=False,
+                    decipher_only=False,
+                ),
+                critical=True,
+            )
+            .sign(ca_key, hashes.SHA256())
+        )
+        ca_key_path.write_bytes(ca_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        ))
+        ca_cert_path.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
+
+    server_key = ec.generate_private_key(ec.SECP256R1())
+    server_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CRAS Desktop Local")])
+    subject_alt_names = [x509.DNSName("localhost")]
+    for address in sorted(set(addresses) | {"127.0.0.1"}):
+        subject_alt_names.append(x509.IPAddress(ipaddress.ip_address(address)))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    server_cert = (
+        x509.CertificateBuilder()
+        .subject_name(server_name)
+        .issuer_name(ca_cert.subject)
+        .public_key(server_key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(now - timedelta(minutes=1))
+        .not_valid_after(now + timedelta(days=365))
+        .add_extension(x509.SubjectAlternativeName(subject_alt_names), critical=False)
+        .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        .add_extension(
+            x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
+            critical=False,
+        )
+        .add_extension(
+            x509.KeyUsage(
+                digital_signature=True,
+                content_commitment=False,
+                key_encipherment=False,
+                data_encipherment=False,
+                key_agreement=False,
+                key_cert_sign=False,
+                crl_sign=False,
+                encipher_only=False,
+                decipher_only=False,
+            ),
+            critical=True,
+        )
+        .sign(ca_key, hashes.SHA256())
+    )
+    server_key_path.write_bytes(server_key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ))
+    server_cert_path.write_bytes(server_cert.public_bytes(serialization.Encoding.PEM))
+    fingerprint = ":".join(f"{byte:02X}" for byte in ca_cert.fingerprint(hashes.SHA256()))
+    return ca_cert_path, server_cert_path, server_key_path, fingerprint
+
+
+def mobile_tls_context(certificate_path: Path, private_key_path: Path) -> ssl.SSLContext:
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(str(certificate_path), str(private_key_path))
+    return context
+
+
 class CRASRequestHandler(BaseHTTPRequestHandler):
     store: PeerStore
     ui_root: Path
+    mobile_ca_path: Path | None
+    mobile_ca_fingerprint: str
+    mobile_https_ready = False
+    mobile_failures: dict[str, list[float]] = {}
+    mobile_failures_lock = threading.Lock()
 
     def log_message(self, fmt: str, *args: object) -> None:
         logging.info("%s - %s", self.address_string(), fmt % args)
@@ -804,6 +1011,34 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
     def is_local_loopback_request(self) -> bool:
         return self.client_address[0] in ("127.0.0.1", "::1")
 
+    def is_private_network_request(self) -> bool:
+        try:
+            return ipaddress.ip_address(self.client_address[0]).is_private
+        except ValueError:
+            return False
+
+    def is_secure_mobile_request(self) -> bool:
+        return isinstance(self.connection, ssl.SSLSocket)
+
+    def mobile_attempt_allowed(self) -> bool:
+        now = time.monotonic()
+        address = self.client_address[0]
+        with self.mobile_failures_lock:
+            failures = [
+                attempt for attempt in self.mobile_failures.get(address, [])
+                if now - attempt < MOBILE_ACCESS_WINDOW_SECONDS
+            ]
+            self.mobile_failures[address] = failures
+            return len(failures) < MOBILE_ACCESS_MAX_ATTEMPTS
+
+    def record_mobile_attempt(self, failed: bool) -> None:
+        address = self.client_address[0]
+        with self.mobile_failures_lock:
+            if failed:
+                self.mobile_failures.setdefault(address, []).append(time.monotonic())
+            else:
+                self.mobile_failures.pop(address, None)
+
     def do_OPTIONS(self) -> None:
         origin = self.headers.get("Origin")
         if not origin or not self.is_local_origin(origin):
@@ -816,6 +1051,43 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/mobile-info":
+            if not self.is_private_network_request() or (
+                not self.is_local_loopback_request() and not self.is_secure_mobile_request()
+            ):
+                self.send_error(403)
+                return
+            info = self.store.mobile_access_info()
+            info["ready"] = self.store.ready
+            self.send_json(200, info)
+            return
+        if path == "/api/mobile-snapshot":
+            if not self.is_private_network_request() or not self.is_secure_mobile_request():
+                self.send_error(403)
+                return
+            self.send_error(405)
+            return
+        if path == "/api/mobile-ca":
+            if not self.is_private_network_request():
+                self.send_error(403)
+                return
+            if self.mobile_ca_path is None:
+                self.send_error(503, "O certificado HTTPS móvel não está disponível.")
+                return
+            try:
+                body = self.mobile_ca_path.read_bytes()
+            except OSError:
+                logging.exception("Não foi possível ler o certificado da autoridade móvel.")
+                self.send_error(500, "Não foi possível carregar o certificado móvel.")
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-x509-ca-cert")
+            self.send_header("Content-Disposition", 'attachment; filename="cras-desktop-mobile-ca.crt"')
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if path == "/api/info":
             local_request = self.client_address[0] in ("127.0.0.1", "::1")
             query = parse_qs(urlsplit(self.path).query)
@@ -825,11 +1097,15 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 "addresses": lan_addresses(),
                 "revision": self.store.get_revision(),
                 "ready": self.store.ready,
+                "mobilePort": MOBILE_PORT,
+                "mobileCaFingerprint": self.mobile_ca_fingerprint,
+                "mobileHttpsReady": self.mobile_https_ready,
             }
             if local_request:
                 info["pairingKey"] = self.store.pairing_key
                 if query.get("details") == ["1"]:
                     info["addresses"] = lan_addresses()
+                    info["mobileAddresses"] = lan_addresses()
             self.send_json(200, info, self.headers.get("Origin"))
             return
         if path == "/api/local-snapshot":
@@ -839,6 +1115,11 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             self.send_json(200, self.store.get_local_state())
             return
 
+        if not self.is_local_loopback_request() and not self.is_secure_mobile_request():
+            self.send_json(426, {
+                "error": "Na rede local, abra o endereço HTTPS do CRAS Desktop exibido nas Configurações."
+            })
+            return
         file_name = "CRAS.html" if path in ("/", "/CRAS.html") else path.lstrip("/")
         if file_name not in ("CRAS.html", "dexie.min.js"):
             self.send_error(404)
@@ -860,6 +1141,77 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/mobile-config":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 1024:
+                    raise ValueError("Tamanho de pedido inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict) or not isinstance(payload.get("mobilePin"), str):
+                    raise ValueError("O código móvel está inválido.")
+                self.store.configure_mobile_access(payload["mobilePin"])
+                self.send_json(200, {"enabled": bool(payload["mobilePin"])})
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)})
+            except Exception:
+                logging.exception("Não foi possível configurar o acesso móvel.")
+                self.send_json(500, {"error": "Não foi possível salvar o acesso móvel."})
+            return
+        if path == "/api/mobile-snapshot":
+            if not self.is_private_network_request() or not self.is_secure_mobile_request():
+                self.send_error(403)
+                return
+            if not self.mobile_attempt_allowed():
+                self.send_json(429, {"error": "Muitas tentativas de acesso. Aguarde cinco minutos."})
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > MAX_BODY_BYTES:
+                    raise ValueError("Tamanho de pedido inválido ou acima do limite.")
+                envelope = json.loads(self.rfile.read(length).decode("utf-8"))
+                key = self.store.mobile_access_key()
+                if key is None:
+                    self.send_json(403, {"error": "O acesso móvel ainda não foi configurado no computador."})
+                    return
+                try:
+                    payload = decode_mobile_payload(envelope, key)
+                except InvalidTag:
+                    self.record_mobile_attempt(True)
+                    self.send_json(401, {"error": "Código de acesso móvel incorreto."})
+                    return
+                self.record_mobile_attempt(False)
+                operation = payload.get("operation")
+                if operation == "read":
+                    state = self.store.get_local_state()
+                    if not state["ready"]:
+                        self.send_json(503, {"error": "O computador ainda está inicializando. Tente novamente."})
+                        return
+                    result = {
+                        "snapshot": state["snapshot"],
+                        "revision": state["revision"],
+                        "actorRole": state["actorRole"],
+                    }
+                    self.send_json(200, encode_mobile_payload(key, result))
+                    return
+                if operation != "write":
+                    raise ValueError("Operação móvel inválida.")
+                revision = self.store.save_local_snapshot(
+                    payload.get("snapshot"),
+                    payload.get("expectedRevision"),
+                    payload.get("actorRole"),
+                )
+                self.send_json(200, encode_mobile_payload(key, {"revision": revision}))
+            except RevisionConflict as error:
+                self.send_json(409, {"error": str(error), "revision": error.revision})
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)})
+            except Exception:
+                logging.exception("Falha ao processar o estado móvel do CRAS Desktop.")
+                self.send_json(500, {"error": "Não foi possível salvar ou carregar os dados móveis."})
+            return
         if path in ("/api/local-snapshot", "/api/accept-sync"):
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -961,8 +1313,25 @@ def main() -> None:
         return
     if check_for_update():
         return
+    mobile_ca_path = None
+    mobile_cert_path = None
+    mobile_key_path = None
+    mobile_ca_fingerprint = ""
+    try:
+        mobile_ca_path, mobile_cert_path, mobile_key_path, mobile_ca_fingerprint = (
+            ensure_mobile_tls_certificates(user_data / "mobile-tls", lan_addresses())
+        )
+    except Exception as error:
+        logging.exception("Não foi possível preparar o acesso HTTPS móvel.")
+        show_startup_error(
+            "Não foi possível preparar o certificado HTTPS para o celular. "
+            "O aplicativo continuará disponível neste computador.\n\n"
+            f"Detalhe: {error}"
+        )
     CRASRequestHandler.store = store
     CRASRequestHandler.ui_root = resource_path(".")
+    CRASRequestHandler.mobile_ca_path = mobile_ca_path
+    CRASRequestHandler.mobile_ca_fingerprint = mobile_ca_fingerprint
 
     try:
         server = ThreadingHTTPServer(("0.0.0.0", PORT), CRASRequestHandler)
@@ -978,6 +1347,43 @@ def main() -> None:
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="cras-http", daemon=True).start()
     logging.info("Aplicativo iniciado no endereço local e na porta %s.", PORT)
+    mobile_server = None
+    if mobile_cert_path and mobile_key_path:
+        try:
+            mobile_server = ThreadingHTTPServer(("0.0.0.0", MOBILE_PORT), CRASRequestHandler)
+            mobile_server.socket = mobile_tls_context(mobile_cert_path, mobile_key_path).wrap_socket(
+                mobile_server.socket,
+                server_side=True,
+            )
+            mobile_server.daemon_threads = True
+            threading.Thread(
+                target=mobile_server.serve_forever,
+                name="cras-https-mobile",
+                daemon=True,
+            ).start()
+            CRASRequestHandler.mobile_https_ready = True
+            logging.info("Acesso HTTPS móvel iniciado na porta %s.", MOBILE_PORT)
+        except OSError as error:
+            logging.exception("Não foi possível iniciar o servidor HTTPS móvel.")
+            if mobile_server:
+                mobile_server.server_close()
+            mobile_server = None
+            CRASRequestHandler.mobile_https_ready = False
+            show_startup_error(
+                f"Não foi possível abrir a porta segura {MOBILE_PORT} para o celular.\n"
+                "O aplicativo continuará disponível neste computador; libere a porta e reinicie para usar o celular.\n\n"
+                f"Detalhe: {error}"
+            )
+        except Exception as error:
+            logging.exception("Não foi possível iniciar o servidor HTTPS móvel.")
+            if mobile_server:
+                mobile_server.server_close()
+            mobile_server = None
+            CRASRequestHandler.mobile_https_ready = False
+            show_startup_error(
+                "Não foi possível iniciar o acesso HTTPS móvel. O aplicativo continuará disponível neste computador.\n\n"
+                f"Detalhe: {error}"
+            )
     try:
         webview.create_window(
             "Atendimento | CRAS Ouro Preto",
@@ -997,6 +1403,9 @@ def main() -> None:
     finally:
         server.shutdown()
         server.server_close()
+        if mobile_server:
+            mobile_server.shutdown()
+            mobile_server.server_close()
 
 
 if __name__ == "__main__":

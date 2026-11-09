@@ -10,17 +10,36 @@ locais dos computadores não são enviados nem modificados pela atualização.
 Os registros são sincronizados automaticamente após cada gravação, sem pedir
 para escolher entre a versão local e a do outro computador. Alterações em
 campos diferentes são combinadas; se o mesmo campo divergir, prevalece Admin,
-seguido da Recepção em atendimentos e PAA, do Técnico no Atendimento Técnico
-ou da Cadastradora na fila do Cadastro Único.
+seguido da Recepção/Estagiário em atendimentos e PAA, do Técnico no Atendimento
+Técnico ou da Cadastradora na fila do Cadastro Único.
 
 O último usuário escolhido é lembrado somente neste dispositivo. Perfis comuns
 entram automaticamente; o perfil Admin continua exigindo o PIN local.
 No Atendimento Técnico, somente a pessoa designada recebe o aviso de ociosidade.
-Todas as cadastradoras recebem o aviso do Cadastro Único; a Recepção não recebe
-esses avisos. Um Admin pode ser habilitado na Gestão de usuários para também ser
-designado como Técnico, mantendo suas permissões administrativas. A Recepção
-pode encerrar diretamente qualquer fila, inclusive enquanto ainda aguarda; essa
-ação tem prioridade na sincronização com os computadores parceiros.
+Todas as cadastradoras recebem o aviso do Cadastro Único; a Recepção e o
+Estagiário não recebem esses avisos. Um Admin pode ser habilitado na Gestão de
+usuários para também ser designado como Técnico, mantendo suas permissões
+administrativas. A Recepção e o Estagiário podem encerrar diretamente qualquer
+fila, inclusive enquanto ainda aguarda; essa ação tem prioridade na sincronização
+com os computadores parceiros. Quando a Recepção finaliza uma fila atribuída,
+a pessoa designada recebe a pergunta de confirmação; sem responsável designado,
+a pergunta não é exibida.
+
+O perfil Estagiário tem as mesmas ações operacionais da Recepção no computador.
+No celular, o sistema completo continua disponível, mas a tela inicial destaca
+a fila do Atendimento Técnico. O Estagiário pode adquirir uma pasta sem iniciar
+o atendimento; a fila mostra quem a retirou e quando. Ele pode devolver a
+própria pasta à fila.
+
+Para usar o celular, mantenha o CRAS Desktop aberto no computador e conecte os
+dois à mesma rede Wi-Fi privada e confiável. Um Admin deve configurar um código
+móvel de pelo menos 12 caracteres em **Usuários → Acesso pelo celular**. Nas
+Configurações do computador, baixe o certificado raiz pelo endereço informado,
+confira sua impressão digital e instale-o como certificado confiável em cada
+celular autorizado. Depois, abra no celular um dos endereços HTTPS exibidos,
+informe o código e selecione o usuário. As alterações da fila são sincronizadas
+com o computador; o celular atualiza a tela periodicamente. Não use essa função
+em Wi-Fi público nem exponha as portas do aplicativo à Internet.
 
 Para o envio automático funcionar, configure um computador parceiro e o código
 de pareamento em Configurações → Sincronização no computador que registra ou
