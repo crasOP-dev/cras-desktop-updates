@@ -19,6 +19,7 @@ from main import (
     encode_mobile_payload,
     ensure_mobile_tls_certificates,
     launch_update_helper,
+    lan_addresses,
     latest_release,
     verify_update_checksum,
     version_tuple,
@@ -67,7 +68,7 @@ class VersionTests(unittest.TestCase):
             response = Mock()
             response.__enter__ = Mock(return_value=response)
             response.__exit__ = Mock(return_value=False)
-            response.read.return_value = content
+            response.read.side_effect = [content, b""]
             return response
 
         release = {
@@ -118,6 +119,10 @@ class VersionTests(unittest.TestCase):
             release = latest_release()
 
         self.assertEqual(release["version"], "v1.1.2")
+        self.assertEqual(
+            mocked_urlopen.call_args.args[0].full_url,
+            "https://api.github.com/repos/crasOP-dev/cras-desktop-updates/releases/latest",
+        )
         context = mocked_urlopen.call_args.kwargs["context"]
         self.assertIsInstance(context, truststore.SSLContext)
 
@@ -404,6 +409,23 @@ class EncryptionTests(unittest.TestCase):
 
 
 class MobileAccessTests(unittest.TestCase):
+    def test_mobile_addresses_prioritize_the_active_default_route(self):
+        probe = Mock()
+        probe.getsockname.return_value = ("192.168.1.25", 0)
+        address_lookup = [
+            (2, 1, 6, "", ("10.0.0.9", 0)),
+            (2, 1, 6, "", ("169.254.1.1", 0)),
+            (2, 1, 6, "", ("127.0.0.1", 0)),
+        ]
+        with patch("main.socket.socket") as socket_factory, patch(
+            "main.socket.getaddrinfo", return_value=address_lookup
+        ), patch(
+            "main.socket.gethostbyname_ex",
+            return_value=("cras-host", [], ["10.0.0.9", "192.168.1.25"]),
+        ):
+            socket_factory.return_value.__enter__.return_value = probe
+            self.assertEqual(lan_addresses(), ["192.168.1.25", "10.0.0.9"])
+
     def test_mobile_access_uses_a_salted_key_and_requires_a_long_code(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             store = PeerStore(Path(temporary_directory) / "mobile.sqlite3")
@@ -464,6 +486,11 @@ class MobileAccessTests(unittest.TestCase):
             self.assertEqual(second_ca_path.read_bytes(), ca_path.read_bytes())
             self.assertEqual(second_fingerprint, fingerprint)
             self.assertEqual(server_cert.issuer, ca_cert.subject)
+            ca_ski = ca_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
+            server_aki = server_cert.extensions.get_extension_for_class(x509.AuthorityKeyIdentifier).value
+            server_ski = server_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
+            self.assertEqual(server_aki.key_identifier, ca_ski.digest)
+            self.assertTrue(server_ski.digest)
 
 
 if __name__ == "__main__":

@@ -35,6 +35,13 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
+try:
+    import qrcode
+    import qrcode.image.svg
+    HAVE_QRCODE = True
+except ImportError:
+    HAVE_QRCODE = False
+
 
 APP_NAME = "CRAS-Desktop"
 GITHUB_REPOSITORY = "crasOP-dev/cras-desktop-updates"
@@ -45,10 +52,12 @@ PORT = 8765
 MOBILE_PORT = 8766
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+
 PBKDF2_ITERATIONS = 200_000
+MOBILE_ACCESS_ITERATIONS = 600_000
+
 EMPTY_SNAPSHOT = {"appointments": [], "paaRecords": [], "settings": {}}
 VALID_USER_ROLES = {"assistant", "caseworker", "reception", "intern", "admin"}
-MOBILE_ACCESS_ITERATIONS = 600_000
 MOBILE_ACCESS_MIN_LENGTH = 12
 MOBILE_ACCESS_MAX_ATTEMPTS = 5
 MOBILE_ACCESS_WINDOW_SECONDS = 300
@@ -94,8 +103,13 @@ def latest_release() -> dict | None:
         GITHUB_RELEASES_API,
         headers={"Accept": "application/vnd.github+json", "User-Agent": APP_NAME},
     )
-    with urlopen(request, timeout=20, context=update_ssl_context()) as response:
-        release = json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(request, timeout=20, context=update_ssl_context()) as response:
+            release = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
     if not isinstance(release, dict) or release.get("draft") or release.get("prerelease"):
         return None
 
@@ -139,14 +153,19 @@ def latest_release() -> dict | None:
 def download_update(release: dict, directory: Path) -> Path:
     def download(url: str) -> bytes:
         request = Request(url, headers={"User-Agent": APP_NAME})
-        with urlopen(request, timeout=30, context=update_ssl_context()) as response:
-            content = response.read(MAX_UPDATE_BYTES + 1)
-        if len(content) > MAX_UPDATE_BYTES:
-            raise ValueError("O arquivo de atualização excede o limite permitido.")
-        return content
+        buffer = bytearray()
+        with urlopen(request, timeout=120, context=update_ssl_context()) as response:
+            while True:
+                chunk = response.read(65536)
+                if not chunk:
+                    break
+                buffer.extend(chunk)
+                if len(buffer) > MAX_UPDATE_BYTES:
+                    raise ValueError("O arquivo de atualização excede o limite permitido.")
+        return bytes(buffer)
 
     executable = download(release["executable_url"])
-    checksum_text = download(release["checksum_url"]).decode("ascii").strip()
+    checksum_text = download(release["checksum_url"]).decode("ascii", errors="replace").strip()
     verify_update_checksum(executable, checksum_text)
 
     update_path = directory / "CRAS-Desktop-update.exe"
@@ -185,12 +204,31 @@ try {{
     if (Get-Process -Id $appProcessId -ErrorAction SilentlyContinue) {{
         throw "O CRAS Desktop não encerrou dentro do prazo."
     }}
+    Start-Sleep -Seconds 1
     if (Test-Path -LiteralPath $backup) {{
         Remove-Item -LiteralPath $backup -Force
     }}
+    if (Test-Path -LiteralPath $staged) {{
+        Remove-Item -LiteralPath $staged -Force
+    }}
     Write-UpdateLog "Preparando o executável atualizado."
     Copy-Item -LiteralPath $source -Destination $staged -Force
-    [System.IO.File]::Replace($staged, $target, $backup)
+    $replaced = $false
+    $lastError = $null
+    for ($i = 1; $i -le 10; $i++) {{
+        try {{
+            [System.IO.File]::Replace($staged, $target, $backup)
+            $replaced = $true
+            break
+        }} catch {{
+            $lastError = $_.Exception.Message
+            Write-UpdateLog "Tentativa $i de substituir o executável falhou ($lastError). Aguardando liberação do arquivo..."
+            Start-Sleep -Milliseconds 500
+        }}
+    }}
+    if (-not $replaced) {{
+        throw "Não foi possível substituir o executável após múltiplas tentativas: $lastError"
+    }}
     Write-UpdateLog "Executável substituído. Abrindo a nova versão."
     Start-Process -FilePath $target
     Write-UpdateLog "Atualização concluída."
@@ -245,10 +283,8 @@ def check_for_update() -> bool:
         return False
     if release is None:
         return False
-
     import tkinter
     from tkinter import messagebox
-
     root = tkinter.Tk()
     root.withdraw()
     accepted = messagebox.askyesno(
@@ -259,7 +295,6 @@ def check_for_update() -> bool:
     root.destroy()
     if not accepted:
         return False
-
     try:
         directory = data_path()
         update_path = download_update(release, directory)
@@ -276,12 +311,8 @@ def check_for_update() -> bool:
         )
         root.destroy()
         return False
-
-
 def canonical(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
 def validate_snapshot(snapshot: object) -> dict:
     if not isinstance(snapshot, dict):
         raise ValueError("O pacote de sincronização está inválido.")
@@ -302,8 +333,6 @@ def validate_snapshot(snapshot: object) -> dict:
                 raise ValueError(f"Um registro da coleção {collection} excedeu o limite permitido.")
             seen.add(item["id"])
     return snapshot
-
-
 def derive_key(password: str, salt: bytes) -> bytes:
     return PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -311,8 +340,6 @@ def derive_key(password: str, salt: bytes) -> bytes:
         salt=salt,
         iterations=PBKDF2_ITERATIONS,
     ).derive(password.encode("utf-8"))
-
-
 def derive_mobile_access_key(password: str, salt: bytes) -> bytes:
     return PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -320,8 +347,6 @@ def derive_mobile_access_key(password: str, salt: bytes) -> bytes:
         salt=salt,
         iterations=MOBILE_ACCESS_ITERATIONS,
     ).derive(password.encode("utf-8"))
-
-
 def encode_mobile_payload(key: bytes, payload: dict) -> dict:
     nonce = secrets.token_bytes(12)
     ciphertext = AESGCM(key).encrypt(nonce, canonical(payload).encode("utf-8"), None)
@@ -329,8 +354,6 @@ def encode_mobile_payload(key: bytes, payload: dict) -> dict:
         "nonce": base64.b64encode(nonce).decode("ascii"),
         "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
     }
-
-
 def decode_mobile_payload(envelope: object, key: bytes) -> dict:
     if not isinstance(envelope, dict):
         raise ValueError("Pacote móvel inválido.")
@@ -342,8 +365,6 @@ def decode_mobile_payload(envelope: object, key: bytes) -> dict:
     if not isinstance(payload, dict):
         raise ValueError("Conteúdo móvel inválido.")
     return payload
-
-
 def decode_envelope(envelope: object, password: str) -> tuple[bytes, dict]:
     if not isinstance(envelope, dict):
         raise ValueError("Pacote criptografado inválido.")
@@ -357,8 +378,6 @@ def decode_envelope(envelope: object, password: str) -> tuple[bytes, dict]:
     if not isinstance(payload, dict):
         raise ValueError("Conteúdo de sincronização inválido.")
     return salt, payload
-
-
 def encode_envelope(salt: bytes, password: str, payload: dict) -> dict:
     nonce = secrets.token_bytes(12)
     ciphertext = AESGCM(derive_key(password, salt)).encrypt(
@@ -369,8 +388,6 @@ def encode_envelope(salt: bytes, password: str, payload: dict) -> dict:
         "nonce": base64.b64encode(nonce).decode("ascii"),
         "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
     }
-
-
 class PeerStore:
     def __init__(self, path: Path):
         self.path = path
@@ -395,12 +412,12 @@ class PeerStore:
                 self.node_id = self.get_or_create(db, "node_id", str(uuid.uuid4()))
                 self.pairing_key = self.get_or_create(db, "pairing_key", secrets.token_urlsafe(24))
                 self.active_role = self.get_or_create(db, "active_role", "")
-
+# OTIMIZAÇÃO 2: Configuração do SQLite para não travar a escrita em disco
     def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=15)
         db.execute("PRAGMA journal_mode=WAL")
+        db.execute("PRAGMA synchronous=NORMAL")
         return db
-
     @staticmethod
     def get_or_create(db: sqlite3.Connection, key: str, value: str) -> str:
         row = db.execute("SELECT value FROM metadata WHERE key = ?", (key,)).fetchone()
@@ -408,7 +425,6 @@ class PeerStore:
             return str(row[0])
         db.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", (key, value))
         return value
-
     def configure_mobile_access(self, password: str) -> None:
         with self.lock, closing(self.connect()) as db:
             with db:
@@ -435,7 +451,6 @@ class PeerStore:
                     "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                     (base64.b64encode(key).decode("ascii"),),
                 )
-
     def mobile_access_info(self) -> dict:
         with self.lock, closing(self.connect()) as db:
             row = db.execute(
@@ -447,14 +462,12 @@ class PeerStore:
                 "iterations": MOBILE_ACCESS_ITERATIONS,
                 "minLength": MOBILE_ACCESS_MIN_LENGTH,
             }
-
     def mobile_access_key(self) -> bytes | None:
         with self.lock, closing(self.connect()) as db:
             row = db.execute(
                 "SELECT value FROM metadata WHERE key = 'mobile_access_key'"
             ).fetchone()
             return base64.b64decode(row[0], validate=True) if row else None
-
     def get_local_state(self) -> dict:
         with self.lock, closing(self.connect()) as db:
             row = db.execute("SELECT payload, revision FROM current_snapshot WHERE id = 1").fetchone()
@@ -469,12 +482,10 @@ class PeerStore:
                 },
                 "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
             }
-
     def get_revision(self) -> int:
         with self.lock, closing(self.connect()) as db:
             row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
             return int(row[0]) if row else 0
-
     def save_local_snapshot(
         self, snapshot: object, expected_revision: object, actor_role: object = None
     ) -> int:
@@ -502,7 +513,6 @@ class PeerStore:
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
                 return int(row[0])
-
     def accept_synced_snapshot(
         self,
         peer_id: str,
@@ -544,7 +554,6 @@ class PeerStore:
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
                 return int(row[0])
-
     def sync(
         self,
         peer_id: str,
@@ -566,7 +575,6 @@ class PeerStore:
             not isinstance(peer_role, str) or peer_role not in VALID_USER_ROLES
         ):
             raise ValueError("O perfil do computador remoto é inválido.")
-
         with self.lock, closing(self.connect()) as db:
             with db:
                 if db.execute(
@@ -589,7 +597,6 @@ class PeerStore:
                         base, local, remote, peer_role, self.active_role
                     ),
                 }
-
                 validate_snapshot(merged)
                 payload = canonical(merged)
                 db.execute(
@@ -614,7 +621,6 @@ class PeerStore:
                     "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
                     "unlinkedPaaIds": [],
                 }
-
     @staticmethod
     def merge_collection(
         name: str,
@@ -646,7 +652,6 @@ class PeerStore:
             if value is not MISSING:
                 merged.append(value)
         return merged
-
     @staticmethod
     def merge_settings(
         base: dict,
@@ -672,7 +677,6 @@ class PeerStore:
             if value is not MISSING:
                 merged[key] = value
         return merged
-
     @staticmethod
     def merge_value(
         base: object,
@@ -689,14 +693,12 @@ class PeerStore:
             if left is MISSING or right is MISSING:
                 return left is right
             return canonical(left) == canonical(right)
-
         if equal(local, remote):
             return remote
         if equal(local, base):
             return remote
         if equal(remote, base):
             return local
-
         if isinstance(local, dict) and isinstance(remote, dict):
             base_mapping = base if isinstance(base, dict) else {}
             merged: dict = {}
@@ -724,7 +726,6 @@ class PeerStore:
                 if metadata is not None:
                     merged["_syncMeta"] = metadata
             return merged
-
         if (
             isinstance(local, list)
             and isinstance(remote, list)
@@ -754,18 +755,15 @@ class PeerStore:
                 if value is not MISSING:
                     merged_items.append(value)
             return merged_items
-
         return local if PeerStore.local_has_precedence(
             collection, path, local_meta, remote_meta, local_role, remote_role
         ) else remote
-
     @staticmethod
     def sync_metadata(value: object) -> dict | None:
         if not isinstance(value, dict):
             return None
         metadata = value.get("_syncMeta")
         return metadata if isinstance(metadata, dict) else None
-
     @staticmethod
     def local_has_precedence(
         collection: str,
@@ -792,10 +790,8 @@ class PeerStore:
             if isinstance(last_change, dict) and last_change.get("role") in VALID_USER_ROLES:
                 return last_change["role"]
             return fallback
-
         local_actor = metadata_role(local_meta, local_role)
         remote_actor = metadata_role(remote_meta, remote_role)
-
         def priority(role: object) -> int:
             if role == "admin":
                 return 100
@@ -812,17 +808,14 @@ class PeerStore:
             if collection == "paaRecords":
                 return 80 if role in {"reception", "intern"} else 10
             return 10
-
         local_priority = priority(local_actor)
         remote_priority = priority(remote_actor)
         return local_priority > remote_priority
-
     @staticmethod
     def merge_sync_metadata(base: object, local: object, remote: object) -> object:
         base_meta = base if isinstance(base, dict) else {}
         local_meta = local if isinstance(local, dict) else {}
         remote_meta = remote if isinstance(remote, dict) else {}
-
         def merge_nodes(local_node: object, remote_node: object) -> object:
             if isinstance(local_node, dict) and isinstance(remote_node, dict):
                 if "updatedAt" in local_node or "updatedAt" in remote_node:
@@ -838,7 +831,6 @@ class PeerStore:
                     for key in local_node.keys() | remote_node.keys()
                 }
             return remote_node if remote_node is not None else local_node
-
         merged: dict = {}
         keys = base_meta.keys() | local_meta.keys() | remote_meta.keys()
         for key in keys:
@@ -857,9 +849,31 @@ class PeerStore:
                 merged[key] = value
         return merged
 
+# Cache global para a resolução de endereços IP da rede
+
+_LAN_ADDRESSES_CACHE: list[str] | None = None
+_LAN_ADDRESSES_CACHE_TIME: float = 0.0
+_LAN_CACHE_LOCK = threading.Lock()
+
+# OTIMIZAÇÃO 3: Cache para evitar chamadas de socket síncronas pesadas repetidamente
 
 def lan_addresses() -> list[str]:
+    global _LAN_ADDRESSES_CACHE, _LAN_ADDRESSES_CACHE_TIME
+    now = time.monotonic()
+    with _LAN_CACHE_LOCK:
+        if _LAN_ADDRESSES_CACHE is not None and (now - _LAN_ADDRESSES_CACHE_TIME < 30.0):
+            return _LAN_ADDRESSES_CACHE
     results: set[str] = set()
+    primary_address = ""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("8.8.8.8", 80))
+            address = probe.getsockname()[0]
+            if not address.startswith("127.") and not address.startswith("169.254."):
+                primary_address = address
+                results.add(address)
+    except OSError:
+        pass
     try:
         for item in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
             address = item[4][0]
@@ -867,9 +881,19 @@ def lan_addresses() -> list[str]:
                 results.add(address)
     except OSError:
         logging.exception("Não foi possível detectar os endereços da rede local.")
-    return sorted(results)
-
-
+    try:
+        _, _, ip_list = socket.gethostbyname_ex(socket.gethostname())
+        for address in ip_list:
+            if not address.startswith("127.") and not address.startswith("169.254."):
+                results.add(address)
+    except OSError:
+        pass
+    remaining = sorted(results - {primary_address})
+    final_addresses = ([primary_address] if primary_address else []) + remaining
+    with _LAN_CACHE_LOCK:
+        _LAN_ADDRESSES_CACHE = final_addresses
+        _LAN_ADDRESSES_CACHE_TIME = now
+    return final_addresses
 def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tuple[Path, Path, Path, str]:
     directory.mkdir(parents=True, exist_ok=True)
     ca_key_path = directory / "mobile-root-ca.key"
@@ -879,7 +903,7 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
     ca_exists = ca_key_path.exists(), ca_cert_path.exists()
     if any(ca_exists) and not all(ca_exists):
         raise ValueError("Os arquivos da autoridade certificadora móvel estão incompletos.")
-
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     if all(ca_exists):
         ca_key = serialization.load_pem_private_key(ca_key_path.read_bytes(), password=None)
         ca_cert = x509.load_pem_x509_certificate(ca_cert_path.read_bytes())
@@ -895,19 +919,51 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
             x509.BasicConstraints
         ).value.ca:
             raise ValueError("A autoridade certificadora móvel não corresponde à chave privada.")
+        try:
+            ca_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
+        except x509.ExtensionNotFound:
+            ca_ski = x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key())
+            ca_cert = (
+                x509.CertificateBuilder()
+                .subject_name(ca_cert.subject)
+                .issuer_name(ca_cert.issuer)
+                .public_key(ca_key.public_key())
+                .serial_number(x509.random_serial_number())
+                .not_valid_before(now - timedelta(days=1))
+                .not_valid_after(now + timedelta(days=3650))
+                .add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+                .add_extension(ca_ski, critical=False)
+                .add_extension(
+                    x509.KeyUsage(
+                        digital_signature=True,
+                        content_commitment=False,
+                        key_encipherment=False,
+                        data_encipherment=False,
+                        key_agreement=False,
+                        key_cert_sign=True,
+                        crl_sign=True,
+                        encipher_only=False,
+                        decipher_only=False,
+                    ),
+                    critical=True,
+                )
+                .sign(ca_key, hashes.SHA256())
+            )
+            ca_cert_path.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
     else:
         ca_key = ec.generate_private_key(ec.SECP256R1())
         ca_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CRAS Desktop Mobile CA")])
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        ca_ski = x509.SubjectKeyIdentifier.from_public_key(ca_key.public_key())
         ca_cert = (
             x509.CertificateBuilder()
             .subject_name(ca_name)
             .issuer_name(ca_name)
             .public_key(ca_key.public_key())
             .serial_number(x509.random_serial_number())
-            .not_valid_before(now - timedelta(minutes=1))
+            .not_valid_before(now - timedelta(days=1))
             .not_valid_after(now + timedelta(days=3650))
-            .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+.add_extension(x509.BasicConstraints(ca=True, path_length=None), critical=True)
+.add_extension(ca_ski, critical=False)
             .add_extension(
                 x509.KeyUsage(
                     digital_signature=True,
@@ -930,20 +986,20 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
             serialization.NoEncryption(),
         ))
         ca_cert_path.write_bytes(ca_cert.public_bytes(serialization.Encoding.PEM))
-
     server_key = ec.generate_private_key(ec.SECP256R1())
     server_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CRAS Desktop Local")])
     subject_alt_names = [x509.DNSName("localhost")]
     for address in sorted(set(addresses) | {"127.0.0.1"}):
         subject_alt_names.append(x509.IPAddress(ipaddress.ip_address(address)))
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    server_ski = x509.SubjectKeyIdentifier.from_public_key(server_key.public_key())
+    server_aki = x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key())
     server_cert = (
         x509.CertificateBuilder()
         .subject_name(server_name)
         .issuer_name(ca_cert.subject)
         .public_key(server_key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(now - timedelta(minutes=1))
+.not_valid_before(now - timedelta(days=1))
         .not_valid_after(now + timedelta(days=365))
         .add_extension(x509.SubjectAlternativeName(subject_alt_names), critical=False)
         .add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
@@ -951,6 +1007,8 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
             x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]),
             critical=False,
         )
+        .add_extension(server_ski, critical=False)
+        .add_extension(server_aki, critical=False)
         .add_extension(
             x509.KeyUsage(
                 digital_signature=True,
@@ -975,15 +1033,11 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
     server_cert_path.write_bytes(server_cert.public_bytes(serialization.Encoding.PEM))
     fingerprint = ":".join(f"{byte:02X}" for byte in ca_cert.fingerprint(hashes.SHA256()))
     return ca_cert_path, server_cert_path, server_key_path, fingerprint
-
-
 def mobile_tls_context(certificate_path: Path, private_key_path: Path) -> ssl.SSLContext:
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.load_cert_chain(str(certificate_path), str(private_key_path))
     return context
-
-
 class CRASRequestHandler(BaseHTTPRequestHandler):
     store: PeerStore
     ui_root: Path
@@ -992,10 +1046,8 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
     mobile_https_ready = False
     mobile_failures: dict[str, list[float]] = {}
     mobile_failures_lock = threading.Lock()
-
     def log_message(self, fmt: str, *args: object) -> None:
         logging.info("%s - %s", self.address_string(), fmt % args)
-
     def send_json(self, status: int, payload: dict, origin: str | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -1005,7 +1057,6 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.add_cors_headers(origin)
         self.end_headers()
         self.wfile.write(body)
-
     def add_cors_headers(self, origin: str | None) -> None:
         if origin and self.is_local_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
@@ -1013,14 +1064,12 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.send_header("Access-Control-Allow-Private-Network", "true")
             self.send_header("Vary", "Origin")
-
     @staticmethod
     def is_local_origin(origin: str) -> bool:
         try:
             return origin == f"http://127.0.0.1:{PORT}"
         except ValueError:
             return False
-
     def is_local_app_request(self) -> bool:
         origin = self.headers.get("Origin")
         return (
@@ -1028,19 +1077,272 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             and bool(origin)
             and self.is_local_origin(origin)
         )
-
     def is_local_loopback_request(self) -> bool:
         return self.client_address[0] in ("127.0.0.1", "::1")
-
     def is_private_network_request(self) -> bool:
         try:
-            return ipaddress.ip_address(self.client_address[0]).is_private
+            ip = ipaddress.ip_address(self.client_address[0])
+            if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+                ip = ip.ipv4_mapped
+            return ip.is_private or ip.is_loopback
         except ValueError:
             return False
-
     def is_secure_mobile_request(self) -> bool:
         return isinstance(self.connection, ssl.SSLSocket)
+    def serve_mobile_portal(self) -> None:
+        host = self.headers.get("Host", "").split(":")[0] or self.client_address[0]
+        https_url = f"https://{host}:{MOBILE_PORT}/"
+        ca_url = f"http://{host}:{PORT}/api/mobile-ca"
+        fingerprint = self.mobile_ca_fingerprint or "Não configurada"
+        html = f"""
 
+
+
+
+CRAS Desktop · Conectar Celular
+
+:root {{
+--primary: #1976d2;
+--primary-dark: #115293;
+--success: #2e7d32;
+--bg: #f4f6f8;
+--card-bg: #ffffff;
+--text: #1e293b;
+--text-muted: #64748b;
+--border: #e2e8f0;
+}}
+* {{ box-sizing: border-box; margin: 0; padding: 0; }}
+body {{
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+background: var(--bg);
+color: var(--text);
+line-height: 1.5;
+padding: 16px;
+}}
+.container {{
+max-width: 540px;
+margin: 0 auto;
+}}
+.header {{
+text-align: center;
+padding: 24px 0 16px;
+}}
+.logo-badge {{
+display: inline-block;
+background: #e3f2fd;
+color: var(--primary);
+font-weight: 700;
+padding: 6px 14px;
+border-radius: 20px;
+font-size: 14px;
+margin-bottom: 8px;
+}}
+h1 {{
+font-size: 24px;
+font-weight: 700;
+color: #0f172a;
+margin-bottom: 6px;
+}}
+p.subtitle {{
+color: var(--text-muted);
+font-size: 15px;
+}}
+.card {{
+background: var(--card-bg);
+border-radius: 16px;
+padding: 20px;
+margin-bottom: 16px;
+box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+border: 1px solid var(--border);
+}}
+.card-title {{
+font-size: 17px;
+font-weight: 700;
+margin-bottom: 12px;
+display: flex;
+align-items: center;
+gap: 8px;
+}}
+.step-number {{
+background: var(--primary);
+color: #fff;
+width: 24px;
+height: 24px;
+border-radius: 50%;
+display: inline-flex;
+align-items: center;
+justify-content: center;
+font-size: 13px;
+font-weight: bold;
+}}
+.btn {{
+display: block;
+width: 100%;
+text-align: center;
+padding: 14px 20px;
+border-radius: 12px;
+font-weight: 600;
+font-size: 16px;
+text-decoration: none;
+transition: all 0.2s ease;
+cursor: pointer;
+border: none;
+}}
+.btn-download {{
+background: #e0f2fe;
+color: #0369a1;
+border: 1px solid #bae6fd;
+margin-bottom: 14px;
+}}
+.btn-download:hover, .btn-download:active {{
+background: #bae6fd;
+}}
+.btn-open {{
+background: var(--success);
+color: #ffffff;
+box-shadow: 0 4px 12px rgba(46,125,50,0.25);
+}}
+.btn-open:hover, .btn-open:active {{
+background: #1b5e20;
+}}
+.tabs {{
+display: flex;
+gap: 6px;
+margin-bottom: 12px;
+background: #f1f5f9;
+padding: 4px;
+border-radius: 10px;
+}}
+.tab-btn {{
+flex: 1;
+padding: 8px 12px;
+border: none;
+background: transparent;
+font-weight: 600;
+font-size: 14px;
+border-radius: 8px;
+cursor: pointer;
+color: var(--text-muted);
+}}
+.tab-btn.active {{
+background: #ffffff;
+color: var(--primary);
+box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}}
+.tab-content {{
+display: none;
+font-size: 14px;
+color: #334155;
+}}
+.tab-content.active {{
+display: block;
+}}
+ol {{
+padding-left: 20px;
+margin-top: 8px;
+}}
+li {{
+margin-bottom: 8px;
+}}
+li strong {{
+color: #0f172a;
+}}
+.fingerprint-box {{
+background: #f8fafc;
+border: 1px dashed #cbd5e1;
+border-radius: 8px;
+padding: 8px 12px;
+font-family: monospace;
+font-size: 12px;
+word-break: break-all;
+color: #475569;
+margin-top: 8px;
+}}
+.badge-status {{
+display: inline-flex;
+align-items: center;
+gap: 6px;
+font-size: 13px;
+font-weight: 600;
+color: #166534;
+background: #dcfce7;
+padding: 4px 10px;
+border-radius: 12px;
+margin-bottom: 12px;
+}}
+.status-dot {{
+width: 8px;
+height: 8px;
+background: #22c55e;
+border-radius: 50%;
+}}
+
+
+
+
+
+CRAS Desktop · Rede Local
+Conectar pelo Celular
+Acesse a fila e os atendimentos com rapidez e segurança
+1
+Instalar o Certificado de Segurança
+
+
+O certificado raiz autoriza a criptografia segura HTTPS no celular.
+
+
+<a class="btn btn-download" href="{ca_url}">📥 Baixar Certificado CA (.crt)</a>
+🤖 Android
+🍏 iPhone (iOS)
+Toque no botão Baixar Certificado CA acima.
+Abra as Configurações do Android.
+Vá em Segurança e privacidade (ou Biometria e segurança).
+Toque em Mais configurações de segurança (ou Credenciais) → Instalar certificado.
+Escolha Certificado CA, toque em Instalar mesmo assim e selecione o arquivo baixado.
+
+Abra esta página no Safari e toque em Baixar Certificado CA.
+Autorize o download. Abra os Ajustes e toque em Perfil Baixado → Instalar.
+Em seguida, vá em Ajustes → Geral → Sobre → Ajustes de Confiança do Certificado.
+Ative a chave de Confiança Total para o CRAS Desktop Mobile CA.
+
+Impressão digital SHA-256 do certificado:
+
+{fingerprint}
+2
+Acessar o CRAS Desktop
+
+
+
+Servidor Seguro Ativo na porta {MOBILE_PORT}
+
+
+Após instalar o certificado no celular, toque no botão abaixo:
+
+
+<a class="btn btn-open" href="{https_url}">🚀 Abrir CRAS Desktop Seguro (HTTPS)</a>
+
+
+function selectTab(os) {{
+document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+if (os === 'android') {{
+document.querySelectorAll('.tab-btn')[0].classList.add('active');
+document.getElementById('tab-android').classList.add('active');
+}} else {{
+document.querySelectorAll('.tab-btn')[1].classList.add('active');
+document.getElementById('tab-ios').classList.add('active');
+}}
+}}
+
+
+        """
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
     def mobile_attempt_allowed(self) -> bool:
         now = time.monotonic()
         address = self.client_address[0]
@@ -1051,7 +1353,6 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             ]
             self.mobile_failures[address] = failures
             return len(failures) < MOBILE_ACCESS_MAX_ATTEMPTS
-
     def record_mobile_attempt(self, failed: bool) -> None:
         address = self.client_address[0]
         with self.mobile_failures_lock:
@@ -1059,7 +1360,6 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 self.mobile_failures.setdefault(address, []).append(time.monotonic())
             else:
                 self.mobile_failures.pop(address, None)
-
     def do_OPTIONS(self) -> None:
         origin = self.headers.get("Origin")
         if not origin or not self.is_local_origin(origin):
@@ -1069,7 +1369,6 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.add_cors_headers(origin)
         self.send_header("Content-Length", "0")
         self.end_headers()
-
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
         if path == "/api/mobile-info":
@@ -1112,10 +1411,11 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/info":
             local_request = self.client_address[0] in ("127.0.0.1", "::1")
             query = parse_qs(urlsplit(self.path).query)
+            addresses = lan_addresses()
             info = {
                 "nodeId": self.store.node_id,
                 "port": PORT,
-                "addresses": lan_addresses(),
+                "addresses": addresses,
                 "revision": self.store.get_revision(),
                 "ready": self.store.ready,
                 "mobilePort": MOBILE_PORT,
@@ -1125,8 +1425,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             if local_request:
                 info["pairingKey"] = self.store.pairing_key
                 if query.get("details") == ["1"]:
-                    info["addresses"] = lan_addresses()
-                    info["mobileAddresses"] = lan_addresses()
+                    info["mobileAddresses"] = addresses
             self.send_json(200, info, self.headers.get("Origin"))
             return
         if path == "/api/local-snapshot":
@@ -1135,8 +1434,50 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 return
             self.send_json(200, self.store.get_local_state())
             return
-
+        if path == "/api/check-update":
+            if not self.is_local_loopback_request():
+                self.send_error(403)
+                return
+            try:
+                release = latest_release()
+                current = app_version()
+                if release:
+                    self.send_json(200, {
+                        "hasUpdate": True,
+                        "latestVersion": release["version"],
+                        "currentVersion": current,
+                    }, self.headers.get("Origin"))
+                else:
+                    self.send_json(200, {
+                        "hasUpdate": False,
+                        "currentVersion": current,
+                    }, self.headers.get("Origin"))
+            except Exception as error:
+                self.send_json(500, {"error": str(error)}, self.headers.get("Origin"))
+            return
+        if path == "/api/qr":
+            query = parse_qs(urlsplit(self.path).query)
+            text = query.get("text", [""])[0]
+            if not text or len(text) > 512 or not HAVE_QRCODE:
+                self.send_error(400)
+                return
+            try:
+                img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathImage, box_size=8, border=2)
+                body = img.to_string()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception:
+                self.send_error(500)
+            return
         if not self.is_local_loopback_request() and not self.is_secure_mobile_request():
+            accept = self.headers.get("Accept", "")
+            if "text/html" in accept or "/" in accept or not accept:
+                self.serve_mobile_portal()
+                return
             self.send_json(426, {
                 "error": "Na rede local, abra o endereço HTTPS do CRAS Desktop exibido nas Configurações."
             })
@@ -1159,9 +1500,29 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
         self.wfile.write(body)
-
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/apply-update":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            if not getattr(sys, "frozen", False) or os.name != "nt":
+                self.send_json(400, {"error": "Atualizações automáticas só podem ser aplicadas no aplicativo compilado (.exe)."}, self.headers.get("Origin"))
+                return
+            try:
+                release = latest_release()
+                if not release:
+                    self.send_json(404, {"error": "Nenhuma atualização disponível no momento."}, self.headers.get("Origin"))
+                    return
+                directory = data_path()
+                update_path = download_update(release, directory)
+                launch_update_helper(update_path, Path(sys.executable), os.getpid(), directory)
+                self.send_json(200, {"success": True, "message": "Atualização baixada. O aplicativo será reiniciado em instantes..."}, self.headers.get("Origin"))
+                threading.Timer(1.5, lambda: os._exit(0)).start()
+            except Exception as error:
+                logging.exception("Falha ao aplicar atualização solicitada pela interface.")
+                self.send_json(500, {"error": str(error)}, self.headers.get("Origin"))
+            return
         if path == "/api/mobile-config":
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -1299,8 +1660,6 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             if isinstance(error, ValueError):
                 message = str(error)
             self.send_json(400, {"error": message}, origin)
-
-
 def configure_logging(directory: Path) -> None:
     logging.basicConfig(
         filename=directory / "app.log",
@@ -1308,21 +1667,16 @@ def configure_logging(directory: Path) -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         encoding="utf-8",
     )
-
-
 def show_startup_error(message: str) -> None:
     try:
         import tkinter
         from tkinter import messagebox
-
         root = tkinter.Tk()
         root.withdraw()
         messagebox.showerror(APP_NAME, message)
         root.destroy()
     except Exception:
         logging.exception("Não foi possível exibir o erro de inicialização.")
-
-
 def main() -> None:
     try:
         user_data = data_path()
@@ -1353,7 +1707,6 @@ def main() -> None:
     CRASRequestHandler.ui_root = resource_path(".")
     CRASRequestHandler.mobile_ca_path = mobile_ca_path
     CRASRequestHandler.mobile_ca_fingerprint = mobile_ca_fingerprint
-
     try:
         server = ThreadingHTTPServer(("0.0.0.0", PORT), CRASRequestHandler)
     except OSError as error:
@@ -1364,7 +1717,6 @@ def main() -> None:
             f"Detalhe: {error}"
         )
         return
-
     server.daemon_threads = True
     threading.Thread(target=server.serve_forever, name="cras-http", daemon=True).start()
     logging.info("Aplicativo iniciado no endereço local e na porta %s.", PORT)
@@ -1427,7 +1779,5 @@ def main() -> None:
         if mobile_server:
             mobile_server.shutdown()
             mobile_server.server_close()
-
-
 if __name__ == "__main__":
     main()

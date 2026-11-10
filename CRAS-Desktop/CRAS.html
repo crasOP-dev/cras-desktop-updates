@@ -28,6 +28,9 @@
             --sand-soft: #fbf3df;
             --red: #b42332;
             --shadow: 0 14px 36px rgba(24, 43, 58, 0.09);
+            --accent: #08634c;
+            --accent-dark: #064b3a;
+            --accent-soft: #e4f4ed;
         }
 
         * {
@@ -41,6 +44,59 @@
             color: var(--ink);
             font-family: "Aptos", "Segoe UI", sans-serif;
             font-size: 15px;
+        }
+
+        body[data-color-theme="blue"] {
+            --green: #245c91;
+            --green-dark: #19456e;
+            --green-soft: #e5f0fb;
+            --teal: #226e83;
+            --accent: #245c91;
+            --accent-dark: #19456e;
+            --accent-soft: #e5f0fb;
+        }
+
+        body[data-color-theme="violet"] {
+            --green: #654b91;
+            --green-dark: #4b376e;
+            --green-soft: #eee8f8;
+            --teal: #765b9a;
+            --accent: #654b91;
+            --accent-dark: #4b376e;
+            --accent-soft: #eee8f8;
+        }
+
+        body.high-contrast {
+            --ink: #000;
+            --muted: #202020;
+            --line: #333;
+            --green: #005238;
+            --green-dark: #003b28;
+            --green-soft: #d8f6e8;
+            --teal: #004d59;
+            --blue-soft: #dcefff;
+            --sand-soft: #fff1c2;
+        }
+
+        body.high-contrast.dark-mode {
+            --ink: #fff;
+            --muted: #eee;
+            --line: #bbb;
+            --green: #70e0ae;
+            --green-dark: #9af0c8;
+            --green-soft: #233d31;
+            --teal: #80e9ef;
+            --blue-soft: #24394b;
+            --sand-soft: #493b20;
+        }
+
+        body.reduce-motion *,
+        body.reduce-motion *::before,
+        body.reduce-motion *::after {
+            scroll-behavior: auto !important;
+            animation-duration: .01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: .01ms !important;
         }
 
         button,
@@ -1820,6 +1876,211 @@
             font-size: 13px;
         }
 
+        .boot-screen,
+        .welcome-screen {
+            position: fixed;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            padding: 24px;
+            background: radial-gradient(circle at 50% 42%, #fff 0%, var(--canvas) 72%);
+        }
+
+        .boot-screen {
+            z-index: 3000;
+            color: var(--ink);
+            transition: opacity 180ms ease;
+        }
+
+        .boot-screen.is-leaving {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .boot-screen[hidden],
+        .welcome-screen[hidden],
+        .screen-wave[hidden] {
+            display: none;
+        }
+
+        .boot-content,
+        .welcome-content {
+            display: grid;
+            justify-items: center;
+            text-align: center;
+        }
+
+        .welcome-content {
+            gap: 28px;
+        }
+
+        .boot-logo,
+        .welcome-logo {
+            margin: 0;
+            color: var(--accent);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: clamp(68px, 16vw, 124px);
+            font-weight: 600;
+            letter-spacing: .12em;
+            line-height: 1;
+        }
+
+        .boot-logo span,
+        .welcome-logo span {
+            display: inline-block;
+            animation: cras-letter-write 260ms ease both;
+        }
+
+        .boot-logo span:nth-child(2),
+        .welcome-logo span:nth-child(2) { animation-delay: 120ms; }
+        .boot-logo span:nth-child(3),
+        .welcome-logo span:nth-child(3) { animation-delay: 240ms; }
+        .boot-logo span:nth-child(4),
+        .welcome-logo span:nth-child(4) { animation-delay: 360ms; }
+
+        .boot-logo.is-christmas {
+            display: flex;
+            align-items: center;
+            gap: .06em;
+            font-size: clamp(48px, 12vw, 104px);
+            letter-spacing: .04em;
+        }
+
+        .boot-logo.is-christmas span {
+            animation: christmas-hop 1.2s ease-in-out infinite;
+            animation-delay: calc(var(--letter-index) * 130ms);
+        }
+
+        @keyframes christmas-hop {
+            0%, 62%, 100% { transform: translateY(0); }
+            18% { transform: translateY(-.22em); }
+            34% { transform: translateY(0); }
+        }
+
+        .boot-logo.is-new-year {
+            padding: 0 .08em;
+            color: var(--seasonal-color, var(--accent));
+            font-size: clamp(58px, 13vw, 112px);
+            letter-spacing: .04em;
+            -webkit-text-stroke: 1px color-mix(in srgb, var(--seasonal-color, var(--accent)) 68%, var(--ink));
+            text-shadow: 0 3px 18px color-mix(in srgb, var(--seasonal-color, var(--accent)) 38%, transparent);
+            transition: color 350ms ease, text-shadow 350ms ease;
+        }
+
+        @keyframes cras-letter-write {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .boot-progress {
+            width: min(220px, 60vw);
+            height: 4px;
+            margin-top: 24px;
+            overflow: hidden;
+            background: var(--line);
+            border-radius: 999px;
+        }
+
+        .boot-progress::after {
+            display: block;
+            width: 42%;
+            height: 100%;
+            background: var(--accent);
+            border-radius: inherit;
+            content: "";
+            animation: boot-progress 1.4s ease-in-out infinite;
+        }
+
+        @keyframes boot-progress {
+            from { transform: translateX(-110%); }
+            to { transform: translateX(260%); }
+        }
+
+        .boot-caption {
+            margin: 14px 0 0;
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        .boot-screen.is-new-year .boot-caption {
+            order: 2;
+            max-width: min(440px, 82vw);
+            margin-top: 0;
+            color: var(--ink);
+            font-size: clamp(15px, 2.2vw, 19px);
+            line-height: 1.5;
+        }
+
+        .boot-screen.is-new-year .boot-progress { order: 3; }
+
+        .boot-seasonal-hint {
+            order: 4;
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        @media (max-width: 380px) {
+            .boot-logo.is-christmas { font-size: clamp(42px, 11vw, 68px); }
+            .boot-logo.is-new-year { font-size: clamp(48px, 12vw, 76px); }
+        }
+
+        .welcome-screen {
+            z-index: 1200;
+            color: var(--ink);
+            transition: opacity 260ms ease, transform 260ms ease;
+        }
+
+        .welcome-screen.is-leaving {
+            opacity: 0;
+            transform: scale(1.03);
+            pointer-events: none;
+        }
+
+        .welcome-logo {
+            font-size: clamp(84px, 19vw, 156px);
+        }
+
+        .welcome-start {
+            min-width: 180px;
+            min-height: 52px;
+            opacity: 0;
+            animation: welcome-start-in 320ms ease 650ms forwards;
+        }
+
+        @keyframes welcome-start-in {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .screen-wave {
+            position: fixed;
+            z-index: 1400;
+            inset: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .screen-wave::before {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 18vmax;
+            aspect-ratio: 1;
+            background: var(--accent);
+            border-radius: 50%;
+            content: "";
+            transform: translate(-50%, -50%) scale(0);
+        }
+
+        .screen-wave.is-active::before {
+            animation: screen-wave-expand 480ms cubic-bezier(.22, .7, .24, 1) forwards;
+        }
+
+        @keyframes screen-wave-expand {
+            to { transform: translate(-50%, -50%) scale(12); }
+        }
+
         .mobile-access-card {
             display: none;
         }
@@ -1846,13 +2107,14 @@
 
         .user-login {
             position: fixed;
-            z-index: 1100;
+            z-index: 1300;
             inset: 0;
             display: grid;
             place-items: center;
-            padding: 20px;
-            background: rgba(18, 34, 46, .78);
-            backdrop-filter: blur(6px);
+            overflow-y: auto;
+            padding: 24px;
+            color: var(--ink);
+            background: radial-gradient(circle at 50% 42%, #fff 0%, var(--canvas) 72%);
         }
 
         .user-login[hidden] {
@@ -1860,13 +2122,27 @@
         }
 
         .user-login-card {
-            width: min(520px, 100%);
+            width: min(440px, 100%);
+            max-height: calc(100vh - 48px);
+            overflow-y: auto;
             padding: 28px;
             background: var(--paper);
             border: 1px solid var(--line);
-            border-top: 5px solid var(--green);
-            border-radius: 10px;
+            border-top: 5px solid var(--accent);
+            border-radius: 16px;
             box-shadow: var(--shadow);
+            animation: login-panel-in 320ms ease both;
+        }
+
+        @keyframes login-panel-in {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .user-login-card .login-logo {
+            margin: 0 auto 20px;
+            font-size: clamp(64px, 12vw, 92px);
+            text-align: center;
         }
 
         .user-login-card h1 {
@@ -2033,26 +2309,45 @@
             transform: translate(0, -50%);
         }
 
-        .accessibility-wrap {
-            position: relative;
+        .accessibility-menu {
+            position: fixed;
+            z-index: 1200;
+            inset: 0;
+            overflow-y: auto;
+            padding: 28px clamp(18px, 5vw, 72px) 48px;
+            background: var(--canvas);
+            transform: translateY(-100%);
+            transition: transform 380ms cubic-bezier(.22, .7, .24, 1);
+            will-change: transform;
         }
 
-        .accessibility-menu {
-            position: absolute;
-            z-index: 12;
-            top: 51px;
-            right: 0;
-            width: min(300px, calc(100vw - 32px));
-            padding: 17px;
-            background: var(--paper);
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            box-shadow: 0 16px 42px rgba(22, 40, 30, .2);
-            animation: menu-in 160ms ease both;
+        .accessibility-menu.is-open {
+            transform: translateY(0);
         }
 
         .accessibility-menu[hidden] {
             display: none;
+        }
+
+        .settings-page-header {
+            max-width: 1100px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 0 auto 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .settings-page-header p {
+            margin: 4px 0 0;
+            color: var(--muted);
+        }
+
+        .settings-page-content {
+            max-width: 1100px;
+            margin: 0 auto;
         }
 
         .accessibility-menu h2 {
@@ -2084,6 +2379,22 @@
             background: var(--paper);
             border: 1px solid var(--line);
             border-radius: 5px;
+        }
+
+        .accessibility-option input[type="color"] {
+            width: 52px;
+            height: 38px;
+            padding: 3px;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 5px;
+        }
+
+        .settings-row-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
         }
 
         .toggle-control {
@@ -2831,6 +3142,127 @@
             background: #34483a;
         }
 
+        .settings-section-card {
+            background: color-mix(in srgb, var(--canvas) 60%, var(--paper));
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 14px;
+        }
+
+        .settings-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .settings-card-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--ink);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .copy-input-group {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .copy-input-group .text-input {
+            flex: 1;
+            font-family: monospace;
+            font-size: 12px;
+            background: var(--paper);
+        }
+
+        .btn-copy {
+            padding: 6px 12px;
+            background: var(--green-soft);
+            color: var(--green);
+            border: 1px solid rgba(8, 99, 76, .2);
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all .15s ease;
+            white-space: nowrap;
+        }
+
+        .btn-copy:hover {
+            background: var(--green);
+            color: #fff;
+        }
+
+        .badge-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .badge-online {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-offline {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .update-badge {
+            display: block;
+            margin-top: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .update-badge-checking {
+            background: #e0f2fe;
+            color: #0369a1;
+        }
+
+        .update-badge-latest {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .update-badge-available {
+            background: #fef3c7;
+            color: #92400e;
+            font-weight: 700;
+        }
+
+        .update-badge-error {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .qr-code-box {
+            text-align: center;
+            padding: 10px;
+            background: var(--paper);
+            border-radius: 10px;
+            border: 1px dashed var(--line);
+            margin: 10px 0;
+        }
+
+        .qr-code-box img {
+            max-width: 160px;
+            max-height: 160px;
+            margin: 0 auto;
+            display: block;
+        }
+
         @media (prefers-reduced-motion: reduce) {
 
             *,
@@ -3142,10 +3574,1477 @@
                 font-size: 14px;
             }
         }
+
+        /* Editorial interface refresh */
+        :root {
+            --ink: #1d2b27;
+            --muted: #64736c;
+            --line: #e5ebe6;
+            --paper: #fff;
+            --canvas: #f5f7f4;
+            --green: #17684f;
+            --green-dark: #10513e;
+            --green-soft: #eaf3ed;
+            --teal: #2f7371;
+            --blue-soft: #edf3f3;
+            --shadow: 0 4px 20px rgba(20, 40, 30, .035);
+            --accent: #17684f;
+            --accent-dark: #10513e;
+            --accent-soft: #eaf3ed;
+        }
+
+        body {
+            color: var(--ink);
+            background: var(--canvas);
+            font-family: "Aptos", "Inter", "Segoe UI", sans-serif;
+            letter-spacing: .005em;
+        }
+
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: color-mix(in srgb, var(--muted) 32%, transparent) transparent;
+        }
+
+        *::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        *::-webkit-scrollbar-thumb {
+            min-height: 28px;
+            background: color-mix(in srgb, var(--muted) 30%, transparent);
+            background-clip: padding-box;
+            border: 2px solid transparent;
+            border-radius: 999px;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background: color-mix(in srgb, var(--muted) 52%, transparent);
+            background-clip: padding-box;
+        }
+
+        h1,
+        h2,
+        h3,
+        .brand-name,
+        .form-section-title,
+        .dashboard-total strong,
+        .paa-month-group summary {
+            font-family: Georgia, "Times New Roman", serif;
+            letter-spacing: -.025em;
+        }
+
+        h1 {
+            font-size: clamp(29px, 3vw, 38px);
+            line-height: 1.12;
+        }
+
+        h2 {
+            font-size: 24px;
+            line-height: 1.2;
+        }
+
+        .topbar {
+            min-height: 82px;
+            padding-inline: clamp(20px, 5vw, 76px);
+            background: var(--paper);
+            border: 0;
+            box-shadow: 0 1px 0 rgba(30, 55, 40, .035);
+        }
+
+        .brand {
+            gap: 15px;
+        }
+
+        .brand-mark {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            box-shadow: none;
+        }
+
+        .brand-name {
+            font-size: 21px;
+        }
+
+        main {
+            max-width: 1500px;
+            padding: clamp(26px, 4vw, 54px) clamp(18px, 5vw, 76px) 112px;
+        }
+
+        .main-tabs {
+            gap: 10px;
+            margin-bottom: 30px;
+            border: 0;
+        }
+
+        .main-tab {
+            min-height: 48px;
+            padding: 0 18px;
+            border: 0;
+            border-radius: 999px;
+            font-size: 14px;
+            transition: color 160ms ease, background 160ms ease;
+        }
+
+        .main-tab:hover {
+            color: var(--green-dark);
+            background: color-mix(in srgb, var(--green-soft) 64%, transparent);
+        }
+
+        .main-tab[aria-selected="true"] {
+            color: var(--green-dark);
+            background: var(--green-soft);
+        }
+
+        .section-heading {
+            align-items: flex-end;
+            margin-bottom: 22px;
+        }
+
+        .section-note {
+            max-width: 62ch;
+            font-size: 15px;
+            line-height: 1.65;
+        }
+
+        .eyebrow {
+            margin-bottom: 9px;
+            color: var(--teal);
+            font-size: 10px;
+            letter-spacing: .16em;
+        }
+
+        .panel,
+        .form-panel,
+        .paa-panel,
+        .queue-dashboard,
+        .table-wrap,
+        .filter-panel,
+        .report-results,
+        .settings-section-card,
+        .settings-card,
+        .mobile-admin-settings {
+            border: 0;
+            border-radius: 18px;
+            box-shadow: var(--shadow);
+        }
+
+        .form-panel,
+        .paa-panel {
+            padding: clamp(22px, 3vw, 38px);
+            border-top: 0;
+            background: var(--paper);
+        }
+
+        .paa-form {
+            margin-inline: auto;
+        }
+
+        .form-grid {
+            gap: 23px 20px;
+        }
+
+        .form-section-title {
+            gap: 13px;
+            margin: 15px 0 1px;
+            padding-top: 12px;
+            color: var(--ink);
+            font-size: 21px;
+        }
+
+        .step-number {
+            width: 31px;
+            height: 31px;
+            flex-basis: 31px;
+            color: var(--green-dark);
+            background: var(--green-soft);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .field-label,
+        .filter-label {
+            margin-bottom: 9px;
+            color: #394a42;
+            font-size: 13px;
+            font-weight: 650;
+            letter-spacing: .01em;
+        }
+
+        .text-input,
+        .select-input,
+        .route-trigger {
+            min-height: 50px;
+            height: auto;
+            padding: 0 15px;
+            color: var(--ink);
+            background: #f6f8f6;
+            border: 1px solid transparent;
+            border-radius: 11px;
+            box-shadow: inset 0 0 0 1px rgba(40, 70, 50, .025);
+            transition: background 160ms ease, box-shadow 160ms ease;
+        }
+
+        .text-input:hover,
+        .select-input:hover,
+        .route-trigger:hover {
+            background: #f0f5f1;
+        }
+
+        .text-input:focus,
+        .select-input:focus,
+        .route-trigger:focus {
+            background: var(--paper);
+            border-color: transparent;
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 18%, transparent);
+            outline: none;
+            transform: none;
+        }
+
+        .text-input::placeholder,
+        .route-trigger .placeholder {
+            color: #84928a;
+        }
+
+        .field-personal-autocomplete .text-input {
+            background: color-mix(in srgb, var(--green-soft) 55%, white);
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 7%, transparent);
+        }
+
+        .field-personal-autocomplete .text-input:hover {
+            background: color-mix(in srgb, var(--green-soft) 78%, white);
+        }
+
+        .field-personal-autocomplete .text-input:focus {
+            background: var(--paper);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 20%, transparent);
+        }
+
+        .hint {
+            margin-top: 7px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+
+        .history-suggestions {
+            top: calc(100% + 7px);
+            max-height: min(320px, 45vh);
+            padding: 7px;
+            background: var(--paper);
+            border: 0;
+            border-radius: 14px;
+            box-shadow: 0 12px 34px rgba(20, 40, 30, .12);
+        }
+
+        .history-suggestion {
+            min-height: 56px;
+            padding: 12px 14px;
+            border-radius: 9px;
+            line-height: 1.45;
+        }
+
+        .history-suggestion:hover,
+        .history-suggestion:focus-visible,
+        .history-suggestion.is-active {
+            color: var(--green-dark);
+            background: var(--green-soft);
+        }
+
+        .choice-row {
+            gap: 9px;
+        }
+
+        .choice-chip label,
+        .route-option label {
+            min-height: 48px;
+            padding-inline: 15px;
+            color: var(--ink);
+            background: #f6f8f6;
+            border: 1px solid transparent;
+            border-radius: 11px;
+            transition: background 150ms ease, box-shadow 150ms ease;
+        }
+
+        .choice-chip input:checked+label,
+        .route-option input:checked+label {
+            color: var(--green-dark);
+            background: var(--green-soft);
+            border-color: transparent;
+            box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--green) 14%, transparent);
+        }
+
+        .route-options {
+            padding: 14px;
+            background: #f7f9f7;
+            border: 0;
+            border-radius: 14px;
+        }
+
+        .route-carousel {
+            gap: 7px;
+        }
+
+        .route-trigger {
+            min-height: 50px;
+        }
+
+        .button-primary {
+            min-height: 52px;
+            padding-inline: 23px;
+            color: #fff;
+            background: var(--green);
+            border: 0;
+            border-radius: 11px;
+            box-shadow: 0 7px 18px color-mix(in srgb, var(--green) 16%, transparent);
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: .01em;
+            transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+        }
+
+        .button-primary:hover {
+            background: var(--green-dark);
+            box-shadow: 0 9px 22px color-mix(in srgb, var(--green) 22%, transparent);
+            transform: translateY(-1px);
+        }
+
+        .form-footer {
+            margin-top: 28px;
+            padding-top: 0;
+            border: 0;
+        }
+
+        .form-footer:has(#submit-button),
+        .form-footer:has(button[type="submit"]) {
+            align-items: center;
+        }
+
+        .form-status {
+            max-width: 55ch;
+            line-height: 1.55;
+        }
+
+        .button-secondary,
+        .history-undo,
+        .history-actions .button-secondary,
+        .paa-row-actions .button-secondary {
+            min-height: 44px;
+            color: var(--green-dark);
+            background: transparent;
+            border: 1px solid transparent;
+            border-radius: 10px;
+            font-weight: 650;
+        }
+
+        .button-secondary:hover,
+        .history-undo:not(:disabled):hover {
+            background: var(--green-soft);
+        }
+
+        .dashboard-sidebar {
+            gap: 14px;
+        }
+
+        .dashboard,
+        .queue-dashboard {
+            padding: 23px;
+            background: var(--paper);
+            border: 0;
+            border-radius: 18px;
+        }
+
+        .dashboard-head {
+            margin-bottom: 13px;
+        }
+
+        .dashboard-head h2,
+        .queue-dashboard-head h2 {
+            font-size: 21px;
+        }
+
+        .dashboard-total {
+            padding: 17px 18px;
+            background: var(--green-soft);
+            border: 0;
+            border-radius: 14px;
+        }
+
+        .dashboard-total strong {
+            font-size: 36px;
+        }
+
+        .assistant-stats {
+            gap: 6px;
+        }
+
+        .assistant-stat {
+            padding: 11px 12px;
+            background: color-mix(in srgb, var(--assistant-color, var(--green)) 6%, var(--paper));
+            border: 0;
+            border-radius: 10px;
+        }
+
+        .queue-dashboard {
+            border-top: 0;
+        }
+
+        .queue-dashboard-total {
+            min-width: 40px;
+            padding: 7px 12px;
+            color: var(--green-dark);
+            background: var(--green-soft);
+            border-radius: 999px;
+        }
+
+        .queue-card,
+        .queue-card.assistance-card {
+            padding: 16px;
+            background: color-mix(in srgb, var(--queue-accent, var(--green)) 7%, var(--paper));
+            border: 0;
+            border-radius: 13px;
+            box-shadow: inset 3px 0 0 color-mix(in srgb, var(--queue-accent, var(--green)) 55%, transparent);
+        }
+
+        .queue-card:hover {
+            transform: translateY(-1px);
+            box-shadow: inset 3px 0 0 var(--queue-accent, var(--green)), 0 5px 16px rgba(20, 40, 30, .06);
+        }
+
+        .queue-status {
+            padding: 5px 9px;
+            background: color-mix(in srgb, var(--paper) 74%, transparent);
+            border-radius: 999px;
+            font-size: 10px;
+            letter-spacing: .04em;
+            text-transform: uppercase;
+        }
+
+        .queue-action {
+            min-height: 44px;
+            padding-inline: 14px;
+            border-radius: 10px;
+        }
+
+        .queue-empty,
+        .empty-state,
+        .report-empty {
+            padding: 30px 22px;
+            color: var(--muted);
+            background: color-mix(in srgb, var(--canvas) 82%, var(--paper));
+            border: 0;
+            border-radius: 14px;
+            line-height: 1.6;
+        }
+
+        .queue-empty {
+            text-align: left;
+        }
+
+        .empty-state strong {
+            margin-bottom: 8px;
+            color: var(--ink);
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 19px;
+            font-weight: 600;
+        }
+
+        #empty-state::after {
+            display: block;
+            margin-top: 5px;
+            color: var(--muted);
+            content: "Preencha os dados acima e selecione “Registrar atendimento” para adicionar o primeiro registro.";
+        }
+
+        #paa-empty-state::after {
+            display: block;
+            margin-top: 5px;
+            color: var(--muted);
+            content: "Use o formulário acima para cadastrar o primeiro participante no PAA.";
+        }
+
+        .history {
+            margin-top: clamp(34px, 5vw, 60px);
+        }
+
+        .history-header {
+            margin-bottom: 18px;
+        }
+
+        .history-count {
+            color: var(--muted);
+        }
+
+        .filter-panel {
+            gap: 15px;
+            padding: 20px;
+            background: var(--paper);
+        }
+
+        .filter-panel .text-input,
+        .filter-panel .select-input,
+        .report-controls .text-input,
+        .report-controls .select-input {
+            min-height: 48px;
+            height: auto;
+        }
+
+        .table-wrap {
+            overflow: auto;
+            background: var(--paper);
+        }
+
+        .history-table {
+            border-collapse: separate;
+            border-spacing: 0 4px;
+        }
+
+        .history-table th {
+            padding: 14px 15px;
+            color: var(--muted);
+            background: transparent;
+            border: 0;
+            font-size: 10px;
+            letter-spacing: .1em;
+        }
+
+        .history-table td {
+            padding: 14px 15px;
+            background: #fafbf9;
+            border: 0;
+            line-height: 1.45;
+        }
+
+        .history-table tbody tr td:first-child {
+            border-radius: 10px 0 0 10px;
+        }
+
+        .history-table tbody tr td:last-child {
+            border-radius: 0 10px 10px 0;
+        }
+
+        .history-table tbody tr:hover td {
+            background: var(--green-soft);
+        }
+
+        .history-record-table tbody tr {
+            border: 0;
+        }
+
+        .history-actions .button-delete,
+        .paa-row-actions .button-delete {
+            min-height: 40px;
+            background: transparent;
+            border: 0;
+            border-radius: 9px;
+        }
+
+        .history-actions .button-delete:hover,
+        .paa-row-actions .button-delete:hover {
+            background: #fbeeed;
+            border: 0;
+        }
+
+        .report-menu {
+            padding: 0 20px 20px;
+            background: var(--paper);
+            border-radius: 16px;
+        }
+
+        .report-columns {
+            border: 0;
+            border-radius: 12px;
+            background: var(--canvas);
+        }
+
+        .report-results-head {
+            border: 0;
+        }
+
+        .paa-month-group {
+            border: 0;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .paa-month-group summary {
+            padding: 20px;
+            background: var(--paper);
+        }
+
+        .settings-section-card {
+            padding: 18px;
+            background: color-mix(in srgb, var(--canvas) 74%, var(--paper));
+            border: 0;
+            border-radius: 14px;
+        }
+
+        body:has(.user-login:not([hidden])) {
+            overflow: hidden;
+        }
+
+        .user-login {
+            overflow: hidden;
+            overscroll-behavior: none;
+            padding: 16px;
+        }
+
+        .user-login-card {
+            max-height: none;
+            overflow: visible;
+            padding: clamp(18px, 3vh, 28px) clamp(18px, 4vw, 28px);
+        }
+
+        .user-login-card .login-logo {
+            margin-bottom: 14px;
+            font-size: clamp(58px, 9vh, 84px);
+        }
+
+        .user-login-card .field-label {
+            margin-bottom: 6px;
+        }
+
+        .user-login-card .text-input,
+        .user-login-card .select-input {
+            min-height: 46px;
+            height: 46px;
+            margin-bottom: 7px;
+        }
+
+        .user-login-actions {
+            margin-top: 12px;
+        }
+
+        .user-login-status {
+            min-height: 18px;
+            margin-top: 6px;
+        }
+
+        .history-suggestion:focus-visible,
+        .button-primary:focus-visible,
+        .button-secondary:focus-visible,
+        .main-tab:focus-visible,
+        .queue-action:focus-visible,
+        .text-input:focus-visible,
+        .select-input:focus-visible,
+        .route-trigger:focus-visible {
+            outline: 3px solid color-mix(in srgb, var(--green) 38%, transparent);
+            outline-offset: 3px;
+        }
+
+        body.dark-mode {
+            --ink: #e9f0eb;
+            --muted: #aab8ae;
+            --line: #35443a;
+            --paper: #202a23;
+            --canvas: #171d19;
+            --green-soft: #293d30;
+            --shadow: 0 4px 20px rgba(0, 0, 0, .12);
+        }
+
+        body.dark-mode .topbar,
+        body.dark-mode .form-panel,
+        body.dark-mode .paa-panel,
+        body.dark-mode .dashboard,
+        body.dark-mode .queue-dashboard,
+        body.dark-mode .filter-panel,
+        body.dark-mode .table-wrap,
+        body.dark-mode .report-menu,
+        body.dark-mode .paa-month-group summary {
+            background: var(--paper);
+        }
+
+        body.dark-mode .text-input,
+        body.dark-mode .select-input,
+        body.dark-mode .route-trigger,
+        body.dark-mode .choice-chip label,
+        body.dark-mode .route-option label {
+            color: var(--ink);
+            background: #29352d;
+            border-color: transparent;
+        }
+
+        body.dark-mode .field-personal-autocomplete .text-input {
+            background: color-mix(in srgb, var(--green-soft) 76%, var(--paper));
+        }
+
+        body.dark-mode .text-input:focus,
+        body.dark-mode .select-input:focus,
+        body.dark-mode .route-trigger:focus {
+            background: var(--paper);
+        }
+
+        body.dark-mode .history-suggestions {
+            background: var(--paper);
+        }
+
+        body.dark-mode .history-table td {
+            background: #242f28;
+        }
+
+        body.dark-mode .history-table th {
+            background: transparent;
+        }
+
+        body.dark-mode .history-table tbody tr:hover td {
+            background: var(--green-soft);
+        }
+
+        body.dark-mode .queue-card,
+        body.dark-mode .queue-card.assistance-card {
+            border: 0;
+        }
+
+        body.dark-mode .queue-card:hover {
+            box-shadow: inset 3px 0 0 var(--queue-accent, var(--green)), 0 5px 16px rgba(0, 0, 0, .14);
+        }
+
+        body.dark-mode .queue-empty,
+        body.dark-mode .empty-state,
+        body.dark-mode .report-empty,
+        body.dark-mode .route-options,
+        body.dark-mode .report-columns {
+            color: var(--muted);
+            background: color-mix(in srgb, var(--canvas) 70%, var(--paper));
+        }
+
+        body.dark-mode .button-primary {
+            color: #fff;
+            background: var(--green);
+        }
+
+        body.dark-mode .button-primary:hover {
+            background: var(--green-dark);
+        }
+
+        @media (max-width: 760px) {
+            .topbar {
+                padding-inline: 22px;
+            }
+
+            main {
+                padding: 24px 20px 100px;
+            }
+
+            .dashboard-sidebar {
+                gap: 12px;
+            }
+
+            .queue-dashboards,
+            .queue-panel-content .queue-dashboards {
+                gap: 12px;
+            }
+
+            .history-record-table tbody tr {
+                gap: 12px;
+                margin: 8px 0;
+                padding: 15px;
+                background: #fafbf9;
+                border: 0;
+                border-radius: 13px;
+            }
+
+            .history-record-table tbody td {
+                padding: 0;
+                background: transparent;
+            }
+
+            .history-record-table tbody tr:hover td {
+                background: transparent;
+            }
+
+            body.dark-mode .history-record-table tbody tr {
+                background: #242f28;
+            }
+
+            .form-footer {
+                gap: 12px;
+            }
+        }
+
+        @media (max-width: 560px) {
+            .topbar {
+                padding: 14px 18px;
+            }
+
+            main {
+                padding: 22px 16px 96px;
+            }
+
+            .section-heading {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 9px;
+            }
+
+            .form-panel,
+            .paa-panel {
+                padding: 21px 17px;
+                border-radius: 16px;
+            }
+
+            .form-grid {
+                gap: 18px 12px;
+            }
+
+            .form-section-title {
+                margin-top: 12px;
+                font-size: 19px;
+            }
+
+            .field-cpf,
+            .field-phone {
+                grid-column: span 12;
+            }
+
+            .field-number,
+            .field-nationality,
+            .field-assistant {
+                grid-column: span 12;
+            }
+
+            .text-input,
+            .select-input,
+            .route-trigger {
+                min-height: 50px;
+            }
+
+            .choice-row {
+                align-items: stretch;
+            }
+
+            .choice-chip label {
+                min-height: 48px;
+            }
+
+            .form-footer {
+                margin-top: 22px;
+            }
+
+            .form-footer .button-primary {
+                min-height: 54px;
+            }
+
+            .filter-panel {
+                padding: 16px;
+                border-radius: 15px;
+            }
+
+            .empty-state,
+            .queue-empty,
+            .report-empty {
+                padding: 24px 17px;
+            }
+        }
+
+        @media (max-height: 700px) {
+            .user-login-card {
+                padding: 14px 20px;
+            }
+
+            .user-login-card .login-logo {
+                margin-bottom: 7px;
+                font-size: clamp(42px, 8vh, 58px);
+            }
+
+            .user-login-card .eyebrow {
+                margin-bottom: 4px;
+            }
+
+            .user-login-card h1 {
+                margin-bottom: 6px;
+                font-size: 21px;
+            }
+
+            .user-login-card #user-login-title+p {
+                margin-bottom: 8px;
+                font-size: 13px;
+            }
+
+            .user-login-card .field-label {
+                margin-bottom: 4px;
+                font-size: 12px;
+            }
+
+            .user-login-card .text-input,
+            .user-login-card .select-input {
+                min-height: 42px;
+                height: 42px;
+                margin-bottom: 5px;
+            }
+
+            .user-login-actions {
+                margin-top: 7px;
+            }
+
+            .user-login-actions .button-primary {
+                min-height: 44px;
+            }
+
+            .user-login-status {
+                min-height: 16px;
+                margin-top: 4px;
+                font-size: 12px;
+            }
+        }
+
+        @media (max-height: 520px) {
+            .user-login-card {
+                display: grid;
+                grid-template-columns: minmax(90px, .75fr) minmax(0, 1.25fr);
+                align-items: center;
+                gap: 4px 10px;
+                padding: 8px clamp(12px, 4vw, 18px);
+            }
+
+            .user-login-card .login-logo,
+            .user-login-card > .eyebrow,
+            .user-login-card #user-login-title+p {
+                display: none;
+            }
+
+            .user-login-card h1 {
+                grid-column: 1 / -1;
+                margin: 0;
+                font-size: 18px;
+            }
+
+            .user-login-card > .field-label {
+                grid-column: 1;
+                margin: 0;
+                font-size: 12px;
+            }
+
+            .user-login-card > #login-user,
+            .user-login-card > #login-role {
+                grid-column: 2;
+                min-width: 0;
+                min-height: 38px;
+                height: 38px;
+                margin: 0;
+                padding-inline: 9px;
+                font-size: 13px;
+            }
+
+            .user-login-card #login-admin-pin-wrap:not([hidden]),
+            .user-login-card #login-admin-pin-confirm-wrap:not([hidden]) {
+                grid-column: 1 / -1;
+                display: grid;
+                grid-template-columns: minmax(90px, .75fr) minmax(0, 1.25fr);
+                align-items: center;
+                gap: 4px 10px;
+            }
+
+            .user-login-card #login-admin-pin-wrap > .field-label,
+            .user-login-card #login-admin-pin-confirm-wrap > .field-label {
+                grid-column: 1;
+            }
+
+            .user-login-card #login-admin-pin,
+            .user-login-card #login-admin-pin-confirm {
+                grid-column: 2;
+                min-width: 0;
+                min-height: 38px;
+                height: 38px;
+                margin: 0;
+                padding-inline: 9px;
+                font-size: 13px;
+            }
+
+            .user-login-actions,
+            .user-login-status {
+                grid-column: 1 / -1;
+            }
+
+            .user-login-actions {
+                margin: 2px 0 0;
+            }
+
+            .user-login-actions .button-primary {
+                min-height: 40px;
+            }
+
+            .user-login-status {
+                min-height: 14px;
+                margin: 0;
+                font-size: 11px;
+            }
+        }
+
+        .boot-screen,
+        .welcome-screen,
+        .user-login {
+            border: 0;
+            border-radius: 0;
+            background: radial-gradient(
+                circle at 50% 42%,
+                color-mix(in srgb, var(--paper) 88%, var(--accent) 12%) 0%,
+                var(--canvas) 72%);
+        }
+
+        .boot-screen,
+        .welcome-screen {
+            box-shadow: none;
+        }
+
+        .user-login-card {
+            border-color: var(--line);
+            border-top-color: var(--accent);
+        }
+
+        body[data-color-theme="teal"]:not(.high-contrast) {
+            --green: #0b7370;
+            --green-dark: #075957;
+            --green-soft: #e3f3f1;
+            --teal: #167c79;
+            --accent: #0b7370;
+            --accent-dark: #075957;
+            --accent-soft: #e3f3f1;
+        }
+
+        body[data-color-theme="terracotta"]:not(.high-contrast) {
+            --green: #9f5039;
+            --green-dark: #783b2a;
+            --green-soft: #f7ece7;
+            --teal: #a56d4f;
+            --accent: #9f5039;
+            --accent-dark: #783b2a;
+            --accent-soft: #f7ece7;
+        }
+
+        body[data-color-theme="amber"]:not(.high-contrast) {
+            --green: #936414;
+            --green-dark: #6f4a0d;
+            --green-soft: #f6f0df;
+            --teal: #94743a;
+            --accent: #936414;
+            --accent-dark: #6f4a0d;
+            --accent-soft: #f6f0df;
+        }
+
+        body[data-color-theme="rose"]:not(.high-contrast) {
+            --green: #984b68;
+            --green-dark: #73364d;
+            --green-soft: #f6eaf0;
+            --teal: #986276;
+            --accent: #984b68;
+            --accent-dark: #73364d;
+            --accent-soft: #f6eaf0;
+        }
+
+        body[data-color-theme="slate"]:not(.high-contrast) {
+            --green: #526a82;
+            --green-dark: #3a4d60;
+            --green-soft: #ebeff4;
+            --teal: #58777d;
+            --accent: #526a82;
+            --accent-dark: #3a4d60;
+            --accent-soft: #ebeff4;
+        }
+
+        body.dark-mode[data-color-theme="green"]:not(.high-contrast) {
+            --green: #286d50;
+            --green-dark: #398764;
+            --green-soft: #223b30;
+            --teal: #397c78;
+            --accent: #83c598;
+            --accent-dark: #286d50;
+            --accent-soft: #223b30;
+        }
+
+        body.dark-mode[data-color-theme="blue"]:not(.high-contrast) {
+            --green: #285d91;
+            --green-dark: #3677b5;
+            --green-soft: #23364a;
+            --teal: #2e7186;
+            --accent: #78aee0;
+            --accent-dark: #285d91;
+            --accent-soft: #23364a;
+        }
+
+        body.dark-mode[data-color-theme="violet"]:not(.high-contrast) {
+            --green: #644b92;
+            --green-dark: #8065b2;
+            --green-soft: #352c46;
+            --teal: #725a8e;
+            --accent: #b49ae4;
+            --accent-dark: #644b92;
+            --accent-soft: #352c46;
+        }
+
+        body.dark-mode[data-color-theme="teal"]:not(.high-contrast) {
+            --green: #176f6c;
+            --green-dark: #238985;
+            --green-soft: #203c3b;
+            --teal: #287c79;
+            --accent: #70c4bf;
+            --accent-dark: #176f6c;
+            --accent-soft: #203c3b;
+        }
+
+        body.dark-mode[data-color-theme="terracotta"]:not(.high-contrast) {
+            --green: #914832;
+            --green-dark: #ad6048;
+            --green-soft: #442f29;
+            --teal: #94583f;
+            --accent: #e39b7e;
+            --accent-dark: #914832;
+            --accent-soft: #442f29;
+        }
+
+        body.dark-mode[data-color-theme="amber"]:not(.high-contrast) {
+            --green: #81580f;
+            --green-dark: #a3741e;
+            --green-soft: #403821;
+            --teal: #8d7338;
+            --accent: #e2bd68;
+            --accent-dark: #81580f;
+            --accent-soft: #403821;
+        }
+
+        body.dark-mode[data-color-theme="rose"]:not(.high-contrast) {
+            --green: #87415c;
+            --green-dark: #a65373;
+            --green-soft: #412d37;
+            --teal: #8d5871;
+            --accent: #dc91ad;
+            --accent-dark: #87415c;
+            --accent-soft: #412d37;
+        }
+
+        body.dark-mode[data-color-theme="slate"]:not(.high-contrast) {
+            --green: #4a6279;
+            --green-dark: #607f9c;
+            --green-soft: #2c3742;
+            --teal: #506f77;
+            --accent: #9ab6d1;
+            --accent-dark: #4a6279;
+            --accent-soft: #2c3742;
+        }
+
+        body.high-contrast[data-color-theme="green"] {
+            --green: #005238;
+            --green-dark: #003b28;
+            --green-soft: #d8f6e8;
+            --teal: #004d59;
+            --accent: #005238;
+            --accent-dark: #003b28;
+            --accent-soft: #d8f6e8;
+        }
+
+        body.high-contrast[data-color-theme="blue"] {
+            --green: #003e78;
+            --green-dark: #002c57;
+            --green-soft: #dcecff;
+            --teal: #004f68;
+            --accent: #003e78;
+            --accent-dark: #002c57;
+            --accent-soft: #dcecff;
+        }
+
+        body.high-contrast[data-color-theme="violet"] {
+            --green: #4f2a83;
+            --green-dark: #36195d;
+            --green-soft: #eee5ff;
+            --teal: #583477;
+            --accent: #4f2a83;
+            --accent-dark: #36195d;
+            --accent-soft: #eee5ff;
+        }
+
+        body.high-contrast[data-color-theme="teal"] {
+            --green: #005854;
+            --green-dark: #003c3a;
+            --green-soft: #d9f5f1;
+            --teal: #005c65;
+            --accent: #005854;
+            --accent-dark: #003c3a;
+            --accent-soft: #d9f5f1;
+        }
+
+        body.high-contrast[data-color-theme="terracotta"] {
+            --green: #792c14;
+            --green-dark: #571b0a;
+            --green-soft: #ffebe2;
+            --teal: #783b29;
+            --accent: #792c14;
+            --accent-dark: #571b0a;
+            --accent-soft: #ffebe2;
+        }
+
+        body.high-contrast[data-color-theme="amber"] {
+            --green: #654500;
+            --green-dark: #493100;
+            --green-soft: #fff2c9;
+            --teal: #684e12;
+            --accent: #654500;
+            --accent-dark: #493100;
+            --accent-soft: #fff2c9;
+        }
+
+        body.high-contrast[data-color-theme="rose"] {
+            --green: #772244;
+            --green-dark: #58142f;
+            --green-soft: #ffe5ef;
+            --teal: #742e52;
+            --accent: #772244;
+            --accent-dark: #58142f;
+            --accent-soft: #ffe5ef;
+        }
+
+        body.high-contrast[data-color-theme="slate"] {
+            --green: #2d445c;
+            --green-dark: #1d2c3b;
+            --green-soft: #e3eef9;
+            --teal: #355660;
+            --accent: #2d445c;
+            --accent-dark: #1d2c3b;
+            --accent-soft: #e3eef9;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="green"] {
+            --green: #005238;
+            --green-dark: #006c45;
+            --green-soft: #233d31;
+            --teal: #00515c;
+            --accent: #70e0ae;
+            --accent-dark: #005238;
+            --accent-soft: #233d31;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="blue"] {
+            --green: #123f70;
+            --green-dark: #195794;
+            --green-soft: #24394b;
+            --teal: #145267;
+            --accent: #9bc9ff;
+            --accent-dark: #123f70;
+            --accent-soft: #24394b;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="violet"] {
+            --green: #52327d;
+            --green-dark: #714ca2;
+            --green-soft: #352c46;
+            --teal: #5b3b78;
+            --accent: #d0b8ff;
+            --accent-dark: #52327d;
+            --accent-soft: #352c46;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="teal"] {
+            --green: #00544f;
+            --green-dark: #006b64;
+            --green-soft: #203c3b;
+            --teal: #00595d;
+            --accent: #87f4e8;
+            --accent-dark: #00544f;
+            --accent-soft: #203c3b;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="terracotta"] {
+            --green: #71301a;
+            --green-dark: #924326;
+            --green-soft: #442f29;
+            --teal: #733b28;
+            --accent: #ffb79b;
+            --accent-dark: #71301a;
+            --accent-soft: #442f29;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="amber"] {
+            --green: #614400;
+            --green-dark: #805d00;
+            --green-soft: #403821;
+            --teal: #674d10;
+            --accent: #ffe184;
+            --accent-dark: #614400;
+            --accent-soft: #403821;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="rose"] {
+            --green: #6b2040;
+            --green-dark: #8e2c53;
+            --green-soft: #412d37;
+            --teal: #70264c;
+            --accent: #ffadc5;
+            --accent-dark: #6b2040;
+            --accent-soft: #412d37;
+        }
+
+        body.high-contrast.dark-mode[data-color-theme="slate"] {
+            --green: #2d4359;
+            --green-dark: #405e79;
+            --green-soft: #2c3742;
+            --teal: #34545d;
+            --accent: #c1e0ff;
+            --accent-dark: #2d4359;
+            --accent-soft: #2c3742;
+        }
+
+        body.dark-mode .boot-screen,
+        body.dark-mode .welcome-screen,
+        body.dark-mode .user-login {
+            background: radial-gradient(
+                circle at 50% 42%,
+                color-mix(in srgb, var(--paper) 88%, var(--accent) 12%) 0%,
+                var(--canvas) 72%);
+        }
+
+        body.dark-mode .user-login-card {
+            background: var(--paper);
+            border-color: var(--line);
+            border-top-color: var(--accent);
+        }
+
+        .user-login-card .text-input,
+        .user-login-card .select-input {
+            color: var(--ink);
+            background: color-mix(in srgb, var(--accent-soft) 42%, var(--paper));
+        }
+
+        .user-login-card .text-input:hover,
+        .user-login-card .select-input:hover {
+            background: color-mix(in srgb, var(--accent-soft) 64%, var(--paper));
+        }
+
+        .user-login-card .text-input:focus,
+        .user-login-card .select-input:focus {
+            background: var(--paper);
+            box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+        }
+
+        body.high-contrast .user-login-card .text-input,
+        body.high-contrast .user-login-card .select-input {
+            border: 1px solid var(--green);
+        }
+
+        .qr-code-box {
+            margin: 14px 0;
+            padding: 16px;
+            background: color-mix(in srgb, var(--canvas) 82%, var(--paper));
+            border: 0;
+            border-radius: 14px;
+            text-align: center;
+        }
+
+        .qr-code-box img {
+            width: min(160px, 100%) !important;
+            height: auto !important;
+            aspect-ratio: 1;
+            padding: 8px;
+            background: #fff;
+            border: 0;
+            border-radius: 12px;
+            box-shadow: 0 3px 12px rgba(20, 40, 30, .08);
+            image-rendering: pixelated;
+        }
+
+        #qr-code-container p,
+        #mobile-ca-qr-container p {
+            margin-bottom: 10px !important;
+            color: var(--ink) !important;
+            font-size: 13px !important;
+            font-weight: 650;
+            line-height: 1.5;
+        }
+
+        body.dark-mode .qr-code-box {
+            background: color-mix(in srgb, var(--canvas) 64%, var(--paper));
+        }
+
+        @media (max-width: 560px) {
+            .qr-code-box {
+                padding: 14px;
+            }
+
+            .qr-code-box img {
+                width: min(176px, 100%) !important;
+            }
+        }
+
+        body {
+            --field-background: color-mix(in srgb, var(--accent-soft) 42%, var(--paper));
+        }
+
+        body :is(
+            .text-input,
+            .select-input,
+            .route-trigger,
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+            select,
+            textarea
+        ),
+        body .user-login-card :is(.text-input, .select-input) {
+            color: var(--ink);
+            color-scheme: inherit;
+            background-color: var(--field-background) !important;
+            border-color: color-mix(in srgb, var(--accent) 18%, var(--line));
+        }
+
+        body :is(
+            .text-input,
+            .select-input,
+            .route-trigger,
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+            select,
+            textarea
+        ):hover,
+        body :is(
+            .text-input,
+            .select-input,
+            .route-trigger,
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+            select,
+            textarea
+        ):focus,
+        body .user-login-card :is(.text-input, .select-input):is(:hover, :focus) {
+            background-color: var(--field-background) !important;
+        }
+
+        body :is(.text-input, input, textarea)::placeholder {
+            color: var(--muted);
+        }
+
+        body input[type="checkbox"],
+        body input[type="radio"] {
+            accent-color: var(--accent);
+        }
+
+        body.high-contrast :is(
+            .text-input,
+            .select-input,
+            .route-trigger,
+            input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="hidden"]),
+            select,
+            textarea
+        ) {
+            border: 1px solid var(--accent);
+        }
     </style>
 </head>
 
 <body>
+    <section class="boot-screen" id="boot-screen" aria-label="Carregando o sistema">
+        <div class="boot-content">
+            <h1 class="boot-logo" aria-label="CRAS"><span>C</span><span>R</span><span>A</span><span>S</span></h1>
+            <div class="boot-progress" role="progressbar" aria-label="Carregando" aria-valuemin="0"
+                aria-valuemax="100"></div>
+            <p class="boot-caption">Preparando o sistema…</p>
+        </div>
+    </section>
+    <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title" hidden>
+        <div class="welcome-content">
+            <h1 class="welcome-logo" id="welcome-title" aria-label="CRAS"><span>C</span><span>R</span><span>A</span><span>S</span></h1>
+            <button class="button-primary welcome-start" id="welcome-start" type="button">Iniciar</button>
+        </div>
+    </section>
+    <div class="screen-wave" id="screen-wave" aria-hidden="true" hidden></div>
     <section class="access-gate" id="access-gate" hidden>
         <form class="access-gate-card" id="access-gate-form">
             <p class="eyebrow">Acesso restrito</p>
@@ -3181,10 +5080,22 @@
     <section class="user-login" id="user-login" role="dialog" aria-modal="true"
         aria-labelledby="user-login-title" hidden>
         <form class="user-login-card" id="user-login-form">
+            <div class="welcome-logo login-logo" aria-hidden="true"><span>C</span><span>R</span><span>A</span><span>S</span></div>
             <p class="eyebrow">Acesso ao CRAS Desktop</p>
-            <h1 id="user-login-title">Quem está usando o sistema?</h1>
-            <label class="field-label" for="login-user">Usuário</label>
-            <select class="select-input" id="login-user" required></select>
+            <h1 id="user-login-title">Identifique-se para iniciar</h1>
+            <p>Digite seu nome cadastrado e confirme sua função.</p>
+            <label class="field-label" for="login-user">Nome do usuário</label>
+            <input class="text-input" id="login-user" type="text" list="login-user-list" maxlength="60"
+                autocomplete="name" required>
+            <datalist id="login-user-list"></datalist>
+            <label class="field-label" for="login-role">Função</label>
+            <select class="select-input" id="login-role" required>
+                <option value="assistant">Técnico</option>
+                <option value="caseworker">Cadastradora</option>
+                <option value="reception">Recepção</option>
+                <option value="intern">Estagiário</option>
+                <option value="admin">Admin</option>
+            </select>
             <div id="login-admin-pin-wrap" hidden>
                 <label class="field-label" for="login-admin-pin">PIN administrativo</label>
                 <input class="text-input" id="login-admin-pin" type="password" inputmode="numeric"
@@ -3197,7 +5108,6 @@
             </div>
             <div class="user-login-actions">
                 <button class="button-primary" type="submit">Entrar</button>
-                <button class="button-secondary" id="login-manage-users" type="button">Gestão de usuários</button>
             </div>
             <p class="user-login-status" id="user-login-status" role="status" aria-live="polite"></p>
         </form>
@@ -3213,9 +5123,6 @@
         </div>
         <div class="topbar-actions">
             <span class="assistant-shortcut" id="active-user-label" aria-live="polite"></span>
-            <button class="assistant-shortcut" id="switch-user" type="button" title="Trocar usuário">Trocar usuário</button>
-            <button class="assistant-shortcut" id="assistant-admin-open" type="button"
-                title="Abrir gestão de usuários">Usuários</button>
             <div class="utility-buttons">
                 <div class="accessibility-wrap">
                     <button class="icon-button" id="accessibility-toggle" type="button" aria-label="Abrir configurações"
@@ -3229,7 +5136,15 @@
                     </button>
                     <section class="accessibility-menu" id="accessibility-menu" aria-label="Opções de acessibilidade"
                         hidden>
-                        <h2>Configurações</h2>
+                        <div class="settings-page-header">
+                            <div>
+                                <p class="eyebrow">Preferências e gestão</p>
+                                <h1>Configurações</h1>
+                                <p>Personalize o sistema, gerencie usuários e conecte dispositivos.</p>
+                            </div>
+                            <button class="button-secondary" id="settings-close" type="button">Voltar</button>
+                        </div>
+                        <div class="settings-page-content">
                         <div class="accessibility-option">
                             <span id="theme-label">Modo escuro</span>
                             <label class="toggle-control" aria-label="Ativar modo escuro">
@@ -3237,6 +5152,34 @@
                                 <span class="toggle-track"></span>
                             </label>
                         </div>
+                        <div class="accessibility-option">
+                            <span id="contrast-label">Alto contraste</span>
+                            <label class="toggle-control" aria-label="Ativar alto contraste">
+                                <input id="contrast-toggle" type="checkbox" aria-labelledby="contrast-label">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="accessibility-option">
+                            <span id="motion-label">Reduzir animações</span>
+                            <label class="toggle-control" aria-label="Reduzir animações e transições">
+                                <input id="motion-toggle" type="checkbox" aria-labelledby="motion-label">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
+                        <div class="accessibility-option">
+                            <label for="color-theme">Cor do sistema</label>
+                            <select id="color-theme" aria-label="Cor do sistema">
+                                <option value="green">Verde</option>
+                                <option value="blue">Azul</option>
+                                <option value="violet">Violeta</option>
+                                <option value="teal">Turquesa</option>
+                                <option value="terracotta">Terracota</option>
+                                <option value="amber">Âmbar</option>
+                                <option value="rose">Rosa</option>
+                                <option value="slate">Ardósia</option>
+                            </select>
+                        </div>
+                        <p class="hint">Aparência e acessibilidade são salvas apenas neste computador.</p>
                         <div class="accessibility-option">
                             <label for="font-size">Tamanho da fonte</label>
                             <select id="font-size" aria-label="Tamanho da fonte">
@@ -3270,37 +5213,104 @@
                         </div>
                         <div class="accessibility-option">
                             <span>Usuário atual</span>
-                            <button class="button-secondary" id="settings-switch-user" type="button">Trocar usuário</button>
+                            <div class="settings-row-actions">
+                                <button class="button-secondary" id="settings-switch-user" type="button">Trocar usuário</button>
+                                <button class="button-secondary" id="assistant-admin-open" type="button" hidden>Usuários</button>
+                            </div>
                         </div>
                         <div class="sync-url-setting">
-                            <label class="field-label" for="sync-app-url">Endereço de outro computador</label>
-                            <input class="text-input" id="sync-app-url" type="url"
-                                placeholder="http://192.168.0.10:8765" autocomplete="off">
-                            <label class="field-label" for="sync-peer-key">Código de pareamento do outro computador</label>
-                            <input class="text-input" id="sync-peer-key" type="password"
-                                placeholder="Cole o código informado pelo outro computador" autocomplete="off">
-                            <button class="button-secondary" id="sync-app-url-save" type="button">Salvar computador</button>
-                            <label class="field-label" for="sync-local-addresses">Endereços deste computador</label>
-                            <input class="text-input" id="sync-local-addresses" type="text" readonly>
-                            <label class="field-label" for="sync-local-key">Código de pareamento deste computador</label>
-                            <input class="text-input" id="sync-local-key" type="text" readonly>
-                            <p class="hint">Copie os endereços e o código deste computador para o outro. Cada computador
-                                pode iniciar a sincronização. Os dados trafegam criptografados.</p>
-                            <label class="field-label" for="sync-mobile-addresses">Endereço HTTPS para celulares</label>
-                            <input class="text-input" id="sync-mobile-addresses" type="text" readonly>
-                            <label class="field-label" for="sync-mobile-ca">Endereço para baixar o certificado móvel</label>
-                            <input class="text-input" id="sync-mobile-ca" type="text" readonly>
-                            <label class="field-label" for="sync-mobile-fingerprint">Impressão digital do certificado</label>
-                            <input class="text-input" id="sync-mobile-fingerprint" type="text" readonly>
-                            <p class="hint">Instale o certificado raiz nos celulares e confira esta impressão digital antes
-                                de abrir o endereço HTTPS. Se o endereço não abrir, confirme que os dois dispositivos
-                                estão na mesma rede Wi-Fi privada (não rede de convidados) e que o Firewall do Windows
-                                permite o CRAS Desktop na rede privada; o acesso usa a porta TCP 8766. O certificado
-                                valida a conexão, mas não libera a porta.</p>
+                            <!-- Card 1: Acesso pelo Celular -->
+                            <div class="settings-section-card">
+                                <div class="settings-card-header">
+                                    <span class="settings-card-title">📱 Acesso pelo Celular</span>
+                                    <span id="mobile-server-badge" class="badge-status-pill badge-offline">Verificando…</span>
+                                </div>
+                                <label class="field-label" for="sync-mobile-addresses">Endereço Seguro HTTPS (Celular)</label>
+                                <div class="copy-input-group">
+                                    <input class="text-input" id="sync-mobile-addresses" type="text" readonly>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-addresses', 'Endereço HTTPS')">Copiar</button>
+                                </div>
+
+                                <label class="field-label" for="sync-mobile-ca">Portal do Celular / Baixar CA</label>
+                                <div class="copy-input-group">
+                                    <input class="text-input" id="sync-mobile-ca" type="text" readonly>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-ca', 'Endereço do Certificado')">Copiar</button>
+                                </div>
+
+                                <div class="qr-code-box" id="qr-code-container" hidden>
+                                    <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
+                                        Escaneie para abrir o portal móvel:
+                                    </p>
+                                    <img id="mobile-qr-image" alt="QR Code para Celular" src="" style="width: 140px; height: 140px; margin: 0 auto; display: block;">
+                                </div>
+                                <div class="qr-code-box" id="mobile-ca-qr-container" hidden>
+                                    <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
+                                        No celular, escaneie para baixar o certificado:
+                                    </p>
+                                    <img id="mobile-ca-qr-image" alt="QR Code para baixar o certificado de segurança" src=""
+                                        style="width: 140px; height: 140px; margin: 0 auto; display: block;">
+                                </div>
+
+                                <label class="field-label" for="sync-mobile-fingerprint">Impressão digital do certificado</label>
+                                <div class="copy-input-group">
+                                    <input class="text-input" id="sync-mobile-fingerprint" type="text" readonly>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-fingerprint', 'Impressão Digital')">Copiar</button>
+                                </div>
+                                <p class="hint">Abra o Portal pelo celular para baixar o certificado CA e liberar a criptografia HTTPS segura na porta 8766.</p>
+                            </div>
+
+                            <!-- Card 2: Sincronização entre Computadores (P2P) -->
+                            <div class="settings-section-card">
+                                <div class="settings-card-header">
+                                    <span class="settings-card-title">💻 Sincronização de Computadores</span>
+                                </div>
+                                <label class="field-label" for="sync-local-addresses">Endereço deste computador</label>
+                                <div class="copy-input-group">
+                                    <input class="text-input" id="sync-local-addresses" type="text" readonly>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-local-addresses', 'Endereço deste computador')">Copiar</button>
+                                </div>
+
+                                <label class="field-label" for="sync-local-key">Código de pareamento deste computador</label>
+                                <div class="copy-input-group">
+                                    <input class="text-input" id="sync-local-key" type="text" readonly>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-local-key', 'Código de pareamento')">Copiar</button>
+                                </div>
+
+                                <hr style="border: 0; border-top: 1px dashed var(--line); margin: 12px 0;">
+
+                                <div id="single-peer-settings">
+                                    <label class="field-label" for="sync-app-url">Endereço do outro computador</label>
+                                    <input class="text-input" id="sync-app-url" type="url" placeholder="http://192.168.0.10:8765" autocomplete="off" style="margin-bottom: 8px;">
+
+                                    <label class="field-label" for="sync-peer-key">Código do outro computador</label>
+                                    <input class="text-input" id="sync-peer-key" type="password" placeholder="Cole o código do parceiro" autocomplete="off" style="margin-bottom: 10px;">
+
+                                    <button class="button-secondary" id="sync-app-url-save" type="button" style="width: 100%;">Salvar Computador Parceiro</button>
+                                </div>
+                                <div id="multi-peer-settings" hidden>
+                                    <p class="hint">Adicione cada computador vinculado com seu endereço e código de pareamento. O computador principal tentará sincronizar com todos.</p>
+                                    <div id="sync-peer-list"></div>
+                                    <button class="button-secondary" id="sync-peer-add" type="button" style="width: 100%; margin-bottom: 8px;">Adicionar computador vinculado</button>
+                                    <button class="button-secondary" id="sync-peers-save" type="button" style="width: 100%;">Salvar computadores vinculados</button>
+                                </div>
+                            </div>
+
+                            <!-- Card 3: Atualizações do Sistema -->
+                            <div class="settings-section-card">
+                                <div class="settings-card-header">
+                                    <span class="settings-card-title">🔄 Atualizações</span>
+                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v1.2.1</span>
+                                </div>
+                                <button class="button-secondary" id="check-updates-btn" type="button" style="width: 100%;">
+                                    🔍 Verificar Atualizações
+                                </button>
+                                <div id="update-status-badge" class="update-badge" hidden></div>
+                                <div id="update-action-area" hidden></div>
+                            </div>
                         </div>
                     </section>
                 </div>
-                <div class="help-control">
+                <div class="help-control" hidden>
                     <button class="icon-button help-button" id="tutorial-start" type="button"
                         aria-label="Iniciar tutorial passo a passo" title="Tutorial">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
@@ -3764,6 +5774,7 @@
                         <label class="field-label" for="paa-month">Mês de participação <span
                                 class="required">*</span></label>
                         <input class="text-input" id="paa-month" type="month" required>
+                        <p class="hint">O próximo mês vem selecionado; clique no campo para alterar.</p>
                     </div>
                 </div>
                 <div class="form-footer paa-form">
@@ -3803,12 +5814,6 @@
                 <button class="button-secondary" id="assistant-admin-close" type="button"
                     aria-label="Fechar gestão de usuários">Fechar</button>
             </div>
-            <form class="assistant-admin-auth" id="assistant-admin-auth">
-                <label class="field-label" for="assistant-admin-password">Senha de acesso</label>
-                <input class="text-input" id="assistant-admin-password" type="password" autocomplete="current-password"
-                    required>
-                <button class="button-primary" type="submit">Acessar</button>
-            </form>
             <div class="assistant-admin-content" id="assistant-admin-content" hidden>
                 <section class="panel mobile-admin-settings" id="mobile-admin-settings" hidden>
                     <h3>Acesso pelo celular</h3>
@@ -3897,7 +5902,124 @@
     <script src="./dexie.min.js"></script>
     <script>
         (async () => {
+            const bootScreen = document.getElementById("boot-screen");
+            const bootStartedAt = performance.now();
+            const bootLogo = bootScreen.querySelector(".boot-logo");
+            const bootCaption = bootScreen.querySelector(".boot-caption");
+            const seasonalDate = new Date();
+            const seasonalMonth = seasonalDate.getMonth() + 1;
+            const seasonalDay = seasonalDate.getDate();
+            const seasonalMode = (seasonalMonth === 12 && seasonalDay >= 25)
+                || (seasonalMonth === 1 && seasonalDay <= 1)
+                ? "new-year"
+                : seasonalMonth === 12 && seasonalDay >= 10 && seasonalDay < 25
+                    ? "christmas"
+                    : null;
+            let seasonalTimer = null;
+            let resolveSeasonalSequence = () => {};
+            let skipSeasonalSequence = false;
+            let bootFailsafe;
+
+            if (seasonalMode === "christmas") {
+                bootLogo.classList.add("is-christmas");
+                bootLogo.setAttribute("aria-label", "HO HO HO");
+                bootLogo.replaceChildren();
+                let letterIndex = 0;
+                for (const character of "HO HO HO") {
+                    if (character === " ") {
+                        bootLogo.append(document.createTextNode(" "));
+                        continue;
+                    }
+                    const letter = document.createElement("span");
+                    letter.textContent = character;
+                    letter.style.setProperty("--letter-index", String(letterIndex));
+                    if (letterIndex > 0 && letterIndex % 2 === 0) letter.style.marginLeft = ".3em";
+                    letterIndex += 1;
+                    bootLogo.append(letter);
+                }
+            } else if (seasonalMode === "new-year") {
+                const newYearColors = [
+                    { name: "Branco", value: "#f4f1e8", meaning: "Paz, harmonia e novos começos." },
+                    { name: "Dourado", value: "#c58b18", meaning: "Prosperidade, abundância e realizações." },
+                    { name: "Verde", value: "#24805a", meaning: "Esperança, saúde e equilíbrio." },
+                    { name: "Azul", value: "#3478b8", meaning: "Serenidade, confiança e tranquilidade." },
+                    { name: "Violeta", value: "#7651a5", meaning: "Espiritualidade, autoconhecimento e transformação." }
+                ];
+                const skipHint = document.createElement("p");
+                skipHint.className = "boot-seasonal-hint";
+                skipHint.textContent = "Pressione Enter para continuar";
+                bootCaption.after(skipHint);
+                bootCaption.setAttribute("role", "status");
+                bootCaption.setAttribute("aria-live", "polite");
+                bootScreen.classList.add("is-new-year");
+                let colorIndex = 0;
+                const showNewYearColor = () => {
+                    const color = newYearColors[colorIndex];
+                    bootLogo.classList.add("is-new-year");
+                    bootLogo.style.setProperty("--seasonal-color", color.value);
+                    bootLogo.textContent = color.name;
+                    bootLogo.setAttribute("aria-label", color.name);
+                    bootCaption.textContent = color.meaning;
+                };
+                showNewYearColor();
+                seasonalTimer = window.setInterval(() => {
+                    if (colorIndex === newYearColors.length - 1) {
+                        window.clearInterval(seasonalTimer);
+                        seasonalTimer = null;
+                        resolveSeasonalSequence();
+                        return;
+                    }
+                    colorIndex += 1;
+                    showNewYearColor();
+                }, 2200);
+            }
+
+            let bootDismissed = false;
+            const dismissBootScreen = () => {
+                if (bootDismissed) return;
+                bootDismissed = true;
+                if (seasonalTimer !== null) {
+                    window.clearInterval(seasonalTimer);
+                    seasonalTimer = null;
+                }
+                resolveSeasonalSequence();
+                window.removeEventListener("keydown", skipSeasonalOnEnter, true);
+                bootScreen.classList.add("is-leaving");
+                window.setTimeout(() => { bootScreen.hidden = true; }, 200);
+            };
+            const seasonalSequence = seasonalMode === "new-year"
+                ? new Promise(resolve => { resolveSeasonalSequence = resolve; })
+                : Promise.resolve();
+            const skipSeasonalOnEnter = event => {
+                if (event.key !== "Enter" || seasonalMode !== "new-year" || bootScreen.hidden) return;
+                event.preventDefault();
+                skipSeasonalSequence = true;
+                dismissBootScreen();
+            };
+            if (seasonalMode === "new-year") {
+                window.addEventListener("keydown", skipSeasonalOnEnter, true);
+            }
+            bootFailsafe = window.setTimeout(dismissBootScreen, seasonalMode === "new-year" ? 15000 : 2000);
+            const completeBootScreen = async () => {
+                window.clearTimeout(bootFailsafe);
+                const minimumDisplayMs = 450;
+                await new Promise(resolve => window.setTimeout(
+                    resolve,
+                    Math.max(0, minimumDisplayMs - (performance.now() - bootStartedAt))
+                ));
+                if (seasonalMode === "new-year" && !skipSeasonalSequence) {
+                    if (document.body.classList.contains("reduce-motion")
+                        || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                        skipSeasonalSequence = true;
+                        dismissBootScreen();
+                    } else {
+                        await seasonalSequence;
+                    }
+                }
+                dismissBootScreen();
+            };
             if (!window.Dexie) {
+                dismissBootScreen();
                 window.alert("Dexie.js não foi encontrado. Mantenha o arquivo dexie.min.js na mesma pasta deste HTML.");
                 return;
             }
@@ -3914,6 +6036,10 @@
             const STORAGE_LOCAL_NODE_REVISION = "cras-ouro-preto-local-node-revision-v1";
             const STORAGE_LOCAL_NODE_BASE_SNAPSHOT = "cras-ouro-preto-local-node-base-snapshot-v1";
             const STORAGE_LOCAL_ACTIVE_USER = "cras-ouro-preto-usuario-local-v1";
+            const STORAGE_ONBOARDING_COMPLETE = "cras-ouro-preto-boas-vindas-concluidas-v1";
+            const SYSTEM_ADMIN_USER_ID = "cras-system-admin-adm-dev";
+            const SYSTEM_ADMIN_NAME = "adm.dev";
+            const STORAGE_DAIANE_ADMIN_MIGRATION = "cras-daiane-admin-default-migrated-v1";
             const LEGACY_STORAGE_ETHNICITIES = "cras-ouro-preto-etnias-v1";
             const STORAGE_MIGRATION_MARKER = "legacy-local-storage-migrated-v1";
             const STORAGE_SETTINGS_KEYS = [
@@ -3957,7 +6083,7 @@
             ];
             const DEFAULT_ROUTES = ["Cadastro Único", "Atendimento Técnico", "Informação"];
             const DEFAULT_NATIONALITIES = ["Venezuelano", "Uruguaio", "Argentino"];
-            const DEFAULT_PREFERENCES = { darkMode: false, fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "" };
+            const DEFAULT_PREFERENCES = { darkMode: false, highContrast: false, reduceMotion: false, colorTheme: "green", fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "", syncPeers: [] };
             const BACKUP_FORMAT = "cras-ouro-preto-backup";
             const BACKUP_VERSION = 1;
             const form = document.getElementById("appointment-form");
@@ -4227,7 +6353,8 @@
                     id: `assistant-${index + 1}`,
                     name: assistant.name,
                     color: assistant.color,
-                    role: "assistant"
+                    role: assistant.name.toLocaleLowerCase("pt-BR") === "daiane" ? "admin" : "assistant",
+                    canAttendTechnical: assistant.name.toLocaleLowerCase("pt-BR") === "daiane"
                 }));
             }
             users = users.filter(user => user && typeof user.name === "string" && user.name.trim()
@@ -4244,13 +6371,54 @@
             if (!users.length) users = DEFAULT_ASSISTANTS.map((assistant, index) => ({
                 id: `assistant-${index + 1}`,
                 ...assistant,
-                role: "assistant"
+                role: assistant.name.toLocaleLowerCase("pt-BR") === "daiane" ? "admin" : "assistant",
+                canAttendTechnical: assistant.name.toLocaleLowerCase("pt-BR") === "daiane"
             }));
+            const existingSystemAdmin = users.find(user =>
+                user.id === SYSTEM_ADMIN_USER_ID
+                || user.name.toLocaleLowerCase("pt-BR") === SYSTEM_ADMIN_NAME);
+            const systemAdmin = {
+                id: SYSTEM_ADMIN_USER_ID,
+                name: SYSTEM_ADMIN_NAME,
+                color: existingSystemAdmin?.color || "#244b3b",
+                role: "admin",
+                canAttendTechnical: existingSystemAdmin?.canAttendTechnical === true
+            };
+            users = [
+                systemAdmin,
+                ...users.filter(user => user.id !== SYSTEM_ADMIN_USER_ID
+                    && user.name.toLocaleLowerCase("pt-BR") !== SYSTEM_ADMIN_NAME)
+            ];
+            try {
+                const daianeAdminMigration = await database.settings.get(STORAGE_DAIANE_ADMIN_MIGRATION);
+                if (daianeAdminMigration?.value !== true) {
+                    users = users.map(user => user.name.toLocaleLowerCase("pt-BR") === "daiane"
+                        ? { ...user, role: "admin", canAttendTechnical: true }
+                        : user);
+                }
+                const initialAssistants = users
+                    .filter(user => user.role === "assistant" || user.role === "admin" && user.canAttendTechnical)
+                    .map(({ name, color }) => ({ name, color }));
+                await database.transaction("rw", database.settings, async () => {
+                    await database.settings.bulkPut([
+                        { key: STORAGE_USERS, value: users },
+                        { key: STORAGE_ASSISTANTS, value: initialAssistants },
+                        { key: STORAGE_DAIANE_ADMIN_MIGRATION, value: true }
+                    ]);
+                });
+                storageCache.set(STORAGE_USERS, users);
+                storageCache.set(STORAGE_ASSISTANTS, initialAssistants);
+            } catch (error) {
+                console.error("Não foi possível preparar as contas administrativas iniciais.", error);
+                dismissBootScreen();
+                window.alert("Não foi possível preparar as contas administrativas iniciais. Os dados existentes foram preservados.");
+                return;
+            }
             assistants = users.filter(isTechnicalUser)
                 .map(({ name, color }) => ({ name, color }));
             let activeUser = null;
             let rememberedUserId = "";
-            let assistantAdminReturnToLogin = false;
+            let currentMainTab = "attendance";
             let adminPinHash = "";
             let routes = readStorage(STORAGE_ROUTES, null);
             if (!Array.isArray(routes)) routes = [...DEFAULT_ROUTES];
@@ -4278,6 +6446,11 @@
                 .map(value => value.trim())
                 .filter((value, index, values) => values.findIndex(item => item.toLocaleLowerCase("pt-BR") === value.toLocaleLowerCase("pt-BR")) === index);
             let preferences = { ...DEFAULT_PREFERENCES, ...readStorage(STORAGE_PREFERENCES, {}) };
+            if (!Array.isArray(preferences.syncPeers)) {
+                preferences.syncPeers = preferences.syncEndpoint && preferences.syncToken
+                    ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
+                    : [];
+            }
             let syncBaseSnapshot = readStorage(STORAGE_SYNC_BASE, null);
             let peerSyncBaseSnapshots = readStorage(STORAGE_PEER_SYNC_BASES, {});
             if (!peerSyncBaseSnapshots || typeof peerSyncBaseSnapshots !== "object" || Array.isArray(peerSyncBaseSnapshots)) {
@@ -4311,10 +6484,18 @@
 
             function applyPreferences() {
                 document.body.classList.toggle("dark-mode", Boolean(preferences.darkMode));
+                document.body.classList.toggle("high-contrast", Boolean(preferences.highContrast));
+                document.body.classList.toggle("reduce-motion", Boolean(preferences.reduceMotion));
+                document.body.dataset.colorTheme = ["green", "blue", "violet", "teal", "terracotta", "amber", "rose", "slate"].includes(preferences.colorTheme)
+                    ? preferences.colorTheme
+                    : "green";
                 document.body.style.zoom = ["1", "1.1", "1.2", "1.3"].includes(String(preferences.fontScale)) ? String(preferences.fontScale) : "1";
                 document.body.classList.toggle("hide-hints", !preferences.showHints);
                 document.querySelector("meta[name='theme-color']").content = preferences.darkMode ? "#141d18" : "#f1f6fa";
                 document.getElementById("theme-toggle").checked = Boolean(preferences.darkMode);
+                document.getElementById("contrast-toggle").checked = Boolean(preferences.highContrast);
+                document.getElementById("motion-toggle").checked = Boolean(preferences.reduceMotion);
+                document.getElementById("color-theme").value = document.body.dataset.colorTheme;
                 document.getElementById("font-size").value = document.body.style.zoom;
                 document.getElementById("hints-toggle").checked = Boolean(preferences.showHints);
                 document.getElementById("history-autocomplete-toggle").checked = Boolean(preferences.autoCompleteHistory);
@@ -4344,7 +6525,8 @@
                 const isStaff = role === "assistant" || role === "caseworker";
                 const mobileIntern = mobileClient && role === "intern";
                 queuesTab.hidden = !isStaff && !hostedAppsScript && !mobileIntern;
-                document.getElementById("switch-user").hidden = !activeUser;
+                document.getElementById("settings-switch-user").hidden = !activeUser;
+                document.getElementById("assistant-admin-open").hidden = activeUser?.role !== "admin";
                 document.getElementById("active-user-label").textContent = activeUser
                     ? `${activeUser.name} · ${userRoleLabel(activeUser.role)}${activeUser.canAttendTechnical ? " · Técnico" : ""}`
                     : "";
@@ -4360,7 +6542,11 @@
                     queueDashboardsHome.appendChild(queueDashboards);
                 }
                 attendancePanel.hidden = false;
-                selectMainTab(hostedAppsScript ? "queues" : "attendance");
+                selectMainTab(hostedAppsScript && currentMainTab === "attendance"
+                    ? "queues"
+                    : mobileIntern && currentMainTab === "attendance"
+                        ? "queues"
+                        : currentMainTab);
             }
 
             function userRoleLabel(role) {
@@ -4406,22 +6592,27 @@
             }
 
             function renderLoginUsers() {
-                const loginSelect = document.getElementById("login-user");
-                const selectedId = loginSelect.value || rememberedUserId;
-                loginSelect.innerHTML = users.map(user =>
-                    `<option value="${escapeHtml(user.id)}">${escapeHtml(user.name)} — ${escapeHtml(userRoleLabel(user.role))}${user.canAttendTechnical ? " · Técnico" : ""}</option>`
+                const loginName = document.getElementById("login-user");
+                const rememberedUser = users.find(user => user.id === rememberedUserId);
+                document.getElementById("login-user-list").innerHTML = users.map(user =>
+                    `<option value="${escapeHtml(user.name)}">${escapeHtml(userRoleLabel(user.role))}</option>`
                 ).join("");
-                if (users.some(user => user.id === selectedId)) loginSelect.value = selectedId;
+                if (!loginName.value && rememberedUser) {
+                    loginName.value = rememberedUser.name;
+                    document.getElementById("login-role").value = rememberedUser.role;
+                }
                 updateLoginPinFields();
             }
 
             async function updateLoginPinFields() {
-                const selectedUser = users.find(user => user.id === document.getElementById("login-user").value);
+                const loginName = document.getElementById("login-user").value.trim().toLocaleLowerCase("pt-BR");
+                const selectedRole = document.getElementById("login-role").value;
                 const pinWrap = document.getElementById("login-admin-pin-wrap");
                 const confirmWrap = document.getElementById("login-admin-pin-confirm-wrap");
-                const isAdmin = selectedUser?.role === "admin";
+                const isAdmin = selectedRole === "admin";
                 pinWrap.hidden = !isAdmin;
                 document.getElementById("login-admin-pin").required = isAdmin;
+                document.getElementById("login-admin-pin-confirm").required = false;
                 if (!isAdmin) {
                     confirmWrap.hidden = true;
                     return;
@@ -4438,46 +6629,97 @@
                 document.getElementById("user-login-status").textContent = "";
                 document.getElementById("login-admin-pin").value = "";
                 document.getElementById("login-admin-pin-confirm").value = "";
+                document.getElementById("welcome-screen").hidden = true;
                 renderLoginUsers();
-                if (users.some(user => user.id === preferredUserId)) {
-                    document.getElementById("login-user").value = preferredUserId;
+                const preferredUser = users.find(user => user.id === preferredUserId);
+                if (preferredUser) {
+                    document.getElementById("login-user").value = preferredUser.name;
+                    document.getElementById("login-role").value = preferredUser.role;
                 }
                 document.getElementById("user-login").hidden = false;
                 document.getElementById("login-user").focus();
                 updateLoginPinFields().then(() => {
-                    if (users.find(user => user.id === preferredUserId)?.role === "admin") {
+                    if (document.getElementById("login-role").value === "admin") {
                         document.getElementById("login-admin-pin").focus();
                     }
                 });
                 applyActiveUserLayout();
             }
 
-            async function activateUser(selectedUser) {
-                await database.settings.put({
-                    key: STORAGE_LOCAL_ACTIVE_USER,
-                    value: selectedUser.id
+            function transitionWithWave(callback) {
+                if (preferences.reduceMotion) {
+                    callback();
+                    return;
+                }
+                const wave = document.getElementById("screen-wave");
+                wave.hidden = false;
+                wave.classList.remove("is-active");
+                requestAnimationFrame(() => wave.classList.add("is-active"));
+                window.setTimeout(() => {
+                    callback();
+                    wave.classList.remove("is-active");
+                    wave.hidden = true;
+                }, 480);
+            }
+
+            function showWelcomeScreen() {
+                document.getElementById("user-login").hidden = true;
+                document.getElementById("welcome-screen").hidden = false;
+                document.getElementById("welcome-start").focus();
+            }
+
+            function beginFirstLogin() {
+                const welcome = document.getElementById("welcome-screen");
+                if (preferences.reduceMotion) {
+                    welcome.hidden = true;
+                    showUserLogin("");
+                    return;
+                }
+                welcome.classList.add("is-leaving");
+                window.setTimeout(() => {
+                    welcome.hidden = true;
+                    welcome.classList.remove("is-leaving");
+                    showUserLogin("");
+                }, 280);
+            }
+
+            async function activateUser(selectedUser, animate = false) {
+                await database.transaction("rw", database.settings, async () => {
+                    await database.settings.bulkPut([
+                        { key: STORAGE_LOCAL_ACTIVE_USER, value: selectedUser.id },
+                        { key: STORAGE_ONBOARDING_COMPLETE, value: true }
+                    ]);
                 });
                 rememberedUserId = selectedUser.id;
                 activeUser = {
                     id: selectedUser.id,
                     name: selectedUser.name,
                     role: selectedUser.role,
-                    color: selectedUser.color
+                    color: selectedUser.color,
+                    canAttendTechnical: selectedUser.canAttendTechnical === true
                 };
-                document.getElementById("user-login").hidden = true;
-                document.getElementById("login-admin-pin").value = "";
-                document.getElementById("login-admin-pin-confirm").value = "";
-                applyActiveUserLayout();
-                renderAll();
-                scheduleLocalSnapshotPersist(activeUser.role);
+                const finishActivation = () => {
+                    document.getElementById("user-login").hidden = true;
+                    document.getElementById("login-admin-pin").value = "";
+                    document.getElementById("login-admin-pin-confirm").value = "";
+                    applyActiveUserLayout();
+                    renderAll();
+                    scheduleLocalSnapshotPersist(activeUser.role);
+                };
+                if (animate) transitionWithWave(finishActivation);
+                else finishActivation();
             }
 
             async function loginSelectedUser(event) {
                 event.preventDefault();
-                const selectedUser = users.find(user => user.id === document.getElementById("login-user").value);
+                const enteredName = document.getElementById("login-user").value.trim();
+                const selectedRole = document.getElementById("login-role").value;
+                const selectedUser = users.find(user =>
+                    user.name.toLocaleLowerCase("pt-BR") === enteredName.toLocaleLowerCase("pt-BR")
+                    && user.role === selectedRole);
                 const status = document.getElementById("user-login-status");
                 if (!selectedUser) {
-                    status.textContent = "Selecione um usuário válido.";
+                    status.textContent = "Nome e função não correspondem a um usuário cadastrado. Procure adm.dev.";
                     return;
                 }
                 if (selectedUser.role === "admin") {
@@ -4506,22 +6748,18 @@
                         });
                     }
                 }
-                await activateUser(selectedUser);
+                await activateUser(selectedUser, true);
             }
 
             async function restoreLocalUser() {
+                const onboarding = await database.settings.get(STORAGE_ONBOARDING_COMPLETE);
+                if (window.CRASDesktop && onboarding?.value !== true) {
+                    showWelcomeScreen();
+                    return;
+                }
                 const savedUser = await database.settings.get(STORAGE_LOCAL_ACTIVE_USER);
                 rememberedUserId = typeof savedUser?.value === "string" ? savedUser.value : "";
-                const selectedUser = users.find(user => user.id === rememberedUserId);
-                if (!selectedUser) {
-                    showUserLogin();
-                    return;
-                }
-                if (selectedUser.role === "admin") {
-                    showUserLogin(selectedUser.id);
-                    return;
-                }
-                await activateUser(selectedUser);
+                showUserLogin(rememberedUserId);
             }
 
             function getSyncBridgeUrl(endpoint = preferences.syncEndpoint) {
@@ -4542,6 +6780,17 @@
                 } catch {
                     return "";
                 }
+            }
+
+            function getConfiguredDesktopPeers() {
+                const configured = Array.isArray(preferences.syncPeers)
+                    ? preferences.syncPeers.filter(peer => peer && typeof peer.endpoint === "string"
+                        && typeof peer.token === "string" && peer.endpoint && peer.token)
+                    : [];
+                if (configured.length) return configured;
+                return preferences.syncEndpoint && preferences.syncToken
+                    ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
+                    : [];
             }
 
             function configureSyncBridge() {
@@ -4666,6 +6915,32 @@
                             .map(address => `http://${address}:${desktopNodeInfo.port}/api/mobile-ca`).join(", ");
                         document.getElementById("sync-mobile-fingerprint").value =
                             desktopNodeInfo.mobileCaFingerprint || "Certificado HTTPS não configurado";
+
+                        const mobileBadge = document.getElementById("mobile-server-badge");
+                        if (mobileBadge) {
+                            if (desktopNodeInfo.mobileHttpsReady) {
+                                mobileBadge.textContent = `🟢 Ativo (Porta ${desktopNodeInfo.mobilePort || 8766})`;
+                                mobileBadge.className = "badge-status-pill badge-online";
+                            } else {
+                                mobileBadge.textContent = "🔴 Desativado";
+                                mobileBadge.className = "badge-status-pill badge-offline";
+                            }
+                        }
+
+                        const primaryIp = (desktopNodeInfo.addresses && desktopNodeInfo.addresses[0]) || "";
+                        const qrContainer = document.getElementById("qr-code-container");
+                        const qrImg = document.getElementById("mobile-qr-image");
+                        if (qrContainer && qrImg && primaryIp) {
+                            qrImg.src = `/api/qr?text=${encodeURIComponent(`http://${primaryIp}:${desktopNodeInfo.port}/`)}`;
+                            qrContainer.hidden = false;
+                        }
+                        const caQrContainer = document.getElementById("mobile-ca-qr-container");
+                        const caQrImg = document.getElementById("mobile-ca-qr-image");
+                        if (caQrContainer && caQrImg && primaryIp && desktopNodeInfo.mobileCaFingerprint) {
+                            caQrImg.src = `/api/qr?text=${encodeURIComponent(`http://${primaryIp}:${desktopNodeInfo.port}/api/mobile-ca`)}`;
+                            caQrContainer.hidden = false;
+                        }
+
                         document.querySelector(".offline").textContent = "Dados salvos neste dispositivo · P2P";
                         gate.hidden = true;
                         showSyncStatus("Aplicativo desktop pronto. Configure o endereço e o código de outro computador nas Configurações.", 0);
@@ -4947,7 +7222,7 @@
 
             function schedulePeerSync(actorRole = activeUser?.role, warnIfUnconfigured = false) {
                 if (offlineMode || mobileClient) return;
-                if (window.CRASDesktop && !getSyncBridgeUrl()) {
+                if (window.CRASDesktop && !getConfiguredDesktopPeers().length) {
                     if (warnIfUnconfigured) {
                         showSyncStatus(
                             "Dados salvos neste computador, mas não enviados. Configure um computador parceiro em Configurações > Sincronização.",
@@ -5017,8 +7292,9 @@
                     if (method !== "syncCrASSnapshot") {
                         return Promise.reject(new Error("Esta operação não está disponível na sincronização P2P."));
                     }
-                    const endpoint = getSyncBridgeUrl();
-                    const peerKey = preferences.syncToken || "";
+                    const peerConfig = args.pop();
+                    const endpoint = getSyncBridgeUrl(peerConfig?.endpoint);
+                    const peerKey = peerConfig?.token || "";
                     if (!endpoint || !peerKey) {
                         return Promise.reject(new Error("Informe o endereço e o código de pareamento do outro computador nas Configurações."));
                     }
@@ -5026,7 +7302,7 @@
                         return Promise.reject(new Error("A criptografia P2P não está disponível neste computador."));
                     }
                     return (async () => {
-                        const remoteInfo = await fetchPeerInfo(endpoint);
+                        const remoteInfo = peerConfig.info || await fetchPeerInfo(endpoint);
                         activePeerId = remoteInfo.nodeId;
                         syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
                         const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -5174,24 +7450,9 @@
                 const settings = {};
                 SYNC_SETTING_KEYS.forEach(key => {
                     if (!storageCache.has(key)) return;
+                    if (key === STORAGE_PREFERENCES) return;
                     const value = storageCache.get(key);
-                    if (key !== STORAGE_PREFERENCES) {
-                        settings[key] = value;
-                        return;
-                    }
-                    const sharedPreferences = Object.fromEntries(
-                        Object.entries(preferences).filter(([name]) =>
-                            !["syncEndpoint", "syncToken", "roleMode"].includes(name))
-                    );
-                    const defaultPreferences = Object.fromEntries(
-                        Object.entries(DEFAULT_PREFERENCES).filter(([name]) =>
-                            !["syncEndpoint", "syncToken", "roleMode"].includes(name))
-                    );
-                    const previousSharedPreferences = syncBaseSnapshot?.settings?.[STORAGE_PREFERENCES];
-                    if (!syncValuesEqual(sharedPreferences, defaultPreferences)
-                        || previousSharedPreferences && !syncValuesEqual(sharedPreferences, previousSharedPreferences)) {
-                        settings[key] = sharedPreferences;
-                    }
+                    settings[key] = value;
                 });
                 return JSON.parse(JSON.stringify({
                     appointments: [...appointments].sort((left, right) => left.id.localeCompare(right.id)),
@@ -5547,8 +7808,6 @@
                     || !snapshot.settings || typeof snapshot.settings !== "object") {
                     throw new Error("O outro computador retornou um pacote de sincronização inválido.");
                 }
-                const currentSyncEndpoint = preferences.syncEndpoint || "";
-                const currentSyncToken = preferences.syncToken || "";
                 const nextSettings = { ...snapshot.settings };
                 const hasSnapshotSetting = key => Object.prototype.hasOwnProperty.call(nextSettings, key);
                 const persistedSettings = new Set(Object.keys(snapshot.settings));
@@ -5557,15 +7816,8 @@
                     && (!remotePreferences || typeof remotePreferences !== "object" || Array.isArray(remotePreferences))) {
                     throw new Error("As preferências retornadas pelo outro computador têm formato inválido.");
                 }
-                const nextPreferences = Object.prototype.hasOwnProperty.call(nextSettings, STORAGE_PREFERENCES)
-                    ? {
-                        ...DEFAULT_PREFERENCES,
-                        ...remotePreferences,
-                        syncEndpoint: currentSyncEndpoint,
-                        syncToken: currentSyncToken,
-                        roleMode: preferences.roleMode
-                    }
-                    : preferences;
+                persistedSettings.delete(STORAGE_PREFERENCES);
+                const nextPreferences = preferences;
                 nextSettings[STORAGE_PREFERENCES] = nextPreferences;
                 const nextRoutes = hasSnapshotSetting(STORAGE_ROUTES) ? nextSettings[STORAGE_ROUTES] : routes;
                 const nextAssistants = hasSnapshotSetting(STORAGE_ASSISTANTS) ? nextSettings[STORAGE_ASSISTANTS] : assistants;
@@ -5664,6 +7916,49 @@
                 renderAll();
             }
 
+            async function syncWithDesktopPeer(peer, actorRole) {
+                const endpoint = getSyncBridgeUrl(peer.endpoint);
+                const peerInfo = await fetchPeerInfo(endpoint);
+                activePeerId = peerInfo.nodeId;
+                syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
+                const localSnapshot = createSyncSnapshot();
+                const baseSnapshot = syncBaseSnapshot ? JSON.parse(JSON.stringify(syncBaseSnapshot)) : null;
+                const resolutions = {};
+                let result;
+                for (let attempt = 0; attempt < 6; attempt += 1) {
+                    result = await callSyncBackend(
+                        "syncCrASSnapshot",
+                        baseSnapshot,
+                        localSnapshot,
+                        resolutions,
+                        actorRole,
+                        { ...peer, endpoint, info: peerInfo }
+                    );
+                    if (!result || typeof result !== "object") {
+                        throw new Error("O outro computador retornou uma resposta de sincronização inválida.");
+                    }
+                    if (result.status !== "conflicts") break;
+                    if (!Array.isArray(result.conflicts) || !result.conflicts.length) {
+                        throw new Error("O outro computador informou conflito sem detalhes suficientes.");
+                    }
+                    result.conflicts.forEach(conflict => {
+                        resolutions[conflict.key] = chooseSyncConflict(
+                            conflict, actorRole, result.actorRole
+                        );
+                    });
+                }
+                if (!result || result.status !== "ok" || !result.snapshot) {
+                    throw new Error("Não foi possível concluir a sincronização dos conflitos. Tente novamente.");
+                }
+                const currentSnapshot = createSyncSnapshot();
+                const snapshotToApply = preserveChangesMadeDuringSync(
+                    localSnapshot, result.snapshot, currentSnapshot
+                );
+                await applySyncedSnapshot(snapshotToApply, result.snapshot, result.unlinkedPaaIds || []);
+                await persistAcceptedPeerSnapshot(activePeerId, result.snapshot, actorRole);
+                return result;
+            }
+
             async function syncWithGoogle(manual = false, actorRole = activeUser?.role) {
                 if (offlineMode) {
                     if (manual) showSyncStatus("Modo offline ativo. Os dados continuam salvos neste dispositivo.", 0);
@@ -5680,10 +7975,13 @@
                     if (manual) showSyncStatus("Sem conexão com a rede. Os dados continuam salvos neste dispositivo.");
                     return;
                 }
-                if (!window.google?.script?.run && !getSyncBridgeUrl()) {
-                    if (manual) showSyncStatus(window.CRASDesktop
-                        ? "Informe o endereço e o código de pareamento de outro computador nas Configurações."
-                        : "Configure o link publicado do Apps Script em Configurações para ativar a sincronização.");
+                const desktopPeers = window.CRASDesktop ? getConfiguredDesktopPeers() : [];
+                if (window.CRASDesktop && !desktopPeers.length) {
+                    if (manual) showSyncStatus("Adicione os computadores destinatários em Configurações > Sincronização.");
+                    return;
+                }
+                if (!window.CRASDesktop && !window.google?.script?.run && !getSyncBridgeUrl()) {
+                    if (manual) showSyncStatus("Configure o link publicado do Apps Script em Configurações para ativar a sincronização.");
                     return;
                 }
                 const button = document.getElementById("sync-now");
@@ -5697,9 +7995,29 @@
                     if (window.CRASDesktop) {
                         await refreshLocalNodeFromServer(true);
                         await persistLocalSnapshotToServer(createSyncSnapshot(), actorRole);
-                        const peerInfo = await fetchPeerInfo();
-                        activePeerId = peerInfo.nodeId;
-                        syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
+                        const results = [];
+                        const failures = [];
+                        for (const peer of desktopPeers) {
+                            try {
+                                const result = await syncWithDesktopPeer(peer, actorRole);
+                                results.push(result);
+                            } catch (error) {
+                                const label = (peer.endpoint || "endereço inválido")
+                                    .replace(/^https?:\/\//i, "").split(/[/?#]/)[0];
+                                failures.push(`${label}: ${error.message}`);
+                            }
+                        }
+                        if (!results.length) {
+                            throw new Error(`Nenhum computador sincronizou. ${failures.join(" | ")}`);
+                        }
+                        if (manual || failures.length) {
+                            const details = failures.length ? ` Falharam: ${failures.join(" | ")}` : "";
+                            showSyncStatus(
+                                `Sincronização concluída com ${results.length}/${desktopPeers.length} computador(es).${details}`,
+                                manual ? 0 : 10000
+                            );
+                        }
+                        return;
                     }
                     const localSnapshot = createSyncSnapshot();
                     const baseSnapshot = syncBaseSnapshot ? JSON.parse(JSON.stringify(syncBaseSnapshot)) : null;
@@ -5728,9 +8046,6 @@
                     const currentSnapshot = createSyncSnapshot();
                     const snapshotToApply = preserveChangesMadeDuringSync(localSnapshot, result.snapshot, currentSnapshot);
                     await applySyncedSnapshot(snapshotToApply, result.snapshot, result.unlinkedPaaIds || []);
-                    if (window.CRASDesktop) {
-                        await persistAcceptedPeerSnapshot(activePeerId, result.snapshot, actorRole);
-                    }
                     if (manual) {
                         const timestamp = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(new Date(result.syncedAt || Date.now()));
                         const unlinkedCount = Array.isArray(result.unlinkedPaaIds) ? result.unlinkedPaaIds.length : 0;
@@ -5757,35 +8072,98 @@
             }
 
             function setupGoogleSync() {
-                document.getElementById("sync-app-url-save").addEventListener("click", async () => {
-                    const input = document.getElementById("sync-app-url");
-                    const peerKeyInput = document.getElementById("sync-peer-key");
-                    const endpoint = input.value.trim();
-                    const peerKey = peerKeyInput.value.trim();
-                    if (endpoint && !getSyncBridgeUrl(endpoint)) {
-                        showSyncStatus(window.CRASDesktop
-                            ? "Endereço inválido. Informe um endereço HTTP, como http://192.168.0.10:8765."
-                            : "Link inválido. Use o URL implantado do Apps Script, terminado em /exec.");
-                        input.focus();
-                        return;
-                    }
-                    if (window.CRASDesktop && endpoint && !peerKey) {
-                        showSyncStatus("Informe também o código de pareamento do outro computador.");
-                        peerKeyInput.focus();
-                        return;
-                    }
-                    await updatePreferences({ syncEndpoint: endpoint, syncToken: endpoint ? peerKey : "" });
-                    if (endpoint && getSyncBridgeUrl()) {
-                        showSyncStatus(window.CRASDesktop
-                            ? "Computador salvo. Iniciando sincronização P2P."
-                            : "Link salvo. A sincronização com o Google está configurada.");
-                        if (navigator.onLine) void syncWithGoogle();
-                    } else {
-                        showSyncStatus(window.CRASDesktop
-                            ? "Configuração de outro computador removida deste dispositivo."
-                            : "Link de sincronização removido deste dispositivo.");
-                    }
-                });
+                const singlePeerSettings = document.getElementById("single-peer-settings");
+                const multiPeerSettings = document.getElementById("multi-peer-settings");
+                singlePeerSettings.hidden = Boolean(window.CRASDesktop);
+                multiPeerSettings.hidden = !window.CRASDesktop;
+                if (window.CRASDesktop) {
+                    const peerList = document.getElementById("sync-peer-list");
+                    const readRows = () => Array.from(peerList.querySelectorAll("[data-sync-peer-row]"))
+                        .map(row => ({
+                            endpoint: row.querySelector("[data-peer-endpoint]").value.trim(),
+                            token: row.querySelector("[data-peer-token]").value.trim()
+                        }));
+                    const renderRows = peers => {
+                        const entries = peers.length ? peers : [{ endpoint: "", token: "" }];
+                        peerList.innerHTML = entries.map((peer, index) => `
+                            <div data-sync-peer-row style="border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                <label class="field-label">Endereço do computador vinculado ${index + 1}
+                                    <input class="text-input" data-peer-endpoint type="url" value="${escapeHtml(peer.endpoint || "")}" placeholder="http://192.168.0.10:8765" autocomplete="off">
+                                </label>
+                                <label class="field-label">Código de pareamento do computador ${index + 1}
+                                    <input class="text-input" data-peer-token type="password" value="${escapeHtml(peer.token || "")}" placeholder="Cole o código do parceiro" autocomplete="off">
+                                </label>
+                                <button class="button-delete" data-remove-sync-peer type="button" aria-label="Remover computador vinculado ${index + 1}">Remover</button>
+                            </div>`).join("");
+                    };
+                    const configuredPeers = Array.isArray(preferences.syncPeers) && preferences.syncPeers.length
+                        ? preferences.syncPeers
+                        : preferences.syncEndpoint && preferences.syncToken
+                            ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
+                            : [];
+                    renderRows(configuredPeers);
+                    document.getElementById("sync-peer-add").addEventListener("click", () => {
+                        const rows = readRows();
+                        if (rows.length === 1 && !rows[0].endpoint && !rows[0].token) rows.pop();
+                        renderRows([...rows, { endpoint: "", token: "" }]);
+                    });
+                    peerList.addEventListener("click", event => {
+                        if (!event.target.closest("[data-remove-sync-peer]")) return;
+                        const row = event.target.closest("[data-sync-peer-row]");
+                        const rows = readRows();
+                        const index = Array.from(peerList.querySelectorAll("[data-sync-peer-row]")).indexOf(row);
+                        rows.splice(index, 1);
+                        renderRows(rows);
+                    });
+                    document.getElementById("sync-peers-save").addEventListener("click", async () => {
+                        const rows = readRows();
+                        const peers = [];
+                        for (const row of rows) {
+                            if (!row.endpoint && !row.token) continue;
+                            const endpoint = getSyncBridgeUrl(row.endpoint);
+                            if (!endpoint) {
+                                showSyncStatus("Endereço inválido. Informe um endereço HTTP, como http://192.168.0.10:8765.");
+                                return;
+                            }
+                            if (!row.token) {
+                                showSyncStatus("Informe o código de pareamento de cada computador vinculado.");
+                                return;
+                            }
+                            if (peers.some(peer => peer.endpoint === endpoint)) {
+                                showSyncStatus("O mesmo endereço de computador não pode ser adicionado mais de uma vez.");
+                                return;
+                            }
+                            peers.push({ endpoint, token: row.token });
+                        }
+                        if (!await updatePreferences({
+                            syncPeers: peers,
+                            syncEndpoint: "",
+                            syncToken: ""
+                        })) return;
+                        renderRows(peers);
+                        showSyncStatus(peers.length
+                            ? `${peers.length} computador(es) vinculado(s) salvo(s). Iniciando sincronização.`
+                            : "Lista de computadores parceiros removida deste dispositivo.");
+                        if (peers.length && navigator.onLine) void syncWithGoogle();
+                    });
+                } else {
+                    document.getElementById("sync-app-url-save").addEventListener("click", async () => {
+                        const input = document.getElementById("sync-app-url");
+                        const endpoint = input.value.trim();
+                        if (endpoint && !getSyncBridgeUrl(endpoint)) {
+                            showSyncStatus("Link inválido. Use o URL implantado do Apps Script, terminado em /exec.");
+                            input.focus();
+                            return;
+                        }
+                        await updatePreferences({ syncEndpoint: endpoint, syncToken: "" });
+                        if (endpoint && getSyncBridgeUrl()) {
+                            showSyncStatus("Link salvo. A sincronização com o Google está configurada.");
+                            if (navigator.onLine) void syncWithGoogle();
+                        } else {
+                            showSyncStatus("Link de sincronização removido deste dispositivo.");
+                        }
+                    });
+                }
                 document.getElementById("sync-now").addEventListener("click", () => syncWithGoogle(true));
                 window.addEventListener("online", () => syncWithGoogle());
                 window.setInterval(() => {
@@ -5961,19 +8339,22 @@
 
             function renderAssistantAdminList(items = users) {
                 const list = document.getElementById("assistant-admin-list");
-                list.innerHTML = items.map(user => `<div class="assistant-admin-row" data-user-id="${escapeHtml(user.id)}">
-                    <label>Nome<input type="text" data-user-name value="${escapeHtml(user.name)}" maxlength="60" required></label>
-                    <label>Perfil<select class="select-input" data-user-role>
-                        <option value="assistant" ${user.role === "assistant" ? "selected" : ""}>Técnico</option>
-                        <option value="caseworker" ${user.role === "caseworker" ? "selected" : ""}>Cadastradora</option>
-                        <option value="reception" ${user.role === "reception" ? "selected" : ""}>Recepção</option>
-                        <option value="intern" ${user.role === "intern" ? "selected" : ""}>Estagiário</option>
-                        <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
-                    </select></label>
-                    <label>Cor<input type="color" data-user-color value="${escapeHtml(user.color)}" aria-label="Cor de ${escapeHtml(user.name)}"></label>
-                    <button type="button" data-user-remove aria-label="Remover ${escapeHtml(user.name)}" title="Remover">×</button>
-                    <label data-admin-technical ${user.role === "admin" ? "" : "hidden"}><input type="checkbox" data-user-technical ${user.canAttendTechnical === true ? "checked" : ""}> Também pode ser designado como Técnico</label>
-                </div>`).join("");
+                list.innerHTML = items.map(user => {
+                const protectedUser = user.id === SYSTEM_ADMIN_USER_ID;
+                return `<div class="assistant-admin-row" data-user-id="${escapeHtml(user.id)}">
+                <label>Nome<input type="text" data-user-name value="${escapeHtml(user.name)}" maxlength="60" required ${protectedUser ? "readonly" : ""}></label>
+                <label>Perfil<select class="select-input" data-user-role ${protectedUser ? "disabled" : ""}>
+                    <option value="assistant" ${user.role === "assistant" ? "selected" : ""}>Técnico</option>
+                    <option value="caseworker" ${user.role === "caseworker" ? "selected" : ""}>Cadastradora</option>
+                    <option value="reception" ${user.role === "reception" ? "selected" : ""}>Recepção</option>
+                    <option value="intern" ${user.role === "intern" ? "selected" : ""}>Estagiário</option>
+                    <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
+                </select></label>
+                <label>Cor<input type="color" data-user-color value="${escapeHtml(user.color)}" aria-label="Cor de ${escapeHtml(user.name)}"></label>
+                <button type="button" data-user-remove aria-label="Remover ${escapeHtml(user.name)}" title="${protectedUser ? "Conta protegida" : "Remover"}" ${protectedUser ? "disabled" : ""}>×</button>
+                <label data-admin-technical ${user.role === "admin" ? "" : "hidden"}><input type="checkbox" data-user-technical ${user.canAttendTechnical === true ? "checked" : ""}> Também pode ser designado como Técnico</label>
+                </div>`;
+                }).join("");
                 list.querySelectorAll("[data-user-role]").forEach(select => {
                     select.addEventListener("change", () => {
                         const row = select.closest(".assistant-admin-row");
@@ -5983,6 +8364,7 @@
                 list.querySelectorAll("[data-user-remove]").forEach(button => {
                     button.addEventListener("click", () => {
                         const row = button.closest(".assistant-admin-row");
+                        if (row.dataset.userId === SYSTEM_ADMIN_USER_ID) return;
                         if (!window.confirm(`Remover o usuário “${row.querySelector("[data-user-name]").value}” da lista?`)) return;
                         row.remove();
                     });
@@ -6008,57 +8390,26 @@
             }
 
             function openAssistantAdmin() {
-                if (activeUser?.role === "assistant" || activeUser?.role === "caseworker") return;
-                const login = document.getElementById("user-login");
-                assistantAdminReturnToLogin = !activeUser && !login.hidden;
-                if (assistantAdminReturnToLogin) login.hidden = true;
+                if (activeUser?.role !== "admin") return;
                 const overlay = document.getElementById("assistant-admin-overlay");
-                const isAdmin = activeUser?.role === "admin";
-                document.getElementById("assistant-admin-auth").hidden = isAdmin;
-                document.getElementById("assistant-admin-content").hidden = !isAdmin;
-                document.getElementById("assistant-admin-password").value = "";
+                document.getElementById("assistant-admin-content").hidden = false;
                 overlay.hidden = false;
-                if (isAdmin) {
-                    renderAssistantAdminList();
-                    refreshMobileAccessStatus();
-                }
-                else document.getElementById("assistant-admin-password").focus();
+                renderAssistantAdminList();
+                refreshMobileAccessStatus();
             }
 
             function closeAssistantAdmin() {
                 document.getElementById("assistant-admin-overlay").hidden = true;
-                document.getElementById("assistant-admin-password").value = "";
-                if (assistantAdminReturnToLogin && !activeUser) {
-                    document.getElementById("user-login").hidden = false;
-                    document.getElementById("login-user").focus();
-                }
-                assistantAdminReturnToLogin = false;
             }
 
             function setupAssistantAdmin() {
                 const overlay = document.getElementById("assistant-admin-overlay");
-                const auth = document.getElementById("assistant-admin-auth");
-                const content = document.getElementById("assistant-admin-content");
                 document.getElementById("assistant-admin-close").addEventListener("click", closeAssistantAdmin);
                 overlay.addEventListener("click", event => {
                     if (event.target === overlay) closeAssistantAdmin();
                 });
                 document.addEventListener("keydown", event => {
                     if (event.key === "Escape" && !overlay.hidden) closeAssistantAdmin();
-                });
-                auth.addEventListener("submit", event => {
-                    event.preventDefault();
-                    const passwordInput = document.getElementById("assistant-admin-password");
-                    if (activeUser?.role !== "admin" && passwordInput.value !== "assistencia15") {
-                        showToast("Senha incorreta.");
-                        passwordInput.value = "";
-                        passwordInput.focus();
-                        return;
-                    }
-                    auth.hidden = true;
-                    content.hidden = false;
-                    renderAssistantAdminList();
-                    document.getElementById("assistant-admin-add").focus();
                 });
                 document.getElementById("mobile-access-save").addEventListener("click", async () => {
                     if (activeUser?.role !== "admin" || !window.CRASDesktop) return;
@@ -6144,6 +8495,16 @@
                                 && row.querySelector("[data-user-technical]").checked
                         };
                     });
+                    const protectedUser = users.find(user => user.id === SYSTEM_ADMIN_USER_ID);
+                    if (protectedUser) {
+                        const adminRow = nextUsers.find(user => user.id === SYSTEM_ADMIN_USER_ID);
+                        if (adminRow) {
+                            adminRow.name = SYSTEM_ADMIN_NAME;
+                            adminRow.role = "admin";
+                        } else {
+                            nextUsers.unshift({ ...protectedUser, name: SYSTEM_ADMIN_NAME, role: "admin" });
+                        }
+                    }
                     if (!nextUsers.length || nextUsers.some(user => !user.name)) {
                         showToast("Mantenha pelo menos um usuário e preencha todos os nomes.");
                         return;
@@ -7856,8 +10217,16 @@
             function selectMainTab(tab) {
                 const isStaff = activeUser?.role === "assistant" || activeUser?.role === "caseworker";
                 const mobileIntern = mobileClient && activeUser?.role === "intern";
-                const showPaa = !isStaff && tab === "paa" && Boolean(preferences.paaEnabled);
-                const showQueues = tab === "queues" && (hostedAppsScript || isStaff || mobileIntern);
+                const canShowQueues = hostedAppsScript || isStaff || mobileIntern;
+                let selectedTab = tab;
+                if (selectedTab === "paa" && (isStaff || !preferences.paaEnabled)) {
+                    selectedTab = canShowQueues ? "queues" : "attendance";
+                } else if (selectedTab === "queues" && !canShowQueues) {
+                    selectedTab = "attendance";
+                }
+                const showPaa = !isStaff && selectedTab === "paa" && Boolean(preferences.paaEnabled);
+                const showQueues = selectedTab === "queues" && canShowQueues;
+                currentMainTab = showQueues ? "queues" : showPaa ? "paa" : "attendance";
                 queuesTab.setAttribute("aria-selected", String(showQueues));
                 attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues));
                 paaTab.setAttribute("aria-selected", String(showPaa));
@@ -7888,6 +10257,12 @@
                 const [year, month] = monthKey.split("-").map(Number);
                 const previousMonth = new Date(year, month - 2, 1);
                 return `${previousMonth.getFullYear()}-${String(previousMonth.getMonth() + 1).padStart(2, "0")}`;
+            }
+
+            function nextMonthKey(monthKey) {
+                const [year, month] = monthKey.split("-").map(Number);
+                const nextMonth = new Date(year, month, 1);
+                return `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, "0")}`;
             }
 
             function renderPaaHistory() {
@@ -7968,7 +10343,7 @@
             function cancelPaaEdit() {
                 editingPaaRecordId = null;
                 paaForm.reset();
-                paaMonthInput.value = dateKey(new Date()).slice(0, 7);
+                paaMonthInput.value = nextMonthKey(dateKey(new Date()).slice(0, 7));
                 paaForm.querySelector('button[type="submit"]').textContent = "Registrar no PAA";
                 document.getElementById("paa-cancel-edit").hidden = true;
                 paaFormStatus.textContent = "Nome, CPF e mês são obrigatórios.";
@@ -8591,7 +10966,7 @@
 
             form.addEventListener("input", event => { if (event.isTrusted) lastFormActivityAt = Date.now(); }, true);
             form.addEventListener("change", event => { if (event.isTrusted) lastFormActivityAt = Date.now(); }, true);
-            paaMonthInput.value = dateKey(new Date()).slice(0, 7);
+            paaMonthInput.value = nextMonthKey(dateKey(new Date()).slice(0, 7));
             paaNameInput.addEventListener("input", () => {
                 paaNameInput.value = paaNameInput.value.replace(/[\p{N}]/gu, "");
                 formatCapitalizedInput(paaNameInput);
@@ -8880,10 +11255,32 @@
             backupFile.addEventListener("change", async () => importBackup(backupFile.files[0]));
             document.getElementById("accessibility-toggle").addEventListener("click", () => {
                 const menu = document.getElementById("accessibility-menu");
-                menu.hidden = !menu.hidden;
-                document.getElementById("accessibility-toggle").setAttribute("aria-expanded", String(!menu.hidden));
+                if (menu.hidden) {
+                    menu.hidden = false;
+                    requestAnimationFrame(() => menu.classList.add("is-open"));
+                    document.getElementById("accessibility-toggle").setAttribute("aria-expanded", "true");
+                    document.getElementById("settings-close").focus();
+                } else {
+                    closeSettingsScreen();
+                }
             });
+            function closeSettingsScreen(returnFocus = true) {
+                const menu = document.getElementById("accessibility-menu");
+                menu.classList.remove("is-open");
+                document.getElementById("accessibility-toggle").setAttribute("aria-expanded", "false");
+                window.setTimeout(() => {
+                    if (!menu.classList.contains("is-open")) menu.hidden = true;
+                }, preferences.reduceMotion ? 0 : 400);
+                if (returnFocus) document.getElementById("accessibility-toggle").focus();
+            }
+            document.getElementById("settings-close").addEventListener("click", () => closeSettingsScreen());
             document.getElementById("theme-toggle").addEventListener("change", async event => updatePreferences({ darkMode: event.target.checked }));
+            document.getElementById("contrast-toggle").addEventListener("change", async event =>
+                updatePreferences({ highContrast: event.target.checked }));
+            document.getElementById("motion-toggle").addEventListener("change", async event =>
+                updatePreferences({ reduceMotion: event.target.checked }));
+            document.getElementById("color-theme").addEventListener("change", async event =>
+                updatePreferences({ colorTheme: event.target.value }));
             document.getElementById("font-size").addEventListener("change", async event => updatePreferences({ fontScale: event.target.value }));
             document.getElementById("hints-toggle").addEventListener("change", async event => updatePreferences({ showHints: event.target.checked }));
             document.getElementById("history-autocomplete-toggle").addEventListener("change", async event =>
@@ -8897,18 +11294,10 @@
                         "Não foi possível validar o acesso. Verifique o ambiente local e tente novamente.";
                 });
             });
-            document.getElementById("login-user").addEventListener("change", async event => {
-                try {
-                    await database.settings.put({
-                        key: STORAGE_LOCAL_ACTIVE_USER,
-                        value: event.target.value
-                    });
-                    rememberedUserId = event.target.value;
-                } catch (error) {
-                    console.error("Não foi possível salvar o usuário escolhido neste dispositivo.", error);
-                    document.getElementById("user-login-status").textContent =
-                        "Não foi possível salvar localmente o usuário escolhido.";
-                }
+            document.getElementById("login-user").addEventListener("input", event => {
+                const enteredName = event.target.value.trim().toLocaleLowerCase("pt-BR");
+                const selectedUser = users.find(user => user.name.toLocaleLowerCase("pt-BR") === enteredName);
+                if (selectedUser) document.getElementById("login-role").value = selectedUser.role;
                 updateLoginPinFields().catch(error => {
                     console.error("Não foi possível verificar a configuração do PIN administrativo.", error);
                     document.getElementById("user-login-status").textContent =
@@ -8918,12 +11307,18 @@
                     document.getElementById("user-login-status").textContent = "";
                 }
             });
-            document.getElementById("login-manage-users").addEventListener("click", openAssistantAdmin);
-            document.getElementById("switch-user").addEventListener("click", showUserLogin);
+            document.getElementById("login-role").addEventListener("change", () => {
+                updateLoginPinFields().catch(error => {
+                    console.error("Não foi possível verificar a configuração do PIN administrativo.", error);
+                    document.getElementById("user-login-status").textContent =
+                        "Não foi possível verificar a configuração do PIN administrativo.";
+                });
+            });
             document.getElementById("settings-switch-user").addEventListener("click", () => {
-                document.getElementById("accessibility-menu").hidden = true;
+                closeSettingsScreen(false);
                 showUserLogin();
             });
+            document.getElementById("welcome-start").addEventListener("click", beginFirstLogin);
             attendanceTab.addEventListener("click", () => selectMainTab("attendance"));
             paaTab.addEventListener("click", () => selectMainTab("paa"));
             queuesTab.addEventListener("click", () => selectMainTab("queues"));
@@ -8954,7 +11349,10 @@
                 }
             });
             const secretAdminTrigger = document.getElementById("secret-admin-trigger");
-            document.getElementById("assistant-admin-open").addEventListener("click", openAssistantAdmin);
+            document.getElementById("assistant-admin-open").addEventListener("click", () => {
+                closeSettingsScreen(false);
+                openAssistantAdmin();
+            });
             let adminClickCount = 0;
             let lastAdminClick = 0;
             secretAdminTrigger.addEventListener("click", () => {
@@ -8988,8 +11386,7 @@
                 }
                 const accessibilityMenu = document.getElementById("accessibility-menu");
                 if (!event.target.closest(".accessibility-wrap") && !accessibilityMenu.hidden) {
-                    accessibilityMenu.hidden = true;
-                    document.getElementById("accessibility-toggle").setAttribute("aria-expanded", "false");
+                    closeSettingsScreen(false);
                 }
             });
 
@@ -9135,6 +11532,7 @@
             applyPreferences();
             await setupAccessGate();
             await restoreLocalUser();
+            completeBootScreen();
             await refreshCurrentDay();
             await ensureQueueTimestamps();
             scheduleDayRefresh();
@@ -9145,6 +11543,83 @@
             renderNationalities();
             addressInput.dispatchEvent(new Event("input"));
             renderAll();
+
+            window.copyFieldValue = function(elementId, label) {
+                const input = document.getElementById(elementId);
+                if (!input || !input.value) return;
+                const value = input.value;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(value).then(() => {
+                        showToast(`${label || 'Valor'} copiado!`);
+                    }).catch(() => {
+                        input.select();
+                        document.execCommand('copy');
+                        showToast(`${label || 'Valor'} copiado!`);
+                    });
+                } else {
+                    input.select();
+                    document.execCommand('copy');
+                    showToast(`${label || 'Valor'} copiado!`);
+                }
+            };
+
+            const checkUpdatesBtn = document.getElementById("check-updates-btn");
+            if (checkUpdatesBtn) {
+                checkUpdatesBtn.addEventListener("click", async () => {
+                    const statusBadge = document.getElementById("update-status-badge");
+                    const actionArea = document.getElementById("update-action-area");
+                    checkUpdatesBtn.disabled = true;
+                    statusBadge.hidden = false;
+                    statusBadge.className = "update-badge update-badge-checking";
+                    statusBadge.textContent = "Consultando atualizações no GitHub…";
+                    if (actionArea) actionArea.hidden = true;
+
+                    try {
+                        const res = await fetch("/api/check-update", { cache: "no-store" });
+                        if (!res.ok) throw new Error("Não foi possível conectar ao verificador.");
+                        const data = await res.json();
+                        const versionBadge = document.getElementById("current-app-version-badge");
+                        if (versionBadge && data.currentVersion) {
+                            versionBadge.textContent = `v${data.currentVersion}`;
+                        }
+
+                        if (data.hasUpdate) {
+                            statusBadge.className = "update-badge update-badge-available";
+                            statusBadge.textContent = `Nova versão ${data.latestVersion} disponível!`;
+                            if (actionArea) {
+                                actionArea.hidden = false;
+                                actionArea.innerHTML = `
+                                    <button class="button-primary" id="btn-run-update" type="button" style="width: 100%; margin-top: 8px;">
+                                        ⬇️ Baixar e Instalar v${data.latestVersion}
+                                    </button>
+                                `;
+                                document.getElementById("btn-run-update").onclick = async () => {
+                                    if (!window.confirm(`Deseja baixar e instalar a versão ${data.latestVersion}? O aplicativo será reiniciado.`)) return;
+                                    statusBadge.textContent = "Baixando atualização… Aguarde alguns segundos.";
+                                    try {
+                                        const postRes = await fetch("/api/apply-update", { method: "POST", cache: "no-store" });
+                                        const postData = await postRes.json();
+                                        if (!postRes.ok) throw new Error(postData.error || "Erro ao aplicar.");
+                                        statusBadge.textContent = postData.message || "Atualização concluída. Reiniciando…";
+                                    } catch (err) {
+                                        statusBadge.className = "update-badge update-badge-error";
+                                        statusBadge.textContent = `Erro: ${err.message}`;
+                                    }
+                                };
+                            }
+                        } else {
+                            statusBadge.className = "update-badge update-badge-latest";
+                            statusBadge.textContent = `Você está na versão mais recente (${data.currentVersion ? 'v' + data.currentVersion : 'atualizada'}).`;
+                        }
+                    } catch (err) {
+                        statusBadge.className = "update-badge update-badge-error";
+                        statusBadge.textContent = `Não foi possível verificar: ${err.message}`;
+                    } finally {
+                        checkUpdatesBtn.disabled = false;
+                    }
+                });
+            }
+
             await processQueueTimers();
             window.setInterval(processQueueTimers, 30_000);
             if (window.CRASDesktop) {
