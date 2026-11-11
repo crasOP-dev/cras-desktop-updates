@@ -51,6 +51,13 @@ em cada computador que deve iniciar o envio automático; sem um parceiro
 configurado, os dados permanecem somente neste dispositivo e a tela informa que
 é preciso conectar um computador parceiro.
 
+No CRAS Desktop, o envio dos registros do PAA ao Google Sheets é configurado
+separadamente: em **Configurações → Sincronização**, informe o URL publicado do
+Apps Script e o token de acesso, e conecte. O URL fica salvo nas configurações;
+o token é validado e mantido apenas enquanto o aplicativo estiver aberto. Depois,
+use **Enviar pendentes ao Google** na aba PAA. Novos registros e alterações
+também são enviados automaticamente enquanto houver conexão ativa.
+
 ## Relatórios
 
 No histórico, monte uma tabela personalizada informando o período, o técnico

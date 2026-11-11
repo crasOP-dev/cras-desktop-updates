@@ -5293,6 +5293,23 @@
                                     <button class="button-secondary" id="sync-peer-add" type="button" style="width: 100%; margin-bottom: 8px;">Adicionar computador vinculado</button>
                                     <button class="button-secondary" id="sync-peers-save" type="button" style="width: 100%;">Salvar computadores vinculados</button>
                                 </div>
+                                <div id="desktop-paa-sync-settings" hidden>
+                                    <hr style="border: 0; border-top: 1px dashed var(--line); margin: 12px 0;">
+                                    <div class="settings-card-header">
+                                        <span class="settings-card-title">Planilha PAA (Google Sheets)</span>
+                                    </div>
+                                    <label class="field-label" for="paa-google-sheet-url">URL publicado do Apps Script (planilha PAA)</label>
+                                    <input class="text-input" id="paa-google-sheet-url" type="url"
+                                        placeholder="https://script.google.com/macros/s/…/exec" autocomplete="url"
+                                        style="margin-bottom: 8px;">
+                                    <label class="field-label" for="paa-google-access-token">Token de acesso</label>
+                                    <input class="text-input" id="paa-google-access-token" type="password"
+                                        autocomplete="off" placeholder="Informe o token para conectar"
+                                        style="margin-bottom: 8px;">
+                                    <p class="hint">O endereço fica salvo nas configurações. O token é validado, usado apenas enquanto o aplicativo estiver aberto e nunca é salvo.</p>
+                                    <button class="button-secondary" id="paa-google-connect" type="button"
+                                        style="width: 100%;">Conectar ao Google Sheets</button>
+                                </div>
                             </div>
 
                             <!-- Card 3: Atualizações do Sistema -->
@@ -5324,7 +5341,7 @@
             <div class="offline">Dados salvos neste dispositivo</div>
         </div>
     </header>
-    <iframe class="sync-bridge" id="sync-bridge" title="Conexão de sincronização P2P" hidden></iframe>
+    <iframe class="sync-bridge" id="sync-bridge" title="Conexão com o Google Sheets" hidden></iframe>
     <button class="sync-fab" id="sync-now" type="button" aria-label="Sincronizar dados com outro computador">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
             stroke-linejoin="round" aria-hidden="true">
@@ -6083,7 +6100,7 @@
             ];
             const DEFAULT_ROUTES = ["Cadastro Único", "Atendimento Técnico", "Informação"];
             const DEFAULT_NATIONALITIES = ["Venezuelano", "Uruguaio", "Argentino"];
-            const DEFAULT_PREFERENCES = { darkMode: false, highContrast: false, reduceMotion: false, colorTheme: "green", fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "", syncPeers: [] };
+            const DEFAULT_PREFERENCES = { darkMode: false, highContrast: false, reduceMotion: false, colorTheme: "green", fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "", syncPeers: [], googleSheetEndpoint: "" };
             const BACKUP_FORMAT = "cras-ouro-preto-backup";
             const BACKUP_VERSION = 1;
             const form = document.getElementById("appointment-form");
@@ -6502,6 +6519,7 @@
                 document.getElementById("paa-enabled-toggle").checked = Boolean(preferences.paaEnabled);
                 document.getElementById("sync-app-url").value = preferences.syncEndpoint || "";
                 document.getElementById("sync-peer-key").value = preferences.syncToken || "";
+                document.getElementById("paa-google-sheet-url").value = preferences.googleSheetEndpoint || "";
                 paaTab.hidden = !preferences.paaEnabled;
                 if (!preferences.paaEnabled && !paaPanel.hidden) selectMainTab(hostedAppsScript ? "queues" : "attendance");
                 applyActiveUserLayout();
@@ -6782,6 +6800,24 @@
                 }
             }
 
+            function getGoogleAppsScriptBridgeUrl(endpoint = window.CRASDesktop
+                ? preferences.googleSheetEndpoint
+                : preferences.syncEndpoint) {
+                if (!endpoint) return "";
+                try {
+                    const url = new URL(endpoint);
+                    if (url.protocol !== "https:" || url.hostname !== "script.google.com"
+                        || url.username || url.password
+                        || !/^\/macros\/(?:u\/\d+\/)?s\/[^/]+(?:\/exec)?\/?$/.test(url.pathname)) return "";
+                    url.pathname = url.pathname.replace(/^\/macros\/u\/\d+\/s\//, "/macros/s/");
+                    if (!/\/exec\/?$/.test(url.pathname)) url.pathname = `${url.pathname.replace(/\/$/, "")}/exec`;
+                    url.searchParams.set("bridge", "1");
+                    return url.href;
+                } catch {
+                    return "";
+                }
+            }
+
             function getConfiguredDesktopPeers() {
                 const configured = Array.isArray(preferences.syncPeers)
                     ? preferences.syncPeers.filter(peer => peer && typeof peer.endpoint === "string"
@@ -6794,15 +6830,13 @@
             }
 
             function configureSyncBridge() {
-                if (window.CRASDesktop) {
-                    syncBridgeFrame.hidden = true;
-                    return;
-                }
                 if (offlineMode || !accessToken) {
                     syncBridgeFrame.hidden = true;
                     return;
                 }
-                const bridgeUrl = getSyncBridgeUrl();
+                const bridgeUrl = window.CRASDesktop
+                    ? getGoogleAppsScriptBridgeUrl()
+                    : getSyncBridgeUrl();
                 if (!window.google?.script?.run && bridgeUrl && syncBridgeFrame.src !== bridgeUrl) {
                     syncBridgeReady = false;
                     syncBridgeTarget = null;
@@ -7288,10 +7322,7 @@
                     "deletePaaRecordFromSheet"
                 ]);
                 if (!allowedMethods.has(method)) return Promise.reject(new Error("Operação de sincronização não autorizada."));
-                if (window.CRASDesktop) {
-                    if (method !== "syncCrASSnapshot") {
-                        return Promise.reject(new Error("Esta operação não está disponível na sincronização P2P."));
-                    }
+                if (window.CRASDesktop && method === "syncCrASSnapshot") {
                     const peerConfig = args.pop();
                     const endpoint = getSyncBridgeUrl(peerConfig?.endpoint);
                     const peerKey = peerConfig?.token || "";
@@ -8074,9 +8105,46 @@
             function setupGoogleSync() {
                 const singlePeerSettings = document.getElementById("single-peer-settings");
                 const multiPeerSettings = document.getElementById("multi-peer-settings");
+                const desktopPaaSyncSettings = document.getElementById("desktop-paa-sync-settings");
                 singlePeerSettings.hidden = Boolean(window.CRASDesktop);
                 multiPeerSettings.hidden = !window.CRASDesktop;
+                desktopPaaSyncSettings.hidden = !window.CRASDesktop;
                 if (window.CRASDesktop) {
+                    document.getElementById("paa-google-connect").addEventListener("click", async event => {
+                        const button = event.currentTarget;
+                        const endpointInput = document.getElementById("paa-google-sheet-url");
+                        const tokenInput = document.getElementById("paa-google-access-token");
+                        const endpoint = endpointInput.value.trim();
+                        const token = tokenInput.value.trim();
+                        if (!getGoogleAppsScriptBridgeUrl(endpoint)) {
+                            showSyncStatus("Informe o URL publicado do Apps Script, terminado em /exec.");
+                            endpointInput.focus();
+                            return;
+                        }
+                        if (!token) {
+                            showSyncStatus("Informe o token de acesso para conectar à planilha PAA.");
+                            tokenInput.focus();
+                            return;
+                        }
+
+                        button.disabled = true;
+                        try {
+                            if (!await updatePreferences({ googleSheetEndpoint: endpoint })) return;
+                            accessToken = token;
+                            configureSyncBridge();
+                            if (await callSyncBackend("validateStartupToken") !== true) {
+                                throw new Error("Token incorreto. Confira o token de acesso e tente novamente.");
+                            }
+                            showSyncStatus("Conexão com o Google Sheets validada. Agora envie os pendentes pela aba PAA.");
+                        } catch (error) {
+                            accessToken = "";
+                            configureSyncBridge();
+                            showSyncStatus(`Não foi possível conectar ao Google Sheets: ${error.message}`, 0);
+                        } finally {
+                            tokenInput.value = "";
+                            button.disabled = false;
+                        }
+                    });
                     const peerList = document.getElementById("sync-peer-list");
                     const readRows = () => Array.from(peerList.querySelectorAll("[data-sync-peer-row]"))
                         .map(row => ({
@@ -10268,17 +10336,17 @@
             function renderPaaHistory() {
                 const monthKeys = [...new Set(paaRecords.map(record => record.month))].sort((a, b) => b.localeCompare(a));
                 const pendingSyncCount = paaRecords.filter(record => !record.googleSyncedAt
-                    && (window.CRASDesktop || !record.googleSheetUnlinked)).length;
+                    && !record.googleSheetUnlinked).length;
                 const syncPendingButton = document.getElementById("paa-sync-pending");
                 syncPendingButton.disabled = pendingSyncCount === 0;
                 syncPendingButton.textContent = pendingSyncCount
-                    ? window.CRASDesktop
-                        ? `Sincronizar ${pendingSyncCount} ${pendingSyncCount === 1 ? "pendente" : "pendentes"}`
-                        : `Enviar ${pendingSyncCount} ${pendingSyncCount === 1 ? "pendente" : "pendentes"} ao Google`
-                    : window.CRASDesktop ? "Sincronizar pendentes" : "Enviar pendentes ao Google";
+                    ? `Enviar ${pendingSyncCount} ${pendingSyncCount === 1 ? "pendente" : "pendentes"} ao Google`
+                    : "Enviar pendentes ao Google";
                 if (pendingSyncCount && !hasGoogleAppsScriptBridge()) {
                     paaSyncStatus.textContent = window.CRASDesktop
-                        ? "Os registros estão salvos neste dispositivo e serão compartilhados ao sincronizar com outro computador."
+                        ? getGoogleAppsScriptBridgeUrl()
+                            ? "Registros salvos neste computador. Conecte ao Google Sheets nas Configurações para enviá-los."
+                            : "Registros salvos neste computador. Configure o URL do Apps Script em Configurações para enviá-los."
                         : "Os registros estão salvos neste dispositivo. Para enviar ao Google, abra o sistema pelo link publicado no Apps Script.";
                 } else if (!pendingSyncCount && paaSyncStatus.textContent.startsWith("Os registros estão salvos neste dispositivo.")) {
                     paaSyncStatus.textContent = "";
@@ -10350,17 +10418,20 @@
             }
 
             async function deletePaaRecord(record) {
-                const deleteWarning = !window.CRASDesktop && record.googleSheetUnlinked
+                const deleteWarning = record.googleSheetUnlinked
                     ? " A linha antiga, sem vínculo de sincronização, será preservada na planilha."
-                    : record.googleSyncedAt ? window.CRASDesktop
-                        ? " A exclusão será propagada aos outros computadores na próxima sincronização."
-                        : " A linha correspondente também será removida da planilha Google." : "";
+                    : record.googleSyncedAt ? " A linha correspondente também será removida da planilha Google." : "";
                 if (!window.confirm(`Deseja excluir o registro de ${record.nome} de ${paaMonthLabel(record.month)}?${deleteWarning}`)) return;
-                if (!window.CRASDesktop && record.googleSyncedAt && !hasGoogleAppsScriptBridge() && !offlineMode) {
-                    paaSyncStatus.textContent = "Abra o sistema pelo link do Apps Script para excluir também a linha da planilha. O registro não foi removido.";
+                if (record.googleSyncedAt && !record.googleSheetUnlinked
+                    && !hasGoogleAppsScriptBridge() && !offlineMode) {
+                    paaSyncStatus.textContent = window.CRASDesktop
+                        ? getGoogleAppsScriptBridgeUrl()
+                            ? "Conecte ao Google Sheets nas Configurações antes de excluir este registro sincronizado."
+                            : "Configure o URL do Apps Script nas Configurações antes de excluir este registro sincronizado."
+                        : "Abra o sistema pelo link do Apps Script para excluir também a linha da planilha. O registro não foi removido.";
                     return;
                 }
-                if (hasGoogleAppsScriptBridge()) {
+                if (record.googleSyncedAt && !record.googleSheetUnlinked && hasGoogleAppsScriptBridge()) {
                     try {
                         await callSyncBackend("deletePaaRecordFromSheet", record.id);
                     } catch (error) {
@@ -10379,9 +10450,7 @@
                 paaRecords = updatedRecords;
                 if (editingPaaRecordId === record.id) cancelPaaEdit();
                 paaSyncStatus.textContent = record.googleSyncedAt
-                    ? window.CRASDesktop
-                        ? "Registro excluído deste computador. A exclusão será propagada na próxima sincronização."
-                        : offlineMode
+                    ? offlineMode
                         ? "Registro excluído apenas deste dispositivo. A cópia no Google continua inalterada até uma sincronização futura."
                         : record.googleSheetUnlinked
                         ? "Registro excluído do histórico local; a linha antiga da planilha foi preservada."
@@ -10400,12 +10469,16 @@
             }
 
             function hasGoogleAppsScriptBridge() {
-                return !window.CRASDesktop && !offlineMode && Boolean(window.google?.script?.run || getSyncBridgeUrl());
+                const bridgeUrl = window.CRASDesktop
+                    ? getGoogleAppsScriptBridgeUrl()
+                    : getSyncBridgeUrl();
+                return !offlineMode && Boolean(window.google?.script?.run || bridgeUrl)
+                    && (!window.CRASDesktop || Boolean(accessToken));
             }
 
             async function syncPaaRecord(record) {
                 if (!hasGoogleAppsScriptBridge()) {
-                    throw new Error("Configure o link publicado do Apps Script em Configurações para sincronizar a planilha.");
+                    throw new Error("Configure e conecte o Apps Script nas Configurações para sincronizar a planilha.");
                 }
                 return callSyncBackend("savePaaRecordToSheet", {
                     id: record.id,
@@ -10419,14 +10492,14 @@
             async function syncPendingPaaRecords() {
                 const button = document.getElementById("paa-sync-pending");
                 const pendingRecords = paaRecords.filter(record => !record.googleSyncedAt
-                    && (window.CRASDesktop || !record.googleSheetUnlinked));
+                    && !record.googleSheetUnlinked);
                 if (!pendingRecords.length) return;
-                if (window.CRASDesktop) {
-                    await syncWithGoogle(true);
-                    return;
-                }
                 if (!hasGoogleAppsScriptBridge()) {
-                    paaSyncStatus.textContent = "Para enviar ao Google, abra o sistema pelo link publicado no Apps Script.";
+                    paaSyncStatus.textContent = window.CRASDesktop
+                        ? getGoogleAppsScriptBridgeUrl()
+                            ? "Conecte ao Google Sheets nas Configurações antes de enviar os pendentes."
+                            : "Configure o URL do Apps Script nas Configurações antes de enviar os pendentes."
+                        : "Para enviar ao Google, abra o sistema pelo link publicado no Apps Script.";
                     return;
                 }
                 button.disabled = true;
@@ -11003,7 +11076,7 @@
                     telefone: paaPhoneInput.value.replace(/\D/g, ""),
                     nacionalidade: document.getElementById("paa-nationality").value.trim(),
                     createdAt: currentRecord?.createdAt || new Date().toISOString(),
-                    ...(!window.CRASDesktop && currentRecord?.googleSheetUnlinked ? { googleSheetUnlinked: true } : {})
+                    ...(currentRecord?.googleSheetUnlinked ? { googleSheetUnlinked: true } : {})
                 };
                 const updatedRecords = currentRecord
                     ? paaRecords.map(item => item.id === currentRecord.id ? record : item)
@@ -11020,6 +11093,8 @@
                 renderPaaHistory();
                 if (!window.CRASDesktop && record.googleSheetUnlinked) {
                     paaSyncStatus.textContent = "Registro atualizado no histórico sincronizado; a linha antiga e não vinculada da planilha permanece inalterada.";
+                } else if (record.googleSheetUnlinked) {
+                    paaSyncStatus.textContent = "Registro local atualizado; a linha antiga e não vinculada da planilha permanece inalterada.";
                 } else if (hasGoogleAppsScriptBridge()) {
                     try {
                         await syncPaaRecord(record);
