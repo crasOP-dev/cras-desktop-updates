@@ -162,6 +162,23 @@ class PeerStoreTests(unittest.TestCase):
         self.assertEqual(resolved["status"], "ok")
         self.assertEqual(resolved["snapshot"]["appointments"][0]["nome"], "Alteração A")
 
+    def test_deleting_appointment_does_not_create_invalid_record(self):
+        base = {
+            "appointments": [{"id": "appointment-1", "nome": "Atendimento"}],
+            "paaRecords": [],
+            "settings": {},
+        }
+        self.store.save_local_snapshot(base, self.store.get_revision())
+        self.store.sync("peer-a", "seed-a", base, {})
+        self.store.sync("peer-b", "seed-b", base, {})
+
+        deleted = {"appointments": [], "paaRecords": [], "settings": {}}
+        result = self.store.sync("peer-a", "delete-a", deleted, {})
+        self.assertEqual(result["snapshot"]["appointments"], [])
+
+        result = self.store.sync("peer-b", "propagate-delete", base, {})
+        self.assertEqual(result["snapshot"]["appointments"], [])
+
     def test_admin_wins_concurrent_attendance_edits(self):
         base = {
             "appointments": [{"id": "appointment-1", "nome": "Base"}],

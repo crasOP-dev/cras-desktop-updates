@@ -635,9 +635,9 @@ class PeerStore:
         remote_items = {item["id"]: item for item in remote[name]}
         merged: list[dict] = []
         for item_id in sorted(base_items.keys() | local_items.keys() | remote_items.keys()):
-            base_value = base_items.get(item_id)
-            local_value = local_items.get(item_id)
-            remote_value = remote_items.get(item_id)
+            base_value = base_items.get(item_id, MISSING)
+            local_value = local_items.get(item_id, MISSING)
+            remote_value = remote_items.get(item_id, MISSING)
             value = PeerStore.merge_value(
                 base_value,
                 local_value,
