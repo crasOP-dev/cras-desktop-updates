@@ -47,6 +47,7 @@ APP_NAME = "CRAS-Desktop"
 GITHUB_REPOSITORY = "crasOP-dev/cras-desktop-updates"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
 UPDATE_ASSET_NAME = "CRAS-Desktop.exe"
+MANUAL_INSTALL_NAME = "CRAS Desktop.exe"
 MAX_UPDATE_BYTES = 250 * 1024 * 1024
 PORT = 8765
 MOBILE_PORT = 8766
@@ -183,6 +184,14 @@ def powershell_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
+def manual_install_target(executable_path: Path) -> Path | None:
+    if executable_path.name.casefold() == MANUAL_INSTALL_NAME.casefold():
+        return None
+    if not re.fullmatch(r"CRAS-Desktop(?: \(\d+\))?\.exe", executable_path.name, re.IGNORECASE):
+        return None
+    return executable_path.with_name(MANUAL_INSTALL_NAME)
+
+
 def launch_update_helper(update_path: Path, executable_path: Path, process_id: int, directory: Path) -> None:
     script_path = directory / "apply-update.ps1"
     log_path = directory / "update.log"
@@ -214,20 +223,28 @@ try {{
     Write-UpdateLog "Preparando o executável atualizado."
     Copy-Item -LiteralPath $source -Destination $staged -Force
     $replaced = $false
-    $lastError = $null
-    for ($i = 1; $i -le 10; $i++) {{
-        try {{
-            [System.IO.File]::Replace($staged, $target, $backup)
-            $replaced = $true
-            break
-        }} catch {{
-            $lastError = $_.Exception.Message
-            Write-UpdateLog "Tentativa $i de substituir o executável falhou ($lastError). Aguardando liberação do arquivo..."
-            Start-Sleep -Milliseconds 500
+    if (Test-Path -LiteralPath $target) {{
+        $lastError = $null
+        for ($i = 1; $i -le 10; $i++) {{
+            try {{
+                [System.IO.File]::Replace($staged, $target, $backup)
+                $replaced = $true
+                break
+            }} catch {{
+                $lastError = $_.Exception.Message
+                Write-UpdateLog "Tentativa $i de substituir o executável falhou ($lastError). Aguardando liberação do arquivo..."
+                Start-Sleep -Milliseconds 500
+            }}
         }}
+        if (-not $replaced) {{
+            throw "Não foi possível substituir o executável após múltiplas tentativas: $lastError"
+        }}
+    }} else {{
+        Move-Item -LiteralPath $staged -Destination $target
+        $replaced = $true
     }}
     if (-not $replaced) {{
-        throw "Não foi possível substituir o executável após múltiplas tentativas: $lastError"
+        throw "Não foi possível instalar o executável atualizado."
     }}
     Write-UpdateLog "Executável substituído. Abrindo a nova versão."
     Start-Process -FilePath $target
@@ -271,6 +288,26 @@ try {{
         stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
+
+
+def install_manual_executable() -> bool:
+    if not getattr(sys, "frozen", False) or os.name != "nt":
+        return False
+    source = Path(sys.executable).resolve()
+    target = manual_install_target(source)
+    if target is None:
+        return False
+    try:
+        launch_update_helper(source, target, os.getpid(), data_path())
+    except OSError as error:
+        logging.exception("Não foi possível instalar o executável baixado manualmente.")
+        show_startup_error(
+            "Não foi possível instalar esta cópia do CRAS Desktop na pasta atual.\n\n"
+            f"Detalhe: {error}"
+        )
+        return False
+    logging.info("Instalação manual solicitada: %s será substituído por %s.", target, source)
+    return True
 
 
 def check_for_update() -> bool:
@@ -1685,6 +1722,8 @@ def main() -> None:
     except Exception as error:
         logging.exception("Não foi possível inicializar o armazenamento do CRAS Desktop.")
         show_startup_error(f"Não foi possível inicializar o armazenamento local do aplicativo.\n\nDetalhe: {error}")
+        return
+    if install_manual_executable():
         return
     if check_for_update():
         return

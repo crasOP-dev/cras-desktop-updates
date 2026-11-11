@@ -21,6 +21,7 @@ from main import (
     launch_update_helper,
     lan_addresses,
     latest_release,
+    manual_install_target,
     verify_update_checksum,
     version_tuple,
 )
@@ -56,9 +57,19 @@ class VersionTests(unittest.TestCase):
             self.assertTrue(script_path.read_bytes().startswith(b"\xef\xbb\xbf"))
             script = script_path.read_text(encoding="utf-8-sig")
             self.assertIn("[System.IO.File]::Replace($staged, $target, $backup)", script)
+            self.assertIn("Move-Item -LiteralPath $staged -Destination $target", script)
             self.assertIn("A versão anterior foi restaurada.", script)
             self.assertIn(str(directory / "update.log"), script)
             self.assertEqual(mocked_popen.call_args.args[0][-1], str(script_path))
+
+    def test_manual_executable_uses_canonical_name_in_same_folder(self):
+        source = Path("CRAS-Desktop (1).exe")
+        self.assertEqual(
+            manual_install_target(source),
+            Path("CRAS Desktop.exe"),
+        )
+        self.assertIsNone(manual_install_target(Path("CRAS Desktop.exe")))
+        self.assertIsNone(manual_install_target(Path("another-app.exe")))
 
     def test_update_downloads_use_system_certificate_store(self):
         executable = b"release binary"

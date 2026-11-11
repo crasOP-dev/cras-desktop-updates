@@ -11,6 +11,7 @@ if errorlevel 1 exit /b 1
 python -m PyInstaller --noconfirm --clean --onefile --windowed ^
   --name CRAS-Desktop ^
   --collect-all webview ^
+  --collect-all truststore ^
   --add-data "CRAS.html;." ^
   --add-data "dexie.min.js;." ^
   --add-data "version.txt;." ^

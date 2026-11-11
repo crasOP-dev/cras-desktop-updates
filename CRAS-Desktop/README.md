@@ -45,10 +45,11 @@ uma rede de convidados) e permita o CRAS Desktop na rede privada do Firewall do
 Windows. O servidor móvel usa a porta TCP 8766; instalar a CA valida o
 certificado, mas não libera a conexão através do firewall.
 
-Para o envio automático funcionar, configure um computador parceiro e o código
-de pareamento em Configurações → Sincronização no computador que registra ou
-atualiza os dados. Sem um destino configurado, o sistema mantém os dados neste
-dispositivo e informa que eles ainda não foram enviados.
+Para sincronizar, em Configurações → Sincronização adicione o endereço de rede
+e o código de pareamento exibidos pelo outro computador. Faça essa configuração
+em cada computador que deve iniciar o envio automático; sem um parceiro
+configurado, os dados permanecem somente neste dispositivo e a tela informa que
+é preciso conectar um computador parceiro.
 
 ## Relatórios
 
@@ -66,3 +67,8 @@ instalados no sistema. Se a troca do executável falhar, consulte
 `%LOCALAPPDATA%\CRAS-Desktop\update.log`. A correção do instalador precisa ser
 publicada em uma nova release; computadores cuja atualização anterior falhou
 podem precisar instalar essa primeira versão corrigida manualmente.
+
+Também é possível atualizar manualmente: coloque o executável oficial
+`CRAS-Desktop.exe` na mesma pasta do aplicativo atual e abra o arquivo baixado.
+Ele substitui o executável antigo com segurança, inicia a nova versão como
+`CRAS Desktop.exe` e mantém os dados locais.
