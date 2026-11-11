@@ -9917,7 +9917,7 @@
                     && Boolean(assistanceState.finishedFollowupAt);
                 const attendedBy = receptionConfirmedAttendance
                     ? assistanceState.attendedBy || service.assignments?.assistencia
-                    : service.startedBy;
+                    : service.assignments?.assistencia || service.startedBy;
                 const credited = [attendedBy, ...(Array.isArray(service.collaborators) ? service.collaborators : [])]
                     .filter(member => member && typeof member.name === "string" && member.name);
                 if (!credited.length && service.id.startsWith("legacy-")) {
