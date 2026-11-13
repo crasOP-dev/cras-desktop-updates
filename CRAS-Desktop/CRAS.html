@@ -1157,6 +1157,171 @@
             font-size: 13px;
         }
 
+        .history-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px;
+        }
+
+        .history-pagination[hidden],
+        .chat-selected-person[hidden],
+        #chat-load-older[hidden],
+        #chat-clear-attachment[hidden],
+        #principal-computer-setting[hidden] {
+            display: none;
+        }
+
+        .history-pagination span {
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .chat-layout {
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        .chat-messages {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 240px;
+            max-height: 55vh;
+            overflow-y: auto;
+            padding: 14px;
+            background: var(--canvas);
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+
+        .chat-message {
+            align-self: flex-start;
+            max-width: min(80%, 620px);
+            padding: 10px 12px;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 10px 10px 10px 2px;
+            overflow-wrap: anywhere;
+        }
+
+        .chat-message.own {
+            align-self: flex-end;
+            background: var(--green-soft);
+            border-radius: 10px 10px 2px 10px;
+        }
+
+        .chat-message-meta,
+        .chat-message-person {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .chat-message-meta {
+            margin-bottom: 5px;
+            font-weight: 700;
+        }
+
+        .chat-message-text {
+            white-space: pre-wrap;
+        }
+
+        .chat-message-person {
+            margin: 0 0 7px;
+            padding: 6px 8px;
+            background: var(--blue-soft);
+            border-radius: 6px;
+        }
+
+        .chat-message-image {
+            display: block;
+            max-width: min(100%, 360px);
+            max-height: 320px;
+            margin-top: 8px;
+            border-radius: 6px;
+        }
+
+        .chat-composer {
+            display: grid;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .chat-composer-tools {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-emoji-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 8px;
+        }
+
+        .chat-emoji-list button {
+            min-width: 36px;
+            min-height: 36px;
+            border: 0;
+            background: transparent;
+            border-radius: 6px;
+            font-size: 20px;
+        }
+
+        .chat-person-picker {
+            position: relative;
+        }
+
+        .chat-person-suggestions {
+            position: absolute;
+            z-index: 4;
+            top: 100%;
+            right: 0;
+            left: 0;
+            max-height: 220px;
+            overflow-y: auto;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, .12);
+        }
+
+        .chat-person-suggestion {
+            display: block;
+            width: 100%;
+            padding: 9px 11px;
+            color: var(--ink);
+            background: transparent;
+            border: 0;
+            text-align: left;
+        }
+
+        .chat-person-suggestion:hover,
+        .chat-person-suggestion:focus-visible {
+            background: var(--green-soft);
+        }
+
+        .chat-selected-person {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            background: var(--green-soft);
+            border-radius: 7px;
+            font-size: 12px;
+        }
+
+        .chat-status {
+            min-height: 20px;
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
         .history-header-actions {
             display: flex;
             align-items: center;
@@ -5211,6 +5376,17 @@
                                 <span class="toggle-track"></span>
                             </label>
                         </div>
+                        <div class="accessibility-option" id="principal-computer-setting" hidden>
+                            <span id="principal-computer-label">Este é o PC Principal (backup diário)</span>
+                            <label class="toggle-control" aria-label="Ativar backup diário neste PC Principal">
+                                <input id="principal-computer-toggle" type="checkbox"
+                                    aria-labelledby="principal-computer-label">
+                                <span class="toggle-track"></span>
+                            </label>
+                        </div>
+                        <p class="hint" id="principal-backup-hint" hidden>
+                            O backup compactado fica em %LOCALAPPDATA%\CRAS-Desktop\backups. São mantidas as últimas 30 cópias.
+                        </p>
                         <div class="accessibility-option">
                             <span>Usuário atual</span>
                             <div class="settings-row-actions">
@@ -5288,7 +5464,7 @@
                                     <button class="button-secondary" id="sync-app-url-save" type="button" style="width: 100%;">Salvar Computador Parceiro</button>
                                 </div>
                                 <div id="multi-peer-settings" hidden>
-                                    <p class="hint">Adicione cada computador vinculado com seu endereço e código de pareamento. O computador principal tentará sincronizar com todos.</p>
+                                    <p class="hint">Conecte este computador a um parceiro confiável. Durante a sincronização criptografada, ele recebe e compartilha os demais endereços e códigos já conhecidos, sem precisar cadastrá-los um por um.</p>
                                     <div id="sync-peer-list"></div>
                                     <button class="button-secondary" id="sync-peer-add" type="button" style="width: 100%; margin-bottom: 8px;">Adicionar computador vinculado</button>
                                     <button class="button-secondary" id="sync-peers-save" type="button" style="width: 100%;">Salvar computadores vinculados</button>
@@ -5366,7 +5542,7 @@
             </div>
         </div>
     </section>
-    <input class="file-input-hidden" id="backup-file" type="file" accept=".json,application/json">
+    <input class="file-input-hidden" id="backup-file" type="file" accept=".json,.json.gz,application/json,application/gzip">
     <div class="drop-overlay" id="drop-overlay" aria-hidden="true" hidden>
         <div class="drop-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
@@ -5385,6 +5561,8 @@
                 aria-controls="attendance-panel">Atendimentos</button>
             <button class="main-tab" id="paa-tab" type="button" role="tab" aria-selected="false"
                 aria-controls="paa-panel" hidden>PAA</button>
+            <button class="main-tab" id="chat-tab" type="button" role="tab" aria-selected="false"
+                aria-controls="chat-panel" hidden>Chat</button>
         </div>
         <section class="tab-panel" id="queues-panel" role="tabpanel" aria-labelledby="queues-tab" hidden>
             <div class="queue-panel-content" id="queue-panel-content"></div>
@@ -5751,6 +5929,11 @@
                     <div class="empty-state" id="empty-state"><strong>Nenhum atendimento registrado</strong>Os registros
                         salvos aparecerão aqui.</div>
                 </div>
+                <nav class="history-pagination" id="history-pagination" aria-label="Paginação do histórico" hidden>
+                    <button class="button-secondary" id="history-previous-page" type="button">Anterior</button>
+                    <span id="history-page-status" aria-live="polite"></span>
+                    <button class="button-secondary" id="history-next-page" type="button">Próxima</button>
+                </nav>
             </section>
         </section>
         <section class="tab-panel" id="paa-panel" role="tabpanel" aria-labelledby="paa-tab" hidden>
@@ -5817,6 +6000,60 @@
                 <div id="paa-history-groups"></div>
                 <div class="empty-state" id="paa-empty-state"><strong>Nenhum registro no PAA</strong>Os participantes
                     registrados aparecerão aqui.</div>
+            </section>
+        </section>
+        <section class="tab-panel" id="chat-panel" role="tabpanel" aria-labelledby="chat-tab" hidden>
+            <div class="section-heading chat-layout">
+                <div>
+                    <p class="eyebrow">Comunicação entre computadores</p>
+                    <h1>Chat</h1>
+                    <p class="section-note">Mensagens e recomendações são sincronizadas com os computadores parceiros. As conversas antigas são arquivadas mensalmente neste dispositivo.</p>
+                </div>
+            </div>
+            <section class="panel chat-layout" aria-label="Conversa do CRAS">
+                <div class="chat-composer-tools" style="justify-content: space-between; margin-bottom: 10px;">
+                    <p class="hint" id="chat-connection-status" role="status" aria-live="polite">Carregando conversa…</p>
+                    <button class="button-secondary" id="chat-load-older" type="button" hidden>Mensagens anteriores</button>
+                </div>
+                <div class="chat-messages" id="chat-messages" role="log" aria-live="polite"
+                    aria-label="Mensagens do chat"></div>
+                <form class="chat-composer" id="chat-form">
+                    <div class="chat-person-picker">
+                        <label class="field-label" for="chat-person-search">Vincular pessoa à recomendação (opcional)</label>
+                        <input class="text-input" id="chat-person-search" type="search" autocomplete="off"
+                            placeholder="Buscar por nome ou CPF">
+                        <div class="chat-person-suggestions" id="chat-person-suggestions" role="listbox" hidden></div>
+                    </div>
+                    <div class="chat-selected-person" id="chat-selected-person" hidden>
+                        <span id="chat-selected-person-label"></span>
+                        <button class="button-secondary" id="chat-clear-person" type="button">Remover</button>
+                    </div>
+                    <label class="field-label" for="chat-message-input">Mensagem</label>
+                    <textarea class="text-input" id="chat-message-input" rows="3" maxlength="4000"
+                        placeholder="Escreva uma mensagem ou recomendação…"></textarea>
+                    <div class="chat-composer-tools">
+                        <details>
+                            <summary class="button-secondary">Emoji</summary>
+                            <div class="chat-emoji-list" aria-label="Escolher emoji">
+                                <button type="button" data-chat-emoji="😀">😀</button>
+                                <button type="button" data-chat-emoji="😊">😊</button>
+                                <button type="button" data-chat-emoji="🙂">🙂</button>
+                                <button type="button" data-chat-emoji="👍">👍</button>
+                                <button type="button" data-chat-emoji="❤️">❤️</button>
+                                <button type="button" data-chat-emoji="🙏">🙏</button>
+                                <button type="button" data-chat-emoji="🎉">🎉</button>
+                                <button type="button" data-chat-emoji="🤝">🤝</button>
+                            </div>
+                        </details>
+                        <label class="button-secondary" for="chat-attachment-input">Imagem/GIF</label>
+                        <input class="file-input-hidden" id="chat-attachment-input" type="file"
+                            accept="image/png,image/jpeg,image/gif,image/webp">
+                        <span id="chat-attachment-name"></span>
+                        <button class="button-secondary" id="chat-clear-attachment" type="button" hidden>Remover imagem</button>
+                        <button class="button-primary" id="chat-send" type="submit">Enviar</button>
+                    </div>
+                    <p class="hint">Imagens e GIFs: até 2 MB. O chat é guardado nos PCs participantes; cada computador arquiva e limpa as mensagens de meses anteriores.</p>
+                </form>
             </section>
         </section>
     </main>
@@ -6100,9 +6337,14 @@
             ];
             const DEFAULT_ROUTES = ["Cadastro Único", "Atendimento Técnico", "Informação"];
             const DEFAULT_NATIONALITIES = ["Venezuelano", "Uruguaio", "Argentino"];
-            const DEFAULT_PREFERENCES = { darkMode: false, highContrast: false, reduceMotion: false, colorTheme: "green", fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, syncEndpoint: "", syncToken: "", syncPeers: [], googleSheetEndpoint: "" };
+            const DEFAULT_PREFERENCES = { darkMode: false, highContrast: false, reduceMotion: false, colorTheme: "green", fontScale: "1", showHints: true, autoCompleteHistory: false, paaEnabled: true, isPrincipalComputer: false, syncEndpoint: "", syncToken: "", syncPeers: [], googleSheetEndpoint: "" };
             const BACKUP_FORMAT = "cras-ouro-preto-backup";
             const BACKUP_VERSION = 1;
+            const HISTORY_PAGE_SIZE = 50;
+            const CHAT_PAGE_SIZE = 50;
+            const CHAT_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
+            const MAX_BACKUP_FILE_BYTES = 100 * 1024 * 1024;
+            const CHAT_ATTACHMENT_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
             const form = document.getElementById("appointment-form");
             const assistantChoiceList = document.getElementById("assistant-choice-list");
             const caseworkerAssignment = document.getElementById("caseworker-assignment");
@@ -6132,6 +6374,14 @@
             const formStatus = document.getElementById("form-status");
             const historyBody = document.getElementById("history-body");
             const emptyState = document.getElementById("empty-state");
+            let historyPage = 0;
+            const chatMessagesElement = document.getElementById("chat-messages");
+            let chatMessages = [];
+            let chatPerson = null;
+            let chatAttachment = null;
+            let chatLoadInProgress = false;
+            let chatPollTimer = null;
+            let chatLoadErrorShown = false;
             const toast = document.getElementById("toast");
             const deleteConfirmOverlay = document.getElementById("delete-confirm-overlay");
             const deleteConfirmMessage = document.getElementById("delete-confirm-message");
@@ -6155,9 +6405,11 @@
             const attendanceTab = document.getElementById("attendance-tab");
             const paaTab = document.getElementById("paa-tab");
             const queuesTab = document.getElementById("queues-tab");
+            const chatTab = document.getElementById("chat-tab");
             const attendancePanel = document.getElementById("attendance-panel");
             const paaPanel = document.getElementById("paa-panel");
             const queuesPanel = document.getElementById("queues-panel");
+            const chatPanel = document.getElementById("chat-panel");
             const hostedAppsScript = Boolean(window.google?.script?.run);
             const mobileClient = Boolean(window.CRASMobile);
             const queueDashboards = document.querySelector(".queue-dashboards");
@@ -6517,10 +6769,14 @@
                 document.getElementById("hints-toggle").checked = Boolean(preferences.showHints);
                 document.getElementById("history-autocomplete-toggle").checked = Boolean(preferences.autoCompleteHistory);
                 document.getElementById("paa-enabled-toggle").checked = Boolean(preferences.paaEnabled);
+                document.getElementById("principal-computer-toggle").checked = Boolean(preferences.isPrincipalComputer);
+                document.getElementById("principal-computer-setting").hidden = activeUser?.role !== "admin";
+                document.getElementById("principal-backup-hint").hidden = activeUser?.role !== "admin";
                 document.getElementById("sync-app-url").value = preferences.syncEndpoint || "";
                 document.getElementById("sync-peer-key").value = preferences.syncToken || "";
                 document.getElementById("paa-google-sheet-url").value = preferences.googleSheetEndpoint || "";
                 paaTab.hidden = !preferences.paaEnabled;
+                chatTab.hidden = mobileClient || hostedAppsScript;
                 if (!preferences.paaEnabled && !paaPanel.hidden) selectMainTab(hostedAppsScript ? "queues" : "attendance");
                 applyActiveUserLayout();
                 configureSyncBridge();
@@ -6543,6 +6799,9 @@
                 const isStaff = role === "assistant" || role === "caseworker";
                 const mobileIntern = mobileClient && role === "intern";
                 queuesTab.hidden = !isStaff && !hostedAppsScript && !mobileIntern;
+                chatTab.hidden = mobileClient || hostedAppsScript;
+                document.getElementById("principal-computer-setting").hidden = role !== "admin";
+                document.getElementById("principal-backup-hint").hidden = role !== "admin";
                 document.getElementById("settings-switch-user").hidden = !activeUser;
                 document.getElementById("assistant-admin-open").hidden = activeUser?.role !== "admin";
                 document.getElementById("active-user-label").textContent = activeUser
@@ -6829,6 +7088,66 @@
                     : [];
             }
 
+            async function publishLocalPeerDirectory(peers) {
+                if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) return;
+                const response = await fetchPeer("/api/local-peer-directory", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ peers })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || "Não foi possível registrar os computadores conhecidos.");
+                }
+            }
+
+            async function configureAutomaticBackup(enabled) {
+                if (!window.CRASDesktop) return;
+                const response = await fetchPeer("/api/backup-config", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ isPrincipal: Boolean(enabled) })
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || "Não foi possível configurar os backups diários.");
+                }
+                return result;
+            }
+
+            async function rememberDiscoveredPeers(discoveredPeers) {
+                if (!Array.isArray(discoveredPeers)) return;
+                const localEndpoints = new Set((desktopNodeInfo?.addresses || [])
+                    .map(address => `http://${address}:${desktopNodeInfo.port || 8765}`));
+                const peersByEndpoint = new Map(
+                    getConfiguredDesktopPeers().map(peer => [peer.endpoint, { ...peer }])
+                );
+                discoveredPeers.forEach(peer => {
+                    if (!peer || typeof peer.endpoint !== "string" || typeof peer.token !== "string") return;
+                    const endpoint = getSyncBridgeUrl(peer.endpoint);
+                    if (!endpoint || localEndpoints.has(endpoint) || peersByEndpoint.has(endpoint)) return;
+                    peersByEndpoint.set(endpoint, {
+                        endpoint,
+                        token: peer.token,
+                        ...(typeof peer.nodeId === "string" ? { nodeId: peer.nodeId } : {})
+                    });
+                });
+                const peers = Array.from(peersByEndpoint.values());
+                if (syncValuesEqual(peers, getConfiguredDesktopPeers())) return;
+                const updated = {
+                    ...preferences,
+                    syncPeers: peers,
+                    syncEndpoint: "",
+                    syncToken: ""
+                };
+                if (!await saveStorage(STORAGE_PREFERENCES, updated)) {
+                    throw new Error("Os novos computadores foram encontrados, mas não puderam ser salvos neste dispositivo.");
+                }
+                preferences = updated;
+                applyPreferences();
+                await publishLocalPeerDirectory(peers);
+            }
+
             function configureSyncBridge() {
                 if (offlineMode || !accessToken) {
                     syncBridgeFrame.hidden = true;
@@ -6936,6 +7255,14 @@
                         if (!desktopNodeInfo.nodeId || !desktopNodeInfo.pairingKey) {
                             throw new Error("Não foi possível carregar a identificação e o código de pareamento deste computador.");
                         }
+                        void publishLocalPeerDirectory(getConfiguredDesktopPeers()).catch(error => {
+                            console.error("Não foi possível publicar os computadores conhecidos pelo PC.", error);
+                            showSyncStatus(`A conexão automática não conseguiu publicar a lista de parceiros: ${error.message}`, 0);
+                        });
+                        void configureAutomaticBackup(preferences.isPrincipalComputer).catch(error => {
+                            console.error("Não foi possível sincronizar a configuração do backup automático.", error);
+                            showSyncStatus(`A configuração do backup automático não pôde ser aplicada: ${error.message}`, 0);
+                        });
                         document.getElementById("sync-local-key").value = desktopNodeInfo.pairingKey;
                         document.getElementById("sync-local-addresses").value =
                             (desktopNodeInfo.addresses || []).map(address => `http://${address}:${desktopNodeInfo.port}`).join(", ")
@@ -7130,13 +7457,13 @@
                 return info;
             }
 
-            async function fetchPeer(url, options = {}) {
+            async function fetchPeer(url, options = {}, timeoutMs = appConfig.sync.timeoutMs) {
                 const controller = new AbortController();
-                const timeout = window.setTimeout(() => controller.abort(), appConfig.sync.timeoutMs);
+                const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
                 try {
                     return await fetch(url, { ...options, signal: controller.signal });
                 } catch (error) {
-                    if (error.name === "AbortError") throw new Error("A sincronização excedeu o tempo limite de 30 segundos.");
+                    if (error.name === "AbortError") throw new Error(`A conexão excedeu o tempo limite de ${Math.ceil(timeoutMs / 1000)} segundos.`);
                     throw error;
                 } finally {
                     window.clearTimeout(timeout);
@@ -7344,7 +7671,8 @@
                             peerId: desktopNodeInfo.nodeId,
                             localSnapshot: args[1],
                             resolutions: args[2],
-                            actorRole: args[3]
+                            actorRole: args[3],
+                            knownPeers: getConfiguredDesktopPeers()
                         };
                         const cleartext = new TextEncoder().encode(JSON.stringify(payload));
                         const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
@@ -7987,6 +8315,7 @@
                 );
                 await applySyncedSnapshot(snapshotToApply, result.snapshot, result.unlinkedPaaIds || []);
                 await persistAcceptedPeerSnapshot(activePeerId, result.snapshot, actorRole);
+                await rememberDiscoveredPeers(result.knownPeers);
                 return result;
             }
 
@@ -8208,6 +8537,13 @@
                             syncEndpoint: "",
                             syncToken: ""
                         })) return;
+                        try {
+                            await publishLocalPeerDirectory(peers);
+                        } catch (error) {
+                            console.error("Não foi possível registrar os computadores conhecidos neste PC.", error);
+                            showSyncStatus(`A lista foi salva, mas não pôde ser publicada neste computador: ${error.message}`, 0);
+                            return;
+                        }
                         renderRows(peers);
                         showSyncStatus(peers.length
                             ? `${peers.length} computador(es) vinculado(s) salvo(s). Iniciando sincronização.`
@@ -9981,7 +10317,11 @@
 
             function renderHistory() {
                 const records = getFilteredAppointments();
-                historyBody.innerHTML = records.map(record => `<tr>
+                const pageCount = Math.max(1, Math.ceil(records.length / HISTORY_PAGE_SIZE));
+                historyPage = Math.min(historyPage, pageCount - 1);
+                const firstRecord = historyPage * HISTORY_PAGE_SIZE;
+                const visibleRecords = records.slice(firstRecord, firstRecord + HISTORY_PAGE_SIZE);
+                historyBody.innerHTML = visibleRecords.map(record => `<tr>
                     <td data-label="Data e hora">${escapeHtml(formatDateTime(record.createdAt))}</td>
                     <td data-label="Nome">${escapeHtml(record.nome)}</td>
                     <td data-label="Endereço">${escapeHtml(formattedAddress(record))}</td>
@@ -10011,9 +10351,274 @@
                 });
                 emptyState.hidden = records.length > 0;
                 emptyState.innerHTML = records.length ? "" : `<strong>${appointments.length ? "Nenhum resultado encontrado" : "Nenhum atendimento registrado"}</strong>${appointments.length ? "Revise os filtros ou limpe a busca para ver os registros." : "Cadastre um atendimento para começar."}`;
+                const pagination = document.getElementById("history-pagination");
+                pagination.hidden = records.length <= HISTORY_PAGE_SIZE;
+                document.getElementById("history-previous-page").disabled = historyPage === 0;
+                document.getElementById("history-next-page").disabled = historyPage >= pageCount - 1;
+                document.getElementById("history-page-status").textContent =
+                    `Página ${historyPage + 1} de ${pageCount} · ${records.length} registros`;
                 const totalServices = appointments.reduce((count, record) => count + getServiceRows(record).length, 0);
                 document.getElementById("history-count").textContent =
                     `${records.length} ${records.length === 1 ? "atendimento" : "atendimentos"}${records.length !== totalServices ? ` de ${totalServices}` : ""}`;
+            }
+
+            function renderChatMessages(scrollToBottom = false) {
+                const container = chatMessagesElement;
+                if (!chatMessages.length) {
+                    container.innerHTML = "";
+                    const empty = document.createElement("p");
+                    empty.className = "hint";
+                    empty.textContent = "Ainda não há mensagens neste computador.";
+                    container.appendChild(empty);
+                    return;
+                }
+                container.innerHTML = "";
+                chatMessages.forEach(message => {
+                    const article = document.createElement("article");
+                    article.className = `chat-message${message.authorId === activeUser?.id ? " own" : ""}`;
+                    const metadata = document.createElement("div");
+                    metadata.className = "chat-message-meta";
+                    const timestamp = new Intl.DateTimeFormat("pt-BR", {
+                        dateStyle: "short",
+                        timeStyle: "short"
+                    }).format(new Date(message.createdAt));
+                    metadata.textContent = `${message.authorName} · ${timestamp}`;
+                    article.appendChild(metadata);
+
+                    if (message.person) {
+                        const person = document.createElement("p");
+                        person.className = "chat-message-person";
+                        person.textContent = `Pessoa da recomendação: ${message.person.name}${message.person.cpfMasked ? ` · CPF ${message.person.cpfMasked}` : ""}`;
+                        article.appendChild(person);
+                    }
+                    if (message.text) {
+                        const text = document.createElement("div");
+                        text.className = "chat-message-text";
+                        text.textContent = message.text;
+                        article.appendChild(text);
+                    }
+                    if (message.attachment) {
+                        const image = document.createElement("img");
+                        image.className = "chat-message-image";
+                        image.loading = "lazy";
+                        image.alt = message.attachment.name || "Imagem anexada";
+                        image.src = `/api/chat/attachment?id=${encodeURIComponent(message.id)}`;
+                        article.appendChild(image);
+                    }
+                    container.appendChild(article);
+                });
+                if (scrollToBottom) container.scrollTop = container.scrollHeight;
+            }
+
+            async function loadChatMessages(before = "", reset = false) {
+                if (!window.CRASDesktop || chatLoadInProgress) return;
+                chatLoadInProgress = true;
+                const wasNearBottom = chatMessagesElement.scrollHeight
+                    - chatMessagesElement.scrollTop - chatMessagesElement.clientHeight < 60;
+                try {
+                    const query = new URLSearchParams({ limit: String(CHAT_PAGE_SIZE) });
+                    if (before) query.set("before", before);
+                    const response = await fetchPeer(
+                        `/api/chat/messages?${query.toString()}`,
+                        { cache: "no-store" },
+                        5000
+                    );
+                    const result = await response.json();
+                    if (!response.ok || !Array.isArray(result.messages)) {
+                        throw new Error(result.error || "O servidor retornou mensagens inválidas.");
+                    }
+                    const byId = new Map((reset ? [] : chatMessages).map(message => [message.id, message]));
+                    result.messages.forEach(message => byId.set(message.id, message));
+                    chatMessages = Array.from(byId.values())
+                        .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+                        .slice(-300);
+                    document.getElementById("chat-load-older").hidden =
+                        before ? result.messages.length < CHAT_PAGE_SIZE : result.messages.length < CHAT_PAGE_SIZE;
+                    renderChatMessages(!before && wasNearBottom);
+                    const peers = getConfiguredDesktopPeers();
+                    document.getElementById("chat-connection-status").textContent = peers.length
+                        ? `Chat local · ${peers.length} computador(es) vinculado(s)`
+                        : "Mensagens salvas neste PC; vincule um parceiro para compartilhar o chat.";
+                    chatLoadErrorShown = false;
+                } catch (error) {
+                    document.getElementById("chat-connection-status").textContent =
+                        `Não foi possível atualizar o chat: ${error.message}`;
+                    if (!chatLoadErrorShown) {
+                        console.error("Não foi possível atualizar as mensagens do chat.", error);
+                        chatLoadErrorShown = true;
+                    }
+                } finally {
+                    chatLoadInProgress = false;
+                }
+            }
+
+            function renderChatPersonSuggestions() {
+                const input = document.getElementById("chat-person-search");
+                const suggestions = document.getElementById("chat-person-suggestions");
+                const query = input.value.trim().toLocaleLowerCase("pt-BR");
+                const digits = query.replace(/\D/g, "");
+                suggestions.innerHTML = "";
+                if (!query) {
+                    suggestions.hidden = true;
+                    return;
+                }
+                const matches = [...appointments]
+                    .filter(record => (record.nome || "").toLocaleLowerCase("pt-BR").includes(query)
+                        || digits && (record.cpf || "").replace(/\D/g, "").includes(digits))
+                    .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+                    .slice(0, 8);
+                matches.forEach(record => {
+                    const button = document.createElement("button");
+                    button.type = "button";
+                    button.className = "chat-person-suggestion";
+                    button.setAttribute("role", "option");
+                    button.dataset.personId = record.id;
+                    const cpfDigits = (record.cpf || "").replace(/\D/g, "");
+                    button.textContent = `${record.nome || "Pessoa sem nome"}${cpfDigits ? ` · CPF final ${cpfDigits.slice(-2)}` : ""}`;
+                    suggestions.appendChild(button);
+                });
+                suggestions.hidden = matches.length === 0;
+            }
+
+            function clearChatPerson() {
+                chatPerson = null;
+                document.getElementById("chat-selected-person").hidden = true;
+                document.getElementById("chat-person-search").value = "";
+                document.getElementById("chat-person-suggestions").hidden = true;
+            }
+
+            function clearChatAttachment() {
+                chatAttachment = null;
+                document.getElementById("chat-attachment-input").value = "";
+                document.getElementById("chat-attachment-name").textContent = "";
+                document.getElementById("chat-clear-attachment").hidden = true;
+            }
+
+            async function readChatAttachment(file) {
+                if (!CHAT_ATTACHMENT_TYPES.has(file.type)) {
+                    throw new Error("Escolha uma imagem PNG, JPG, GIF ou WebP.");
+                }
+                if (file.size > CHAT_ATTACHMENT_MAX_BYTES) {
+                    throw new Error("A imagem ou GIF deve ter no máximo 2 MB.");
+                }
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onerror = () => reject(new Error("Não foi possível ler o arquivo de imagem."));
+                    reader.onload = () => resolve(reader.result);
+                    reader.readAsDataURL(file);
+                });
+                const data = String(dataUrl).split(",", 2)[1];
+                if (!data) throw new Error("O arquivo de imagem está vazio ou inválido.");
+                return { name: file.name.slice(0, 120), type: file.type, data };
+            }
+
+            async function syncChatMessageWithPeer(peer, message) {
+                const endpoint = getSyncBridgeUrl(peer.endpoint);
+                if (!endpoint || !peer.token) throw new Error("Parceiro do chat sem endereço ou código válido.");
+                const salt = crypto.getRandomValues(new Uint8Array(16));
+                const nonce = crypto.getRandomValues(new Uint8Array(12));
+                const key = await derivePeerKey(peer.token, salt);
+                const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+                    { name: "AES-GCM", iv: nonce },
+                    key,
+                    new TextEncoder().encode(JSON.stringify({ message }))
+                ));
+                const response = await fetchPeer(`${endpoint}/api/chat/sync`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        salt: bytesToBase64(salt),
+                        nonce: bytesToBase64(nonce),
+                        ciphertext: bytesToBase64(ciphertext)
+                    })
+                }, 5000);
+                const resultEnvelope = await response.json();
+                if (!response.ok) {
+                    throw new Error(resultEnvelope.error || "O computador parceiro recusou a mensagem.");
+                }
+                const result = await crypto.subtle.decrypt(
+                    { name: "AES-GCM", iv: base64ToBytes(resultEnvelope.nonce) },
+                    key,
+                    base64ToBytes(resultEnvelope.ciphertext)
+                );
+                const acknowledgement = JSON.parse(new TextDecoder().decode(result));
+                if (acknowledgement.messageId !== message.id) {
+                    throw new Error("O computador parceiro confirmou uma mensagem diferente.");
+                }
+            }
+
+            async function submitChatMessage(event) {
+                event.preventDefault();
+                if (!activeUser) {
+                    document.getElementById("chat-connection-status").textContent =
+                        "Selecione um usuário antes de enviar mensagens.";
+                    return;
+                }
+                const textInput = document.getElementById("chat-message-input");
+                const text = textInput.value.trim();
+                if (!text && !chatPerson && !chatAttachment) {
+                    document.getElementById("chat-connection-status").textContent =
+                        "Escreva uma mensagem, vincule uma pessoa ou selecione uma imagem.";
+                    textInput.focus();
+                    return;
+                }
+                const sendButton = document.getElementById("chat-send");
+                sendButton.disabled = true;
+                const message = {
+                    id: crypto.randomUUID(),
+                    createdAt: new Date().toISOString(),
+                    authorId: activeUser.id,
+                    authorName: activeUser.name,
+                    authorRole: activeUser.role,
+                    text,
+                    ...(chatPerson ? { person: chatPerson } : {}),
+                    ...(chatAttachment ? { attachment: chatAttachment } : {})
+                };
+                try {
+                    const response = await fetchPeer("/api/chat/messages", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(message)
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.message) {
+                        throw new Error(result.error || "Não foi possível salvar a mensagem neste computador.");
+                    }
+                    chatMessages.push(result.message);
+                    chatMessages = chatMessages.slice(-300);
+                    renderChatMessages(true);
+                    textInput.value = "";
+                    clearChatPerson();
+                    clearChatAttachment();
+
+                    const peers = getConfiguredDesktopPeers();
+                    const results = await Promise.allSettled(
+                        peers.map(peer => syncChatMessageWithPeer(peer, result.message))
+                    );
+                    const failures = results.filter(item => item.status === "rejected");
+                    document.getElementById("chat-connection-status").textContent = failures.length
+                        ? `Mensagem salva neste PC; não foi possível enviá-la a ${failures.length} computador(es).`
+                        : peers.length
+                            ? `Mensagem enviada aos ${peers.length} computador(es) vinculado(s).`
+                            : "Mensagem salva neste PC; vincule um parceiro para compartilhá-la.";
+                    failures.forEach(failure => console.error("Falha ao enviar mensagem a um computador parceiro.", failure.reason));
+                } catch (error) {
+                    console.error("Falha ao salvar a mensagem do chat.", error);
+                    document.getElementById("chat-connection-status").textContent =
+                        `Não foi possível enviar a mensagem: ${error.message}`;
+                } finally {
+                    sendButton.disabled = false;
+                    textInput.focus();
+                }
+            }
+
+            function startChatServices() {
+                if (!window.CRASDesktop) return;
+                void loadChatMessages("", true);
+                if (chatPollTimer !== null) window.clearInterval(chatPollTimer);
+                chatPollTimer = window.setInterval(() => {
+                    if (document.visibilityState === "visible") void loadChatMessages();
+                }, 4000);
             }
 
             let customReportExport = null;
@@ -10291,16 +10896,21 @@
                     selectedTab = canShowQueues ? "queues" : "attendance";
                 } else if (selectedTab === "queues" && !canShowQueues) {
                     selectedTab = "attendance";
+                } else if (selectedTab === "chat" && chatTab.hidden) {
+                    selectedTab = canShowQueues ? "queues" : "attendance";
                 }
                 const showPaa = !isStaff && selectedTab === "paa" && Boolean(preferences.paaEnabled);
                 const showQueues = selectedTab === "queues" && canShowQueues;
-                currentMainTab = showQueues ? "queues" : showPaa ? "paa" : "attendance";
+                const showChat = selectedTab === "chat" && !chatTab.hidden;
+                currentMainTab = showQueues ? "queues" : showPaa ? "paa" : showChat ? "chat" : "attendance";
                 queuesTab.setAttribute("aria-selected", String(showQueues));
-                attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues));
+                attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues && !showChat));
                 paaTab.setAttribute("aria-selected", String(showPaa));
+                chatTab.setAttribute("aria-selected", String(showChat));
                 queuesPanel.hidden = !showQueues;
-                attendancePanel.hidden = isStaff || showPaa || mobileIntern && showQueues;
+                attendancePanel.hidden = isStaff || showPaa || showChat || mobileIntern && showQueues;
                 paaPanel.hidden = !showPaa;
+                chatPanel.hidden = !showChat;
             }
 
             function setupModuleTabs() {
@@ -10806,7 +11416,34 @@
             async function importBackup(file) {
                 if (!file) return;
                 try {
-                    const parsed = JSON.parse(await file.text());
+                    if (file.size > MAX_BACKUP_FILE_BYTES) {
+                        throw new Error("O arquivo de backup excede o limite de 100 MB.");
+                    }
+                    let backupText;
+                    if (file.name.toLocaleLowerCase("pt-BR").endsWith(".json.gz")) {
+                        if (typeof DecompressionStream !== "function") {
+                            throw new Error("Este navegador não pode abrir backups compactados. Extraia o arquivo .gz e importe o JSON.");
+                        }
+                        const reader = file.stream()
+                            .pipeThrough(new DecompressionStream("gzip"))
+                            .getReader();
+                        const chunks = [];
+                        let totalBytes = 0;
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            totalBytes += value.byteLength;
+                            if (totalBytes > MAX_BACKUP_FILE_BYTES) {
+                                await reader.cancel();
+                                throw new Error("O backup descompactado excede o limite de 100 MB.");
+                            }
+                            chunks.push(value);
+                        }
+                        backupText = await new Blob(chunks).text();
+                    } else {
+                        backupText = await file.text();
+                    }
+                    const parsed = JSON.parse(backupText);
                     const imported = validateBackup(parsed);
                     const existingIds = new Set(appointments.map(record => record.id));
                     const mergedAppointments = [...appointments];
@@ -11283,14 +11920,30 @@
             });
 
             document.querySelectorAll(".filter-panel input, .filter-panel select").forEach(control => {
-                control.addEventListener("input", renderHistory);
-                control.addEventListener("change", renderHistory);
+                control.addEventListener("input", () => {
+                    historyPage = 0;
+                    renderHistory();
+                });
+                control.addEventListener("change", () => {
+                    historyPage = 0;
+                    renderHistory();
+                });
+            });
+            document.getElementById("history-previous-page").addEventListener("click", () => {
+                if (historyPage === 0) return;
+                historyPage -= 1;
+                renderHistory();
+            });
+            document.getElementById("history-next-page").addEventListener("click", () => {
+                historyPage += 1;
+                renderHistory();
             });
             document.getElementById("report-generate").addEventListener("click", generateCustomReport);
             document.getElementById("report-export-ods").addEventListener("click", exportCustomReportToOds);
             document.getElementById("history-undo").addEventListener("click", undoHistoryAction);
             document.getElementById("clear-filters").addEventListener("click", () => {
                 document.querySelectorAll(".filter-panel input, .filter-panel select").forEach(control => { control.value = ""; });
+                historyPage = 0;
                 renderHistory();
                 document.getElementById("filter-date").focus();
             });
@@ -11362,6 +12015,20 @@
                 updatePreferences({ autoCompleteHistory: event.target.checked }));
             document.getElementById("paa-enabled-toggle").addEventListener("change", async event =>
                 updatePreferences({ paaEnabled: event.target.checked }));
+            document.getElementById("principal-computer-toggle").addEventListener("change", async event => {
+                const enabled = event.target.checked;
+                if (!await updatePreferences({ isPrincipalComputer: enabled })) return;
+                try {
+                    await configureAutomaticBackup(enabled);
+                    showToast(enabled
+                        ? "Backup diário ativado neste PC Principal."
+                        : "Backup automático desativado neste computador.");
+                } catch (error) {
+                    console.error("Não foi possível atualizar o backup automático.", error);
+                    await updatePreferences({ isPrincipalComputer: !enabled });
+                    showSyncStatus(`Não foi possível configurar o backup automático: ${error.message}`, 0);
+                }
+            });
             document.getElementById("user-login-form").addEventListener("submit", event => {
                 loginSelectedUser(event).catch(error => {
                     console.error("Falha ao autenticar o usuário selecionado.", error);
@@ -11397,6 +12064,53 @@
             attendanceTab.addEventListener("click", () => selectMainTab("attendance"));
             paaTab.addEventListener("click", () => selectMainTab("paa"));
             queuesTab.addEventListener("click", () => selectMainTab("queues"));
+            chatTab.addEventListener("click", () => selectMainTab("chat"));
+            document.getElementById("chat-form").addEventListener("submit", submitChatMessage);
+            document.getElementById("chat-person-search").addEventListener("input", renderChatPersonSuggestions);
+            document.getElementById("chat-person-suggestions").addEventListener("click", event => {
+                const button = event.target.closest("[data-person-id]");
+                if (!button) return;
+                const record = appointments.find(item => item.id === button.dataset.personId);
+                if (!record) return;
+                const cpfDigits = (record.cpf || "").replace(/\D/g, "");
+                chatPerson = {
+                    id: record.id,
+                    name: record.nome,
+                    cpfMasked: cpfDigits ? `***.***.***-${cpfDigits.slice(-2)}` : ""
+                };
+                document.getElementById("chat-selected-person-label").textContent =
+                    `Pessoa vinculada: ${chatPerson.name}${chatPerson.cpfMasked ? ` · CPF ${chatPerson.cpfMasked}` : ""}`;
+                document.getElementById("chat-selected-person").hidden = false;
+                document.getElementById("chat-person-suggestions").hidden = true;
+                document.getElementById("chat-person-search").value = "";
+            });
+            document.getElementById("chat-clear-person").addEventListener("click", clearChatPerson);
+            document.getElementById("chat-attachment-input").addEventListener("change", async event => {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                try {
+                    chatAttachment = await readChatAttachment(file);
+                    document.getElementById("chat-attachment-name").textContent = chatAttachment.name;
+                    document.getElementById("chat-clear-attachment").hidden = false;
+                    document.getElementById("chat-connection-status").textContent = "";
+                } catch (error) {
+                    clearChatAttachment();
+                    document.getElementById("chat-connection-status").textContent = error.message;
+                }
+            });
+            document.getElementById("chat-clear-attachment").addEventListener("click", clearChatAttachment);
+            document.querySelector(".chat-emoji-list").addEventListener("click", event => {
+                const button = event.target.closest("[data-chat-emoji]");
+                if (!button) return;
+                const input = document.getElementById("chat-message-input");
+                const start = input.selectionStart;
+                const end = input.selectionEnd;
+                input.setRangeText(button.dataset.chatEmoji, start, end, "end");
+                input.focus();
+            });
+            document.getElementById("chat-load-older").addEventListener("click", () => {
+                if (chatMessages.length) void loadChatMessages(chatMessages[0].createdAt);
+            });
             document.getElementById("paa-sync-pending").addEventListener("click", syncPendingPaaRecords);
             autocompleteSubmit.addEventListener("click", completeHistoryAutocomplete);
             autocompleteCancel.addEventListener("click", () => closeHistoryAutocomplete());
@@ -11618,6 +12332,7 @@
             renderNationalities();
             addressInput.dispatchEvent(new Event("input"));
             renderAll();
+            startChatServices();
 
             window.copyFieldValue = function(elementId, label) {
                 const input = document.getElementById(elementId);

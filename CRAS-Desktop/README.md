@@ -45,11 +45,39 @@ uma rede de convidados) e permita o CRAS Desktop na rede privada do Firewall do
 Windows. O servidor móvel usa a porta TCP 8766; instalar a CA valida o
 certificado, mas não libera a conexão através do firewall.
 
-Para sincronizar, em Configurações → Sincronização adicione o endereço de rede
-e o código de pareamento exibidos pelo outro computador. Faça essa configuração
-em cada computador que deve iniciar o envio automático; sem um parceiro
-configurado, os dados permanecem somente neste dispositivo e a tela informa que
-é preciso conectar um computador parceiro.
+Para iniciar a rede P2P, conecte cada computador a pelo menos um parceiro
+confiável usando o endereço IPv4 e o código de pareamento desse parceiro. Na
+primeira conexão, os computadores trocam, dentro do pacote P2P criptografado, os
+endereços e códigos de pareamento já conhecidos; assim, os demais parceiros
+são adicionados sem recadastrar cada PC. Use somente PCs da rede privada
+autorizada: um parceiro confiável passa a conhecer os códigos dos demais
+parceiros. O Principal é o primeiro ponto de coordenação; filas e histórico
+continuam replicados nos PCs vinculados, preservando o uso offline. Em
+**Configurações → Sincronização**, os endereços deste PC incluem todos os IPv4
+ativos, inclusive os fixos configurados nas interfaces do Windows.
+
+## Chat e backups
+
+A aba **Chat** está disponível no CRAS Desktop. Mensagens, emojis e imagens/GIFs
+(PNG, JPG, GIF ou WebP, até 2 MB) são enviados aos computadores parceiros
+configurados. Uma recomendação pode ser vinculada a um atendimento existente;
+o chat mostra o nome e somente os dois últimos dígitos do CPF para ajudar a
+identificar a pessoa. A referência não altera a fila. Cada PC arquiva, antes de
+limpar, as mensagens dos meses anteriores em
+`%LOCALAPPDATA%\CRAS-Desktop\chat-backups`. Esses arquivos compactados permanecem
+no próprio computador até serem removidos manualmente.
+
+No computador principal, um Admin deve ativar **Este é o PC Principal (backup
+diário)** nas Configurações. O CRAS cria backups compactados diários do
+histórico, encaminhamentos, usuários e dados do PAA em
+`%LOCALAPPDATA%\CRAS-Desktop\backups`, mantendo os 30 mais recentes. O arquivo
+`.json.gz` pode ser selecionado diretamente em **Exportação → Importar backup**;
+o conteúdo é mesclado aos registros locais. Códigos de pareamento não são
+incluídos nesses backups.
+
+O histórico continua completo e independente do preenchimento automático do
+formulário. A tabela mostra 50 registros por página; filtros e exportação
+continuam consultando o histórico inteiro.
 
 No CRAS Desktop, o envio dos registros do PAA ao Google Sheets é configurado
 separadamente: em **Configurações → Sincronização**, informe o URL publicado do

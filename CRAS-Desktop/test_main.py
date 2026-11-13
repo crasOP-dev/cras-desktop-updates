@@ -1,3 +1,4 @@
+import gzip
 import hashlib
 import json
 import tempfile
@@ -10,6 +11,8 @@ from cryptography import x509
 from cryptography.exceptions import InvalidTag
 
 from main import (
+    CRASRequestHandler,
+    PORT,
     PeerStore,
     RevisionConflict,
     decode_envelope,
@@ -23,6 +26,8 @@ from main import (
     latest_release,
     manual_install_target,
     verify_update_checksum,
+    validate_chat_message,
+    validate_peer_directory,
     version_tuple,
 )
 
@@ -415,6 +420,121 @@ class PeerStoreTests(unittest.TestCase):
         with self.assertRaises(RevisionConflict):
             self.store.save_local_snapshot(snapshot, 0)
 
+    def test_sync_shares_known_peer_directory_over_authenticated_sync(self):
+        primary_peer = {"endpoint": "http://192.168.1.10:8765", "token": "primary-token"}
+        new_peer = {"endpoint": "http://192.168.1.11:8765", "token": "new-peer-token"}
+        self.store.set_peer_directory([primary_peer])
+
+        result = self.store.sync(
+            "peer-a",
+            "directory-request",
+            {"appointments": [], "paaRecords": [], "settings": {}},
+            {},
+            known_peers=[new_peer],
+        )
+
+        self.assertEqual(result["knownPeers"], [primary_peer, new_peer])
+        self.assertEqual(self.store.get_peer_directory(), [primary_peer, new_peer])
+
+    def test_peer_directory_rejects_non_local_or_malformed_endpoints(self):
+        for endpoint in (
+            "https://192.168.1.10:8765",
+            "http://example.com:8765",
+            "http://192.168.1.10:9999",
+            "http://user:pass@192.168.1.10:8765",
+        ):
+            with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
+                validate_peer_directory([{"endpoint": endpoint, "token": "pairing-token"}])
+
+    def test_principal_backup_is_compressed_and_contains_restorable_history(self):
+        snapshot = {
+            "appointments": [{"id": "appointment-1", "nome": "Histórico preservado"}],
+            "paaRecords": [],
+            "settings": {"cras-ouro-preto-encaminhamentos-v1": ["Cadastro Único"]},
+        }
+        self.store.save_local_snapshot(snapshot, self.store.get_revision())
+        self.store.set_principal(True)
+
+        backup_path = self.store.create_auto_backup()
+        with gzip.open(backup_path, "rt", encoding="utf-8") as backup_file:
+            backup = json.load(backup_file)
+
+        self.assertTrue(self.store.is_principal())
+        self.assertEqual(backup["format"], "cras-ouro-preto-backup")
+        self.assertEqual(backup["appointments"], snapshot["appointments"])
+        self.assertEqual(backup["routes"], ["Cadastro Único"])
+        self.assertEqual(backup_path.parent.name, "backups")
+
+    def test_principal_backup_keeps_at_most_thirty_copies(self):
+        self.store.save_local_snapshot(
+            {"appointments": [], "paaRecords": [], "settings": {}},
+            self.store.get_revision(),
+        )
+        self.store.set_principal(True)
+        backup_directory = self.store.path.parent / "backups"
+        backup_directory.mkdir()
+        for day in range(31):
+            (backup_directory / f"cras-system-backup-2020-01-{day + 1:02}.json.gz").touch()
+
+        self.store.create_auto_backup()
+
+        self.assertEqual(len(list(backup_directory.glob("cras-system-backup-*.json.gz"))), 30)
+
+    def test_chat_messages_are_deduplicated_and_archive_before_monthly_cleanup(self):
+        message = {
+            "id": "chat-message-1",
+            "createdAt": "2020-01-15T12:00:00Z",
+            "authorId": "user-1",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "text": "Recomendo acompanhar esta pessoa.",
+            "person": {
+                "id": "appointment-1",
+                "name": "Pessoa Exemplo",
+                "cpfMasked": "***.***.***-42",
+            },
+            "attachment": {
+                "name": "documento.png",
+                "type": "image/png",
+                "data": "iVBORw0KGgo=",
+            },
+        }
+        self.store.store_chat_message(message)
+        self.store.store_chat_message(message)
+
+        visible_messages = self.store.list_chat_messages()
+        self.assertEqual(len(visible_messages), 1)
+        self.assertNotIn("data", visible_messages[0]["attachment"])
+        self.assertEqual(
+            self.store.chat_attachment("chat-message-1"),
+            ("image/png", b"\x89PNG\r\n\x1a\n"),
+        )
+
+        archives = self.store.archive_old_chat_messages()
+
+        with gzip.open(archives[0], "rt", encoding="utf-8") as archive_file:
+            archived_messages = json.load(archive_file)
+        self.assertEqual(archived_messages[0]["id"], "chat-message-1")
+        self.assertEqual(archived_messages[0]["attachment"]["data"], "iVBORw0KGgo=")
+        self.assertEqual(self.store.list_chat_messages(), [])
+
+    def test_chat_rejects_non_image_payloads(self):
+        message = {
+            "id": "chat-message-2",
+            "createdAt": "2026-01-15T12:00:00Z",
+            "authorId": "user-1",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "text": "",
+            "attachment": {
+                "name": "document.svg",
+                "type": "image/svg+xml",
+                "data": "PHN2Zy8+",
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "anexo"):
+            validate_chat_message(message)
+
 
 class EncryptionTests(unittest.TestCase):
     def test_round_trip_and_reject_wrong_pairing_code(self):
@@ -445,7 +565,9 @@ class MobileAccessTests(unittest.TestCase):
             (2, 1, 6, "", ("169.254.1.1", 0)),
             (2, 1, 6, "", ("127.0.0.1", 0)),
         ]
-        with patch("main.socket.socket") as socket_factory, patch(
+        with patch("main._LAN_ADDRESSES_CACHE", None), patch(
+            "main.windows_interface_addresses", return_value=[]
+        ), patch("main.socket.socket") as socket_factory, patch(
             "main.socket.getaddrinfo", return_value=address_lookup
         ), patch(
             "main.socket.gethostbyname_ex",
@@ -453,6 +575,17 @@ class MobileAccessTests(unittest.TestCase):
         ):
             socket_factory.return_value.__enter__.return_value = probe
             self.assertEqual(lan_addresses(), ["192.168.1.25", "10.0.0.9"])
+
+    def test_mobile_addresses_include_static_interface_addresses(self):
+        with patch("main._LAN_ADDRESSES_CACHE", None), patch(
+            "main.windows_interface_addresses",
+            return_value=["192.168.1.40", "10.0.0.15"],
+        ), patch("main.socket.socket", side_effect=OSError), patch(
+            "main.socket.getaddrinfo", return_value=[]
+        ), patch(
+            "main.socket.gethostbyname_ex", return_value=("cras-host", [], [])
+        ):
+            self.assertEqual(lan_addresses(), ["10.0.0.15", "192.168.1.40"])
 
     def test_mobile_access_uses_a_salted_key_and_requires_a_long_code(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -519,6 +652,20 @@ class MobileAccessTests(unittest.TestCase):
             server_ski = server_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
             self.assertEqual(server_aki.key_identifier, ca_ski.digest)
             self.assertTrue(server_ski.digest)
+
+
+class LocalAppRequestTests(unittest.TestCase):
+    def test_local_reads_allow_missing_origin_but_reject_foreign_origin(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        self.assertTrue(handler.is_local_app_read_request())
+
+        handler.headers = {"Origin": f"http://127.0.0.1:{PORT}"}
+        self.assertTrue(handler.is_local_app_read_request())
+
+        handler.headers = {"Origin": "https://example.invalid"}
+        self.assertFalse(handler.is_local_app_read_request())
 
 
 if __name__ == "__main__":

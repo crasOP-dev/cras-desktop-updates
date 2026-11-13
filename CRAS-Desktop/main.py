@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from contextlib import closing
+import ctypes
 import hashlib
+import gzip
 import ipaddress
 import json
 import logging
@@ -53,6 +56,12 @@ PORT = 8765
 MOBILE_PORT = 8766
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+MAX_PEERS = 100
+AUTO_BACKUP_RETENTION = 30
+MAX_CHAT_TEXT_LENGTH = 4000
+MAX_CHAT_ATTACHMENT_BYTES = 2 * 1024 * 1024
+MAX_CHAT_MESSAGE_BYTES = 3 * 1024 * 1024
+CHAT_ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 
 PBKDF2_ITERATIONS = 200_000
 MOBILE_ACCESS_ITERATIONS = 600_000
@@ -370,6 +379,170 @@ def validate_snapshot(snapshot: object) -> dict:
                 raise ValueError(f"Um registro da coleção {collection} excedeu o limite permitido.")
             seen.add(item["id"])
     return snapshot
+
+
+def validate_peer_directory(peers: object) -> list[dict[str, str]]:
+    if not isinstance(peers, list) or len(peers) > MAX_PEERS:
+        raise ValueError("A lista de computadores vinculados é inválida.")
+    validated = []
+    seen = set()
+    for peer in peers:
+        if not isinstance(peer, dict):
+            raise ValueError("Há um computador inválido na lista de parceiros.")
+        endpoint = peer.get("endpoint")
+        token = peer.get("token")
+        node_id = peer.get("nodeId", "")
+        if not isinstance(endpoint, str) or not isinstance(token, str):
+            raise ValueError("O endereço e o código de um parceiro são inválidos.")
+        if not endpoint or len(endpoint) > 512 or not token or len(token) > 512:
+            raise ValueError("O endereço ou código de um parceiro excede o tamanho permitido.")
+        if any(ord(character) < 32 for character in endpoint + token):
+            raise ValueError("O endereço ou código de um parceiro contém caracteres inválidos.")
+        parsed = urlsplit(endpoint)
+        try:
+            port = parsed.port if parsed.port is not None else PORT
+        except ValueError as error:
+            raise ValueError("A porta de um computador parceiro é inválida.") from error
+        host = parsed.hostname
+        try:
+            address = ipaddress.IPv4Address(host or "")
+        except ipaddress.AddressValueError as error:
+            raise ValueError("Os computadores vinculados precisam usar um endereço IPv4 local.") from error
+        if (
+            parsed.scheme != "http"
+            or port != PORT
+            or parsed.username
+            or parsed.password
+            or parsed.path not in ("", "/")
+            or parsed.query
+            or parsed.fragment
+            or not address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_unspecified
+            or address.is_multicast
+        ):
+            raise ValueError("O endereço de um computador parceiro não é válido para a rede local.")
+        if not isinstance(node_id, str) or len(node_id) > 100:
+            raise ValueError("A identificação de um computador parceiro é inválida.")
+        normalized_host = str(address)
+        normalized_endpoint = f"http://{normalized_host}:{PORT}"
+        dedupe_key = normalized_endpoint, token
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        entry = {"endpoint": normalized_endpoint, "token": token}
+        if node_id:
+            entry["nodeId"] = node_id
+        validated.append(entry)
+    return validated
+
+
+def validate_chat_message(message: object) -> dict:
+    if not isinstance(message, dict):
+        raise ValueError("A mensagem do chat está inválida.")
+    message_id = message.get("id")
+    created_at = message.get("createdAt")
+    author_id = message.get("authorId")
+    author_name = message.get("authorName")
+    author_role = message.get("authorRole")
+    text = message.get("text", "")
+    if (
+        not isinstance(message_id, str)
+        or not message_id.strip()
+        or len(message_id) > 100
+        or not isinstance(created_at, str)
+        or len(created_at) > 50
+        or not isinstance(author_id, str)
+        or not author_id.strip()
+        or len(author_id) > 100
+        or not isinstance(author_name, str)
+        or not author_name.strip()
+        or len(author_name) > 100
+        or not isinstance(author_role, str)
+        or author_role not in VALID_USER_ROLES
+        or not isinstance(text, str)
+        or len(text) > MAX_CHAT_TEXT_LENGTH
+    ):
+        raise ValueError("Os dados básicos da mensagem do chat são inválidos.")
+    try:
+        message_date = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise ValueError("A data da mensagem do chat é inválida.") from error
+    if message_date.tzinfo is None:
+        raise ValueError("A data da mensagem do chat precisa incluir o fuso horário.")
+    validated = {
+        "id": message_id,
+        "createdAt": message_date.astimezone(timezone.utc).isoformat(),
+        "authorId": author_id,
+        "authorName": author_name.strip(),
+        "authorRole": author_role,
+        "text": text,
+    }
+
+    person = message.get("person")
+    if person is not None:
+        if (
+            not isinstance(person, dict)
+            or not isinstance(person.get("id"), str)
+            or not person["id"].strip()
+            or len(person["id"]) > 100
+            or not isinstance(person.get("name"), str)
+            or not person["name"].strip()
+            or len(person["name"]) > 120
+            or not isinstance(person.get("cpfMasked", ""), str)
+            or len(person.get("cpfMasked", "")) > 24
+        ):
+            raise ValueError("A pessoa vinculada à mensagem está inválida.")
+        validated["person"] = {
+            "id": person["id"],
+            "name": person["name"].strip(),
+            "cpfMasked": person.get("cpfMasked", ""),
+        }
+
+    attachment = message.get("attachment")
+    if attachment is not None:
+        if (
+            not isinstance(attachment, dict)
+            or not isinstance(attachment.get("name"), str)
+            or not attachment["name"].strip()
+            or len(attachment["name"]) > 120
+            or "/" in attachment["name"]
+            or "\\" in attachment["name"]
+            or not isinstance(attachment.get("type"), str)
+            or attachment["type"] not in CHAT_ATTACHMENT_TYPES
+            or not isinstance(attachment.get("data"), str)
+        ):
+            raise ValueError("O anexo do chat é inválido.")
+        try:
+            attachment_bytes = base64.b64decode(attachment["data"], validate=True)
+        except (ValueError, binascii.Error) as error:
+            raise ValueError("Os dados do anexo não estão em base64 válido.") from error
+        if not attachment_bytes or len(attachment_bytes) > MAX_CHAT_ATTACHMENT_BYTES:
+            raise ValueError("O anexo deve ter no máximo 2 MB.")
+        signatures = {
+            "image/png": attachment_bytes.startswith(b"\x89PNG\r\n\x1a\n"),
+            "image/jpeg": attachment_bytes.startswith(b"\xff\xd8\xff"),
+            "image/gif": attachment_bytes.startswith((b"GIF87a", b"GIF89a")),
+            "image/webp": (
+                len(attachment_bytes) >= 12
+                and attachment_bytes[:4] == b"RIFF"
+                and attachment_bytes[8:12] == b"WEBP"
+            ),
+        }
+        if not signatures[attachment["type"]]:
+            raise ValueError("O conteúdo do anexo não corresponde ao formato de imagem informado.")
+        validated["attachment"] = {
+            "name": attachment["name"].strip(),
+            "type": attachment["type"],
+            "data": attachment["data"],
+        }
+
+    if not text.strip() and "person" not in validated and "attachment" not in validated:
+        raise ValueError("Escreva uma mensagem ou inclua uma pessoa ou imagem.")
+    if len(canonical(validated).encode("utf-8")) > MAX_CHAT_MESSAGE_BYTES:
+        raise ValueError("A mensagem do chat excedeu o limite permitido.")
+    return validated
 def derive_key(password: str, salt: bytes) -> bytes:
     return PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -443,12 +616,18 @@ class PeerStore:
                     "(id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0)"
                 )
                 db.execute(
+                    "CREATE TABLE IF NOT EXISTS chat_messages "
+                    "(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, month TEXT NOT NULL, payload TEXT NOT NULL)"
+                )
+                db.execute(
                     "INSERT OR IGNORE INTO current_snapshot (id, payload) VALUES (1, ?)",
                     (canonical(EMPTY_SNAPSHOT),),
                 )
                 self.node_id = self.get_or_create(db, "node_id", str(uuid.uuid4()))
                 self.pairing_key = self.get_or_create(db, "pairing_key", secrets.token_urlsafe(24))
                 self.active_role = self.get_or_create(db, "active_role", "")
+                self.get_or_create(db, "peer_directory", "[]")
+                self.get_or_create(db, "is_principal", "false")
 # OTIMIZAÇÃO 2: Configuração do SQLite para não travar a escrita em disco
     def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=15)
@@ -462,6 +641,190 @@ class PeerStore:
             return str(row[0])
         db.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", (key, value))
         return value
+    def get_peer_directory(self) -> list[dict[str, str]]:
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'peer_directory'"
+            ).fetchone()
+            return validate_peer_directory(json.loads(row[0]) if row else [])
+    def set_peer_directory(self, peers: object) -> int:
+        validated = validate_peer_directory(peers)
+        with self.lock, closing(self.connect()) as db:
+            with db:
+                db.execute(
+                    "UPDATE metadata SET value = ? WHERE key = 'peer_directory'",
+                    (canonical(validated),),
+                )
+        return len(validated)
+    def set_principal(self, enabled: bool) -> None:
+        if not isinstance(enabled, bool):
+            raise ValueError("A configuração do computador principal é inválida.")
+        with self.lock, closing(self.connect()) as db:
+            with db:
+                db.execute(
+                    "UPDATE metadata SET value = ? WHERE key = 'is_principal'",
+                    ("true" if enabled else "false",),
+                )
+    def is_principal(self) -> bool:
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'is_principal'"
+            ).fetchone()
+            return bool(row and row[0] == "true")
+    def create_auto_backup(self) -> Path | None:
+        if not self.ready:
+            return None
+        directory = self.path.parent / "backups"
+        directory.mkdir(parents=True, exist_ok=True)
+        backup_name = f"cras-system-backup-{datetime.now().astimezone():%Y-%m-%d}.json.gz"
+        backup_path = directory / backup_name
+        if backup_path.exists():
+            return backup_path
+
+        state = self.get_local_state()
+        snapshot = state["snapshot"]
+        settings = snapshot["settings"]
+        backup = {
+            "format": "cras-ouro-preto-backup",
+            "version": 1,
+            "exportedAt": datetime.now(timezone.utc).isoformat(),
+            "appointments": snapshot["appointments"],
+            "routes": settings.get("cras-ouro-preto-encaminhamentos-v1", []),
+            "routeQueueTags": settings.get("cras-ouro-preto-encaminhamento-filas-v1", {}),
+            "nationalities": settings.get("cras-ouro-preto-nacionalidades-v1", []),
+            "assistants": settings.get("cras-ouro-preto-assistentes-v1", []),
+            "users": settings.get("cras-ouro-preto-usuarios-v1", []),
+            "paaRecords": snapshot["paaRecords"],
+        }
+        temporary_archive = directory / f".{backup_name}.tmp"
+        try:
+            with gzip.open(temporary_archive, "wt", encoding="utf-8", compresslevel=6) as destination:
+                json.dump(backup, destination, ensure_ascii=False, separators=(",", ":"))
+            os.replace(temporary_archive, backup_path)
+        finally:
+            try:
+                temporary_archive.unlink()
+            except FileNotFoundError:
+                pass
+
+        backups = sorted(directory.glob("cras-system-backup-*.json.gz"))
+        for expired_backup in backups[:-AUTO_BACKUP_RETENTION]:
+            expired_backup.unlink()
+        return backup_path
+    def store_chat_message(self, message: object) -> dict:
+        validated = validate_chat_message(message)
+        payload = canonical(validated)
+        message_date = datetime.fromisoformat(validated["createdAt"])
+        message_month = message_date.astimezone().strftime("%Y-%m")
+        with self.lock, closing(self.connect()) as db:
+            with db:
+                row = db.execute(
+                    "SELECT payload FROM chat_messages WHERE id = ?", (validated["id"],)
+                ).fetchone()
+                if row:
+                    if row[0] != payload:
+                        raise ValueError("O identificador da mensagem já está associado a outro conteúdo.")
+                    return validated
+                db.execute(
+                    "INSERT INTO chat_messages (id, created_at, month, payload) VALUES (?, ?, ?, ?)",
+                    (validated["id"], validated["createdAt"], message_month, payload),
+                )
+        return validated
+    def list_chat_messages(self, limit: int = 50, before: str = "") -> list[dict]:
+        if not isinstance(limit, int) or not 1 <= limit <= 100:
+            raise ValueError("A quantidade de mensagens solicitada é inválida.")
+        if before:
+            try:
+                before = datetime.fromisoformat(before.replace("Z", "+00:00")).astimezone(
+                    timezone.utc
+                ).isoformat()
+            except ValueError as error:
+                raise ValueError("A data para carregar mensagens anteriores é inválida.") from error
+        query = "SELECT payload FROM chat_messages"
+        parameters: tuple = ()
+        if before:
+            query += " WHERE created_at < ?"
+            parameters = (before,)
+        query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+        parameters += (limit,)
+        with self.lock, closing(self.connect()) as db:
+            rows = db.execute(query, parameters).fetchall()
+        messages = [json.loads(row[0]) for row in reversed(rows)]
+        for message in messages:
+            if "attachment" in message:
+                message["attachment"] = {
+                    "name": message["attachment"]["name"],
+                    "type": message["attachment"]["type"],
+                }
+        return messages
+    def chat_attachment(self, message_id: str) -> tuple[str, bytes] | None:
+        if not isinstance(message_id, str) or not message_id or len(message_id) > 100:
+            raise ValueError("A identificação da imagem é inválida.")
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT payload FROM chat_messages WHERE id = ?", (message_id,)
+            ).fetchone()
+        if not row:
+            return None
+        message = json.loads(row[0])
+        attachment = message.get("attachment")
+        if not attachment:
+            return None
+        return attachment["type"], base64.b64decode(attachment["data"], validate=True)
+    def archive_old_chat_messages(self) -> list[Path]:
+        with self.lock:
+            return self._archive_old_chat_messages_locked()
+    def _archive_old_chat_messages_locked(self) -> list[Path]:
+        current_month = datetime.now().astimezone().strftime("%Y-%m")
+        with self.lock, closing(self.connect()) as db:
+            months = [
+                row[0]
+                for row in db.execute(
+                    "SELECT DISTINCT month FROM chat_messages WHERE month < ? ORDER BY month",
+                    (current_month,),
+                ).fetchall()
+            ]
+        if not months:
+            return []
+        archive_directory = self.path.parent / "chat-backups"
+        archive_directory.mkdir(parents=True, exist_ok=True)
+        created_archives = []
+        for month in months:
+            with self.lock, closing(self.connect()) as db:
+                rows = db.execute(
+                    "SELECT id, created_at, payload FROM chat_messages WHERE month = ? ORDER BY created_at, id",
+                    (month,),
+                ).fetchall()
+            messages = {row[0]: json.loads(row[2]) for row in rows}
+            archive_path = archive_directory / f"cras-chat-backup-{month}.json.gz"
+            if archive_path.exists():
+                with gzip.open(archive_path, "rt", encoding="utf-8") as archive_file:
+                    previous_messages = json.load(archive_file)
+                if not isinstance(previous_messages, list):
+                    raise ValueError(f"O backup do chat de {month} está inválido.")
+                for message in previous_messages:
+                    validated = validate_chat_message(message)
+                    messages.setdefault(validated["id"], validated)
+            temporary_path = archive_path.with_name(f".{archive_path.name}.tmp")
+            try:
+                with gzip.open(temporary_path, "wt", encoding="utf-8") as archive_file:
+                    json.dump(
+                        [messages[key] for key in sorted(messages)],
+                        archive_file,
+                        ensure_ascii=False,
+                        separators=(",", ":"),
+                    )
+                os.replace(temporary_path, archive_path)
+            finally:
+                try:
+                    temporary_path.unlink()
+                except FileNotFoundError:
+                    pass
+            with self.lock, closing(self.connect()) as db:
+                with db:
+                    db.execute("DELETE FROM chat_messages WHERE month = ?", (month,))
+            created_archives.append(archive_path)
+        return created_archives
     def configure_mobile_access(self, password: str) -> None:
         with self.lock, closing(self.connect()) as db:
             with db:
@@ -598,6 +961,7 @@ class PeerStore:
         local_snapshot: object,
         resolutions: object,
         peer_role: object = None,
+        known_peers: object = None,
     ) -> dict:
         if not self.ready:
             raise ValueError("O outro computador ainda está inicializando. Tente sincronizar novamente em instantes.")
@@ -606,6 +970,7 @@ class PeerStore:
         if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
             raise ValueError("Identificação da solicitação inválida.")
         local = validate_snapshot(local_snapshot)
+        incoming_peers = validate_peer_directory([] if known_peers is None else known_peers)
         if not isinstance(resolutions, dict):
             raise ValueError("As resoluções de conflito estão inválidas.")
         if peer_role is not None and (
@@ -634,6 +999,22 @@ class PeerStore:
                         base, local, remote, peer_role, self.active_role
                     ),
                 }
+                directory_row = db.execute(
+                    "SELECT value FROM metadata WHERE key = 'peer_directory'"
+                ).fetchone()
+                peer_directory = validate_peer_directory(
+                    json.loads(directory_row[0]) if directory_row else []
+                )
+                directory_keys = {
+                    (peer["endpoint"], peer["token"]) for peer in peer_directory
+                }
+                for peer in incoming_peers:
+                    key = (peer["endpoint"], peer["token"])
+                    if key not in directory_keys:
+                        directory_keys.add(key)
+                        peer_directory.append(peer)
+                if len(peer_directory) > MAX_PEERS:
+                    raise ValueError("A rede vinculada excedeu o limite de computadores permitido.")
                 validate_snapshot(merged)
                 payload = canonical(merged)
                 db.execute(
@@ -649,6 +1030,11 @@ class PeerStore:
                     "INSERT INTO seen_requests (peer_id, request_id) VALUES (?, ?)",
                     (peer_id, request_id),
                 )
+                db.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('peer_directory', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (canonical(peer_directory),),
+                )
                 revision = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()[0]
                 return {
                     "status": "ok",
@@ -657,6 +1043,7 @@ class PeerStore:
                     "syncedAt": datetime.now(timezone.utc).isoformat(),
                     "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
                     "unlinkedPaaIds": [],
+                    "knownPeers": peer_directory,
                 }
     @staticmethod
     def merge_collection(
@@ -894,6 +1281,111 @@ _LAN_CACHE_LOCK = threading.Lock()
 
 # OTIMIZAÇÃO 3: Cache para evitar chamadas de socket síncronas pesadas repetidamente
 
+def windows_interface_addresses() -> list[str]:
+    if os.name != "nt":
+        return []
+
+    class SocketAddress(ctypes.Structure):
+        _fields_ = [("address", ctypes.c_void_p), ("length", ctypes.c_int)]
+
+    class AdapterUnicastAddress(ctypes.Structure):
+        _fields_ = [
+            ("length", ctypes.c_ulong),
+            ("flags", ctypes.c_ulong),
+            ("next", ctypes.c_void_p),
+            ("address", SocketAddress),
+            ("prefix_origin", ctypes.c_int),
+            ("suffix_origin", ctypes.c_int),
+            ("dad_state", ctypes.c_int),
+            ("valid_lifetime", ctypes.c_ulong),
+            ("preferred_lifetime", ctypes.c_ulong),
+            ("lease_lifetime", ctypes.c_ulong),
+            ("on_link_prefix_length", ctypes.c_ubyte),
+        ]
+
+    class AdapterAddresses(ctypes.Structure):
+        _fields_ = [
+            ("length", ctypes.c_ulong),
+            ("if_index", ctypes.c_ulong),
+            ("next", ctypes.c_void_p),
+            ("adapter_name", ctypes.c_void_p),
+            ("first_unicast_address", ctypes.c_void_p),
+            ("first_anycast_address", ctypes.c_void_p),
+            ("first_multicast_address", ctypes.c_void_p),
+            ("first_dns_server_address", ctypes.c_void_p),
+            ("dns_suffix", ctypes.c_void_p),
+            ("description", ctypes.c_void_p),
+            ("friendly_name", ctypes.c_void_p),
+            ("physical_address", ctypes.c_ubyte * 8),
+            ("physical_address_length", ctypes.c_ulong),
+            ("flags", ctypes.c_ulong),
+            ("mtu", ctypes.c_ulong),
+            ("if_type", ctypes.c_ulong),
+            ("oper_status", ctypes.c_int),
+        ]
+
+    ip_helper = ctypes.WinDLL("iphlpapi.dll")
+    get_adapters_addresses = ip_helper.GetAdaptersAddresses
+    get_adapters_addresses.argtypes = [
+        ctypes.c_ulong,
+        ctypes.c_ulong,
+        ctypes.c_void_p,
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_ulong),
+    ]
+    get_adapters_addresses.restype = ctypes.c_ulong
+    buffer_size = ctypes.c_ulong(0)
+    result = get_adapters_addresses(2, 0x2 | 0x4 | 0x8, None, None, ctypes.byref(buffer_size))
+    if result not in (0, 111):
+        raise OSError(result, "Não foi possível consultar os adaptadores de rede do Windows.")
+    if not buffer_size.value:
+        return []
+
+    buffer = ctypes.create_string_buffer(buffer_size.value)
+    result = get_adapters_addresses(
+        2, 0x2 | 0x4 | 0x8, None, ctypes.byref(buffer), ctypes.byref(buffer_size)
+    )
+    if result:
+        raise OSError(result, "Não foi possível enumerar os adaptadores de rede do Windows.")
+
+    addresses = set()
+    adapter = ctypes.cast(buffer, ctypes.POINTER(AdapterAddresses))
+    while adapter:
+        if adapter.contents.oper_status == 1:
+            unicast = ctypes.cast(
+                adapter.contents.first_unicast_address,
+                ctypes.POINTER(AdapterUnicastAddress),
+            )
+            while unicast:
+                address = unicast.contents.address.address
+                if address:
+                    sockaddr = ctypes.cast(address, ctypes.POINTER(ctypes.c_ushort))
+                    if sockaddr.contents.value == socket.AF_INET:
+                        raw_address = ctypes.string_at(address + 4, 4)
+                        ip = str(ipaddress.IPv4Address(raw_address))
+                        parsed = ipaddress.IPv4Address(ip)
+                        if not (
+                            parsed.is_loopback
+                            or parsed.is_link_local
+                            or parsed.is_unspecified
+                            or parsed.is_multicast
+                        ):
+                            addresses.add(ip)
+                next_address = unicast.contents.next
+                unicast = (
+                    ctypes.cast(next_address, ctypes.POINTER(AdapterUnicastAddress))
+                    if next_address
+                    else None
+                )
+        next_adapter = adapter.contents.next
+        adapter = (
+            ctypes.cast(next_adapter, ctypes.POINTER(AdapterAddresses))
+            if next_adapter
+            else None
+        )
+    return sorted(addresses)
+
+
 def lan_addresses() -> list[str]:
     global _LAN_ADDRESSES_CACHE, _LAN_ADDRESSES_CACHE_TIME
     now = time.monotonic()
@@ -902,6 +1394,10 @@ def lan_addresses() -> list[str]:
             return _LAN_ADDRESSES_CACHE
     results: set[str] = set()
     primary_address = ""
+    try:
+        results.update(windows_interface_addresses())
+    except (OSError, AttributeError):
+        logging.exception("Não foi possível enumerar os endereços das interfaces de rede.")
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
             probe.connect(("8.8.8.8", 80))
@@ -1113,6 +1609,12 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             self.is_local_loopback_request()
             and bool(origin)
             and self.is_local_origin(origin)
+        )
+    def is_local_app_read_request(self) -> bool:
+        origin = self.headers.get("Origin")
+        return (
+            self.is_local_loopback_request()
+            and (not origin or self.is_local_origin(origin))
         )
     def is_local_loopback_request(self) -> bool:
         return self.client_address[0] in ("127.0.0.1", "::1")
@@ -1465,6 +1967,47 @@ document.getElementById('tab-ios').classList.add('active');
                     info["mobileAddresses"] = addresses
             self.send_json(200, info, self.headers.get("Origin"))
             return
+        if path == "/api/chat/messages":
+            if not self.is_local_app_read_request():
+                self.send_error(403)
+                return
+            query = parse_qs(urlsplit(self.path).query)
+            try:
+                limit = int(query.get("limit", ["50"])[0])
+                before = query.get("before", [""])[0]
+                messages = self.store.list_chat_messages(limit, before)
+                self.send_json(200, {"messages": messages}, self.headers.get("Origin"))
+            except ValueError as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível carregar as mensagens locais do chat.")
+                self.send_json(500, {"error": "Não foi possível carregar o chat."},
+                               self.headers.get("Origin"))
+            return
+        if path == "/api/chat/attachment":
+            if not self.is_local_app_read_request():
+                self.send_error(403)
+                return
+            query = parse_qs(urlsplit(self.path).query)
+            try:
+                attachment = self.store.chat_attachment(query.get("id", [""])[0])
+                if attachment is None:
+                    self.send_error(404)
+                    return
+                content_type, body = attachment
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except ValueError as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível carregar uma imagem do chat.")
+                self.send_json(500, {"error": "Não foi possível carregar a imagem do chat."},
+                               self.headers.get("Origin"))
+            return
         if path == "/api/local-snapshot":
             if not self.is_local_loopback_request():
                 self.send_error(403)
@@ -1539,6 +2082,46 @@ document.getElementById('tab-ios').classList.add('active');
         self.wfile.write(body)
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/chat/messages":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > MAX_CHAT_MESSAGE_BYTES + 16 * 1024:
+                    raise ValueError("Tamanho da mensagem do chat inválido.")
+                message = json.loads(self.rfile.read(length).decode("utf-8"))
+                stored = self.store.store_chat_message(message)
+                self.send_json(200, {"message": stored}, self.headers.get("Origin"))
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível salvar uma mensagem local do chat.")
+                self.send_json(500, {"error": "Não foi possível salvar a mensagem do chat."},
+                               self.headers.get("Origin"))
+            return
+        if path == "/api/chat/sync":
+            origin = self.headers.get("Origin")
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > MAX_BODY_BYTES:
+                    raise ValueError("Tamanho da mensagem sincronizada inválido.")
+                envelope = json.loads(self.rfile.read(length).decode("utf-8"))
+                salt, payload = decode_envelope(envelope, self.store.pairing_key)
+                message = self.store.store_chat_message(payload.get("message"))
+                self.send_json(
+                    200,
+                    encode_envelope(salt, self.store.pairing_key, {"messageId": message["id"]}),
+                    origin,
+                )
+            except InvalidTag:
+                self.send_json(400, {"error": "Código de pareamento incorreto ou mensagem adulterada."}, origin)
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, origin)
+            except Exception:
+                logging.exception("Não foi possível receber uma mensagem P2P do chat.")
+                self.send_json(500, {"error": "Não foi possível sincronizar a mensagem do chat."}, origin)
+            return
         if path == "/api/apply-update":
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -1631,6 +2214,54 @@ document.getElementById('tab-ios').classList.add('active');
                 logging.exception("Falha ao processar o estado móvel do CRAS Desktop.")
                 self.send_json(500, {"error": "Não foi possível salvar ou carregar os dados móveis."})
             return
+        if path == "/api/local-peer-directory":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 256 * 1024:
+                    raise ValueError("Tamanho da lista de computadores inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict) or "peers" not in payload:
+                    raise ValueError("A lista de computadores vinculados está inválida.")
+                count = self.store.set_peer_directory(payload["peers"])
+                self.send_json(200, {"count": count}, self.headers.get("Origin"))
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível salvar a lista local de computadores.")
+                self.send_json(500, {"error": "Não foi possível salvar os computadores vinculados."},
+                               self.headers.get("Origin"))
+            return
+        if path == "/api/backup-config":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 1024:
+                    raise ValueError("Configuração de backup inválida.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict) or not isinstance(payload.get("isPrincipal"), bool):
+                    raise ValueError("Informe se este computador é o PC Principal.")
+                self.store.set_principal(payload["isPrincipal"])
+                backup_path = self.store.create_auto_backup() if payload["isPrincipal"] else None
+                self.send_json(
+                    200,
+                    {
+                        "enabled": payload["isPrincipal"],
+                        "backup": backup_path.name if backup_path else "",
+                    },
+                    self.headers.get("Origin"),
+                )
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível configurar o backup automático.")
+                self.send_json(500, {"error": "Não foi possível configurar ou criar o backup automático."},
+                               self.headers.get("Origin"))
+            return
         if path in ("/api/local-snapshot", "/api/accept-sync"):
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -1687,6 +2318,7 @@ document.getElementById('tab-ios').classList.add('active');
                 payload.get("localSnapshot"),
                 payload.get("resolutions"),
                 payload.get("actorRole"),
+                payload.get("knownPeers"),
             )
             self.send_json(200, encode_envelope(salt, self.store.pairing_key, result), origin)
         except Exception as error:
@@ -1704,6 +2336,19 @@ def configure_logging(directory: Path) -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         encoding="utf-8",
     )
+
+
+def automatic_backup_scheduler(store: PeerStore) -> None:
+    while True:
+        try:
+            store.archive_old_chat_messages()
+            if store.is_principal() and store.ready:
+                store.create_auto_backup()
+        except Exception:
+            logging.exception("Falha ao criar o backup diário automático.")
+        time.sleep(300)
+
+
 def show_startup_error(message: str) -> None:
     try:
         import tkinter
@@ -1723,6 +2368,12 @@ def main() -> None:
         logging.exception("Não foi possível inicializar o armazenamento do CRAS Desktop.")
         show_startup_error(f"Não foi possível inicializar o armazenamento local do aplicativo.\n\nDetalhe: {error}")
         return
+    threading.Thread(
+        target=automatic_backup_scheduler,
+        args=(store,),
+        name="cras-auto-backup",
+        daemon=True,
+    ).start()
     if install_manual_executable():
         return
     if check_for_update():
