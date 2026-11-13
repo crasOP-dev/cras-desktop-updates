@@ -1178,38 +1178,136 @@
             font-size: 12px;
         }
 
-        .chat-layout {
-            max-width: 920px;
-            margin: 0 auto;
+        .chat-popup {
+            position: fixed;
+            z-index: 14;
+            right: 22px;
+            bottom: 86px;
+            display: flex;
+            flex-direction: column;
+            width: min(420px, calc(100vw - 32px));
+            height: min(660px, calc(100vh - 112px));
+            min-height: 0;
+            overflow: hidden;
+            color: var(--ink);
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            box-shadow: 0 16px 48px rgba(13, 35, 29, .24);
+        }
+
+        .chat-popup[hidden] {
+            display: none !important;
+        }
+
+        .chat-popup-header {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 11px;
+            min-height: 66px;
+            padding: 10px 14px;
+            color: #fff;
+            background: var(--teal);
+        }
+
+        .chat-popup-avatar {
+            display: grid;
+            flex: 0 0 40px;
+            width: 40px;
+            height: 40px;
+            place-items: center;
+            color: var(--teal);
+            background: #fff;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 800;
+        }
+
+        .chat-popup-title {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .chat-popup-title h2 {
+            margin: 0;
+            color: inherit;
+            font-size: 16px;
+        }
+
+        .chat-popup-title p {
+            margin: 3px 0 0;
+            color: rgba(255, 255, 255, .84);
+            font-size: 11px;
+            line-height: 1.3;
+        }
+
+        .chat-popup-close {
+            display: grid;
+            flex: 0 0 36px;
+            width: 36px;
+            height: 36px;
+            place-items: center;
+            color: #fff;
+            background: transparent;
+            border: 0;
+            border-radius: 50%;
+            font-size: 25px;
+        }
+
+        .chat-popup-close:hover {
+            background: rgba(255, 255, 255, .16);
+        }
+
+        .chat-popup-body {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+            padding: 10px;
+        }
+
+        .chat-history-row {
+            display: flex;
+            flex: 0 0 auto;
+            justify-content: center;
+        }
+
+        .chat-history-row .button-secondary {
+            min-height: 30px;
+            padding-inline: 10px;
+            font-size: 11px;
         }
 
         .chat-messages {
             display: flex;
+            flex: 1;
             flex-direction: column;
-            gap: 10px;
-            min-height: 240px;
-            max-height: 55vh;
+            gap: 8px;
+            min-height: 0;
             overflow-y: auto;
-            padding: 14px;
+            padding: 12px;
             background: var(--canvas);
-            border: 1px solid var(--line);
+            border: 0;
             border-radius: 10px;
         }
 
         .chat-message {
             align-self: flex-start;
-            max-width: min(80%, 620px);
-            padding: 10px 12px;
+            max-width: min(88%, 340px);
+            padding: 9px 11px;
             background: var(--paper);
-            border: 1px solid var(--line);
-            border-radius: 10px 10px 10px 2px;
+            border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+            border-radius: 12px 12px 12px 3px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
             overflow-wrap: anywhere;
         }
 
         .chat-message.own {
             align-self: flex-end;
             background: var(--green-soft);
-            border-radius: 10px 10px 2px 10px;
+            border-radius: 12px 12px 3px 12px;
         }
 
         .chat-message-meta,
@@ -1244,14 +1342,34 @@
 
         .chat-composer {
             display: grid;
-            gap: 10px;
-            margin-top: 12px;
+            flex: 0 0 auto;
+            gap: 7px;
+            margin: 0;
+        }
+
+        .chat-person-details summary {
+            width: fit-content;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .chat-person-details[open] .chat-person-picker {
+            margin-top: 7px;
+        }
+
+        .chat-composer #chat-message-input {
+            min-height: 58px;
+            max-height: 110px;
+            resize: vertical;
+            border-radius: 18px;
         }
 
         .chat-composer-tools {
             display: flex;
             flex-wrap: wrap;
             align-items: center;
+            justify-content: space-between;
             gap: 8px;
         }
 
@@ -1259,7 +1377,14 @@
             display: flex;
             flex-wrap: wrap;
             gap: 4px;
+            max-width: 260px;
+            max-height: 120px;
+            overflow-y: auto;
             padding: 8px;
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            box-shadow: var(--shadow);
         }
 
         .chat-emoji-list button {
@@ -1902,22 +2027,44 @@
             opacity: 1;
         }
 
-        .sync-fab {
+        .floating-actions {
             position: fixed;
-            z-index: 9;
+            z-index: 12;
             right: 22px;
             bottom: 22px;
+            display: flex;
+            align-items: center;
+            gap: 9px;
+        }
+
+        .sync-fab,
+        .chat-fab {
+            position: relative;
+            z-index: auto;
             min-height: 48px;
             display: flex;
             align-items: center;
             gap: 9px;
             padding: 0 16px;
             color: #fff;
-            background: var(--teal);
             border: 0;
             border-radius: 25px;
             box-shadow: 0 6px 18px rgba(8, 111, 120, .25);
             font-weight: 700;
+        }
+
+        .sync-fab {
+            right: auto;
+            bottom: auto;
+            background: var(--teal);
+        }
+
+        .chat-fab {
+            background: var(--green);
+        }
+
+        .chat-fab:hover {
+            background: var(--green-dark);
         }
 
         .sync-fab:hover {
@@ -1929,7 +2076,8 @@
             cursor: progress;
         }
 
-        .sync-fab svg {
+        .sync-fab svg,
+        .chat-fab svg {
             width: 19px;
             height: 19px;
         }
@@ -2041,8 +2189,7 @@
             font-size: 13px;
         }
 
-        .boot-screen,
-        .welcome-screen {
+        .boot-screen {
             position: fixed;
             inset: 0;
             display: grid;
@@ -2063,20 +2210,14 @@
         }
 
         .boot-screen[hidden],
-        .welcome-screen[hidden],
         .screen-wave[hidden] {
             display: none;
         }
 
-        .boot-content,
-        .welcome-content {
+        .boot-content {
             display: grid;
             justify-items: center;
             text-align: center;
-        }
-
-        .welcome-content {
-            gap: 28px;
         }
 
         .boot-logo,
@@ -2190,32 +2331,8 @@
             .boot-logo.is-new-year { font-size: clamp(48px, 12vw, 76px); }
         }
 
-        .welcome-screen {
-            z-index: 1200;
-            color: var(--ink);
-            transition: opacity 260ms ease, transform 260ms ease;
-        }
-
-        .welcome-screen.is-leaving {
-            opacity: 0;
-            transform: scale(1.03);
-            pointer-events: none;
-        }
-
         .welcome-logo {
             font-size: clamp(84px, 19vw, 156px);
-        }
-
-        .welcome-start {
-            min-width: 180px;
-            min-height: 52px;
-            opacity: 0;
-            animation: welcome-start-in 320ms ease 650ms forwards;
-        }
-
-        @keyframes welcome-start-in {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
         }
 
         .screen-wave {
@@ -2331,6 +2448,23 @@
             margin-bottom: 10px;
         }
 
+        .remember-user-option {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            margin: 2px 0 0;
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .remember-user-option input {
+            flex: 0 0 auto;
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
         .user-login-status {
             min-height: 20px;
             margin: 10px 0 0;
@@ -2355,12 +2489,26 @@
         }
 
         @media (max-width: 560px) {
-            .sync-fab {
+            .floating-actions {
                 right: 12px;
                 bottom: 12px;
+                gap: 7px;
+            }
+
+            .sync-fab,
+            .chat-fab {
                 min-height: 44px;
-                padding: 0 13px;
+                padding: 0 12px;
                 font-size: 13px;
+            }
+
+            .chat-popup {
+                right: 12px;
+                bottom: 66px;
+                width: calc(100vw - 24px);
+                height: calc(100vh - 86px);
+                max-height: 660px;
+                min-height: 0;
             }
 
             .sync-status {
@@ -4722,6 +4870,7 @@
             }
 
             .user-login-actions,
+            .remember-user-option,
             .user-login-status {
                 grid-column: 1 / -1;
             }
@@ -4742,7 +4891,6 @@
         }
 
         .boot-screen,
-        .welcome-screen,
         .user-login {
             border: 0;
             border-radius: 0;
@@ -4752,8 +4900,7 @@
                 var(--canvas) 72%);
         }
 
-        .boot-screen,
-        .welcome-screen {
+        .boot-screen {
             box-shadow: none;
         }
 
@@ -5053,7 +5200,6 @@
         }
 
         body.dark-mode .boot-screen,
-        body.dark-mode .welcome-screen,
         body.dark-mode .user-login {
             background: radial-gradient(
                 circle at 50% 42%,
@@ -5203,12 +5349,6 @@
             <p class="boot-caption">Preparando o sistema…</p>
         </div>
     </section>
-    <section class="welcome-screen" id="welcome-screen" aria-labelledby="welcome-title" hidden>
-        <div class="welcome-content">
-            <h1 class="welcome-logo" id="welcome-title" aria-label="CRAS"><span>C</span><span>R</span><span>A</span><span>S</span></h1>
-            <button class="button-primary welcome-start" id="welcome-start" type="button">Iniciar</button>
-        </div>
-    </section>
     <div class="screen-wave" id="screen-wave" aria-hidden="true" hidden></div>
     <section class="access-gate" id="access-gate" hidden>
         <form class="access-gate-card" id="access-gate-form">
@@ -5261,6 +5401,10 @@
                 <option value="intern">Estagiário</option>
                 <option value="admin">Admin</option>
             </select>
+            <label class="remember-user-option" for="remember-last-user">
+                <input id="remember-last-user" type="checkbox" checked>
+                <span>Lembrar último usuário neste computador</span>
+            </label>
             <div id="login-admin-pin-wrap" hidden>
                 <label class="field-label" for="login-admin-pin">PIN administrativo</label>
                 <input class="text-input" id="login-admin-pin" type="password" inputmode="numeric"
@@ -5446,6 +5590,13 @@
                                     <button class="btn-copy" type="button" onclick="copyFieldValue('sync-local-addresses', 'Endereço deste computador')">Copiar</button>
                                 </div>
 
+                                <label class="field-label" for="sync-manual-local-addresses">IPs manuais adicionais deste computador</label>
+                                <input class="text-input" id="sync-manual-local-addresses" type="text"
+                                    placeholder="192.168.0.15, 10.0.0.15" autocomplete="off" style="margin-bottom: 8px;">
+                                <button class="button-secondary" id="sync-manual-addresses-save" type="button"
+                                    style="width: 100%; margin-bottom: 8px;">Salvar IPs manuais</button>
+                                <p class="hint">Os IPs manuais são somados aos detectados e compartilhados com os parceiros na sincronização. Informe apenas IPv4 privado realmente atribuído a este PC; isso não altera a configuração do Windows.</p>
+
                                 <label class="field-label" for="sync-local-key">Código de pareamento deste computador</label>
                                 <div class="copy-input-group">
                                     <input class="text-input" id="sync-local-key" type="text" readonly>
@@ -5492,7 +5643,7 @@
                             <div class="settings-section-card">
                                 <div class="settings-card-header">
                                     <span class="settings-card-title">🔄 Atualizações</span>
-                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v1.2.1</span>
+                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.5</span>
                                 </div>
                                 <button class="button-secondary" id="check-updates-btn" type="button" style="width: 100%;">
                                     🔍 Verificar Atualizações
@@ -5518,14 +5669,25 @@
         </div>
     </header>
     <iframe class="sync-bridge" id="sync-bridge" title="Conexão com o Google Sheets" hidden></iframe>
-    <button class="sync-fab" id="sync-now" type="button" aria-label="Sincronizar dados com outro computador">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-            stroke-linejoin="round" aria-hidden="true">
-            <path d="M20 7v5h-5M4 17v-5h5" />
-            <path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2" />
-        </svg>
-        <span>Sincronizar</span>
-    </button>
+    <div class="floating-actions">
+        <button class="chat-fab" id="chat-toggle" type="button" aria-label="Abrir chat" aria-expanded="false"
+            aria-controls="chat-panel">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2 1-4A7.5 7.5 0 1 1 20 11.5Z" />
+                <path d="M8 11h.01M12 11h.01M16 11h.01" />
+            </svg>
+            <span>Chat</span>
+        </button>
+        <button class="sync-fab" id="sync-now" type="button" aria-label="Sincronizar dados com outro computador">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
+                stroke-linejoin="round" aria-hidden="true">
+                <path d="M20 7v5h-5M4 17v-5h5" />
+                <path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2" />
+            </svg>
+            <span>Sincronizar</span>
+        </button>
+    </div>
     <p class="sync-status" id="sync-status" role="status" aria-live="polite" hidden></p>
     <div class="tutorial-overlay" id="tutorial-overlay" hidden></div>
     <section class="tutorial-card" id="tutorial-card" role="dialog" aria-modal="true" aria-labelledby="tutorial-title"
@@ -5561,8 +5723,6 @@
                 aria-controls="attendance-panel">Atendimentos</button>
             <button class="main-tab" id="paa-tab" type="button" role="tab" aria-selected="false"
                 aria-controls="paa-panel" hidden>PAA</button>
-            <button class="main-tab" id="chat-tab" type="button" role="tab" aria-selected="false"
-                aria-controls="chat-panel" hidden>Chat</button>
         </div>
         <section class="tab-panel" id="queues-panel" role="tabpanel" aria-labelledby="queues-tab" hidden>
             <div class="queue-panel-content" id="queue-panel-content"></div>
@@ -6002,34 +6162,38 @@
                     registrados aparecerão aqui.</div>
             </section>
         </section>
-        <section class="tab-panel" id="chat-panel" role="tabpanel" aria-labelledby="chat-tab" hidden>
-            <div class="section-heading chat-layout">
-                <div>
-                    <p class="eyebrow">Comunicação entre computadores</p>
-                    <h1>Chat</h1>
-                    <p class="section-note">Mensagens e recomendações são sincronizadas com os computadores parceiros. As conversas antigas são arquivadas mensalmente neste dispositivo.</p>
+        <section class="chat-popup" id="chat-panel" role="dialog" aria-modal="false"
+            aria-labelledby="chat-title" hidden>
+            <header class="chat-popup-header">
+                <div class="chat-popup-avatar" aria-hidden="true">CR</div>
+                <div class="chat-popup-title">
+                    <h2 id="chat-title">Chat da equipe</h2>
+                    <p id="chat-connection-status" role="status" aria-live="polite">Carregando conversa…</p>
                 </div>
-            </div>
-            <section class="panel chat-layout" aria-label="Conversa do CRAS">
-                <div class="chat-composer-tools" style="justify-content: space-between; margin-bottom: 10px;">
-                    <p class="hint" id="chat-connection-status" role="status" aria-live="polite">Carregando conversa…</p>
+                <button class="chat-popup-close" id="chat-close" type="button" aria-label="Fechar chat">×</button>
+            </header>
+            <div class="chat-popup-body">
+                <div class="chat-history-row">
                     <button class="button-secondary" id="chat-load-older" type="button" hidden>Mensagens anteriores</button>
                 </div>
                 <div class="chat-messages" id="chat-messages" role="log" aria-live="polite"
                     aria-label="Mensagens do chat"></div>
                 <form class="chat-composer" id="chat-form">
-                    <div class="chat-person-picker">
-                        <label class="field-label" for="chat-person-search">Vincular pessoa à recomendação (opcional)</label>
-                        <input class="text-input" id="chat-person-search" type="search" autocomplete="off"
-                            placeholder="Buscar por nome ou CPF">
-                        <div class="chat-person-suggestions" id="chat-person-suggestions" role="listbox" hidden></div>
-                    </div>
+                    <details class="chat-person-details">
+                        <summary>Vincular pessoa à recomendação (opcional)</summary>
+                        <div class="chat-person-picker">
+                            <label class="field-label" for="chat-person-search">Buscar pessoa</label>
+                            <input class="text-input" id="chat-person-search" type="search" autocomplete="off"
+                                placeholder="Buscar por nome ou CPF">
+                            <div class="chat-person-suggestions" id="chat-person-suggestions" role="listbox" hidden></div>
+                        </div>
+                    </details>
                     <div class="chat-selected-person" id="chat-selected-person" hidden>
                         <span id="chat-selected-person-label"></span>
                         <button class="button-secondary" id="chat-clear-person" type="button">Remover</button>
                     </div>
-                    <label class="field-label" for="chat-message-input">Mensagem</label>
-                    <textarea class="text-input" id="chat-message-input" rows="3" maxlength="4000"
+                    <textarea class="text-input" id="chat-message-input" rows="2" maxlength="4000"
+                        aria-label="Mensagem"
                         placeholder="Escreva uma mensagem ou recomendação…"></textarea>
                     <div class="chat-composer-tools">
                         <details>
@@ -6052,9 +6216,9 @@
                         <button class="button-secondary" id="chat-clear-attachment" type="button" hidden>Remover imagem</button>
                         <button class="button-primary" id="chat-send" type="submit">Enviar</button>
                     </div>
-                    <p class="hint">Imagens e GIFs: até 2 MB. O chat é guardado nos PCs participantes; cada computador arquiva e limpa as mensagens de meses anteriores.</p>
+                    <p class="hint">Imagens e GIFs: até 2 MB. As mensagens antigas são arquivadas neste dispositivo.</p>
                 </form>
-            </section>
+            </div>
         </section>
     </main>
 
@@ -6290,7 +6454,7 @@
             const STORAGE_LOCAL_NODE_REVISION = "cras-ouro-preto-local-node-revision-v1";
             const STORAGE_LOCAL_NODE_BASE_SNAPSHOT = "cras-ouro-preto-local-node-base-snapshot-v1";
             const STORAGE_LOCAL_ACTIVE_USER = "cras-ouro-preto-usuario-local-v1";
-            const STORAGE_ONBOARDING_COMPLETE = "cras-ouro-preto-boas-vindas-concluidas-v1";
+            const STORAGE_REMEMBER_LAST_USER = "cras-ouro-preto-lembrar-usuario-v1";
             const SYSTEM_ADMIN_USER_ID = "cras-system-admin-adm-dev";
             const SYSTEM_ADMIN_NAME = "adm.dev";
             const STORAGE_DAIANE_ADMIN_MIGRATION = "cras-daiane-admin-default-migrated-v1";
@@ -6344,6 +6508,7 @@
             const CHAT_PAGE_SIZE = 50;
             const CHAT_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
             const MAX_BACKUP_FILE_BYTES = 100 * 1024 * 1024;
+            const MAX_DESKTOP_PEERS = 100;
             const CHAT_ATTACHMENT_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
             const form = document.getElementById("appointment-form");
             const assistantChoiceList = document.getElementById("assistant-choice-list");
@@ -6405,7 +6570,7 @@
             const attendanceTab = document.getElementById("attendance-tab");
             const paaTab = document.getElementById("paa-tab");
             const queuesTab = document.getElementById("queues-tab");
-            const chatTab = document.getElementById("chat-tab");
+            const chatToggle = document.getElementById("chat-toggle");
             const attendancePanel = document.getElementById("attendance-panel");
             const paaPanel = document.getElementById("paa-panel");
             const queuesPanel = document.getElementById("queues-panel");
@@ -6776,7 +6941,8 @@
                 document.getElementById("sync-peer-key").value = preferences.syncToken || "";
                 document.getElementById("paa-google-sheet-url").value = preferences.googleSheetEndpoint || "";
                 paaTab.hidden = !preferences.paaEnabled;
-                chatTab.hidden = mobileClient || hostedAppsScript;
+                chatToggle.hidden = mobileClient || hostedAppsScript;
+                if (chatToggle.hidden) setChatPopupOpen(false);
                 if (!preferences.paaEnabled && !paaPanel.hidden) selectMainTab(hostedAppsScript ? "queues" : "attendance");
                 applyActiveUserLayout();
                 configureSyncBridge();
@@ -6799,7 +6965,6 @@
                 const isStaff = role === "assistant" || role === "caseworker";
                 const mobileIntern = mobileClient && role === "intern";
                 queuesTab.hidden = !isStaff && !hostedAppsScript && !mobileIntern;
-                chatTab.hidden = mobileClient || hostedAppsScript;
                 document.getElementById("principal-computer-setting").hidden = role !== "admin";
                 document.getElementById("principal-backup-hint").hidden = role !== "admin";
                 document.getElementById("settings-switch-user").hidden = !activeUser;
@@ -6906,7 +7071,6 @@
                 document.getElementById("user-login-status").textContent = "";
                 document.getElementById("login-admin-pin").value = "";
                 document.getElementById("login-admin-pin-confirm").value = "";
-                document.getElementById("welcome-screen").hidden = true;
                 renderLoginUsers();
                 const preferredUser = users.find(user => user.id === preferredUserId);
                 if (preferredUser) {
@@ -6939,35 +7103,20 @@
                 }, 480);
             }
 
-            function showWelcomeScreen() {
-                document.getElementById("user-login").hidden = true;
-                document.getElementById("welcome-screen").hidden = false;
-                document.getElementById("welcome-start").focus();
-            }
-
-            function beginFirstLogin() {
-                const welcome = document.getElementById("welcome-screen");
-                if (preferences.reduceMotion) {
-                    welcome.hidden = true;
-                    showUserLogin("");
-                    return;
-                }
-                welcome.classList.add("is-leaving");
-                window.setTimeout(() => {
-                    welcome.hidden = true;
-                    welcome.classList.remove("is-leaving");
-                    showUserLogin("");
-                }, 280);
-            }
-
             async function activateUser(selectedUser, animate = false) {
+                const rememberLastUser = document.getElementById("remember-last-user").checked;
                 await database.transaction("rw", database.settings, async () => {
-                    await database.settings.bulkPut([
-                        { key: STORAGE_LOCAL_ACTIVE_USER, value: selectedUser.id },
-                        { key: STORAGE_ONBOARDING_COMPLETE, value: true }
-                    ]);
+                    await database.settings.put({
+                        key: STORAGE_REMEMBER_LAST_USER,
+                        value: rememberLastUser
+                    });
+                    if (rememberLastUser) {
+                        await database.settings.put({ key: STORAGE_LOCAL_ACTIVE_USER, value: selectedUser.id });
+                    } else {
+                        await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
+                    }
                 });
-                rememberedUserId = selectedUser.id;
+                rememberedUserId = rememberLastUser ? selectedUser.id : "";
                 activeUser = {
                     id: selectedUser.id,
                     name: selectedUser.name,
@@ -7029,14 +7178,29 @@
             }
 
             async function restoreLocalUser() {
-                const onboarding = await database.settings.get(STORAGE_ONBOARDING_COMPLETE);
-                if (window.CRASDesktop && onboarding?.value !== true) {
-                    showWelcomeScreen();
-                    return;
-                }
+                const rememberSetting = await database.settings.get(STORAGE_REMEMBER_LAST_USER);
+                const rememberLastUser = rememberSetting?.value !== false;
+                document.getElementById("remember-last-user").checked = rememberLastUser;
                 const savedUser = await database.settings.get(STORAGE_LOCAL_ACTIVE_USER);
-                rememberedUserId = typeof savedUser?.value === "string" ? savedUser.value : "";
+                if (!rememberLastUser) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
+                rememberedUserId = rememberLastUser && typeof savedUser?.value === "string"
+                    ? savedUser.value
+                    : "";
                 showUserLogin(rememberedUserId);
+            }
+
+            async function persistRememberLastUserPreference(rememberLastUser) {
+                await database.transaction("rw", database.settings, async () => {
+                    await database.settings.put({
+                        key: STORAGE_REMEMBER_LAST_USER,
+                        value: rememberLastUser
+                    });
+                    if (!rememberLastUser) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
+                });
+                if (!rememberLastUser) {
+                    rememberedUserId = "";
+                    document.getElementById("login-user").value = "";
+                }
             }
 
             function getSyncBridgeUrl(endpoint = preferences.syncEndpoint) {
@@ -7088,6 +7252,41 @@
                     : [];
             }
 
+            function getLocalPeerAddresses() {
+                const automatic = Array.isArray(desktopNodeInfo?.addresses) ? desktopNodeInfo.addresses : [];
+                const manual = Array.isArray(desktopNodeInfo?.manualAddresses) ? desktopNodeInfo.manualAddresses : [];
+                return Array.from(new Set([...automatic, ...manual]
+                    .filter(address => typeof address === "string" && address.trim())
+                    .map(address => address.trim())));
+            }
+
+            function updateLocalPeerAddressDisplay() {
+                const addresses = getLocalPeerAddresses();
+                document.getElementById("sync-local-addresses").value =
+                    addresses.map(address => `http://${address}:${desktopNodeInfo.port}`).join(", ")
+                    || `http://127.0.0.1:${desktopNodeInfo.port}`;
+            }
+
+            function getKnownDesktopPeers() {
+                const peersByEndpoint = new Map(
+                    getConfiguredDesktopPeers().map(peer => [peer.endpoint, { ...peer }])
+                );
+                if (desktopNodeInfo?.pairingKey && desktopNodeInfo?.nodeId) {
+                    for (const address of getLocalPeerAddresses()) {
+                        const endpoint = `http://${address}:${desktopNodeInfo.port || 8765}`;
+                        if (!peersByEndpoint.has(endpoint)) {
+                            if (peersByEndpoint.size >= MAX_DESKTOP_PEERS) break;
+                            peersByEndpoint.set(endpoint, {
+                                endpoint,
+                                token: desktopNodeInfo.pairingKey,
+                                nodeId: desktopNodeInfo.nodeId
+                            });
+                        }
+                    }
+                }
+                return Array.from(peersByEndpoint.values()).slice(0, MAX_DESKTOP_PEERS);
+            }
+
             async function publishLocalPeerDirectory(peers) {
                 if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) return;
                 const response = await fetchPeer("/api/local-peer-directory", {
@@ -7117,7 +7316,7 @@
 
             async function rememberDiscoveredPeers(discoveredPeers) {
                 if (!Array.isArray(discoveredPeers)) return;
-                const localEndpoints = new Set((desktopNodeInfo?.addresses || [])
+                const localEndpoints = new Set(getLocalPeerAddresses()
                     .map(address => `http://${address}:${desktopNodeInfo.port || 8765}`));
                 const peersByEndpoint = new Map(
                     getConfiguredDesktopPeers().map(peer => [peer.endpoint, { ...peer }])
@@ -7264,15 +7463,15 @@
                             showSyncStatus(`A configuração do backup automático não pôde ser aplicada: ${error.message}`, 0);
                         });
                         document.getElementById("sync-local-key").value = desktopNodeInfo.pairingKey;
-                        document.getElementById("sync-local-addresses").value =
-                            (desktopNodeInfo.addresses || []).map(address => `http://${address}:${desktopNodeInfo.port}`).join(", ")
-                            || `http://127.0.0.1:${desktopNodeInfo.port}`;
+                        document.getElementById("sync-manual-local-addresses").value =
+                            (desktopNodeInfo.manualAddresses || []).join(", ");
+                        updateLocalPeerAddressDisplay();
                         document.getElementById("sync-mobile-addresses").value =
                             desktopNodeInfo.mobileHttpsReady
                                 ? (desktopNodeInfo.mobileAddresses || [])
                                     .map(address => `https://${address}:${desktopNodeInfo.mobilePort}`).join(", ")
                                 : "Acesso HTTPS móvel indisponível";
-                        document.getElementById("sync-mobile-ca").value = (desktopNodeInfo.addresses || [])
+                        document.getElementById("sync-mobile-ca").value = (desktopNodeInfo.mobileAddresses || [])
                             .map(address => `http://${address}:${desktopNodeInfo.port}/api/mobile-ca`).join(", ");
                         document.getElementById("sync-mobile-fingerprint").value =
                             desktopNodeInfo.mobileCaFingerprint || "Certificado HTTPS não configurado";
@@ -7672,7 +7871,7 @@
                             localSnapshot: args[1],
                             resolutions: args[2],
                             actorRole: args[3],
-                            knownPeers: getConfiguredDesktopPeers()
+                            knownPeers: getKnownDesktopPeers()
                         };
                         const cleartext = new TextEncoder().encode(JSON.stringify(payload));
                         const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
@@ -8549,6 +8748,36 @@
                             ? `${peers.length} computador(es) vinculado(s) salvo(s). Iniciando sincronização.`
                             : "Lista de computadores parceiros removida deste dispositivo.");
                         if (peers.length && navigator.onLine) void syncWithGoogle();
+                    });
+                    document.getElementById("sync-manual-addresses-save").addEventListener("click", async event => {
+                        const button = event.currentTarget;
+                        const input = document.getElementById("sync-manual-local-addresses");
+                        const addresses = input.value.split(/[,;\s]+/).filter(Boolean);
+                        button.disabled = true;
+                        try {
+                            const response = await fetchPeer("/api/local-manual-addresses", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ addresses })
+                            });
+                            const result = await response.json();
+                            if (!response.ok) {
+                                throw new Error(result.error || "Não foi possível salvar os IPs manuais.");
+                            }
+                            desktopNodeInfo.manualAddresses = result.manualAddresses || [];
+                            input.value = desktopNodeInfo.manualAddresses.join(", ");
+                            updateLocalPeerAddressDisplay();
+                            showSyncStatus(
+                                "IPs manuais salvos e somados aos endereços detectados deste computador."
+                            );
+                            if (getConfiguredDesktopPeers().length && navigator.onLine) {
+                                void syncWithGoogle();
+                            }
+                        } catch (error) {
+                            showSyncStatus(`Não foi possível salvar os IPs manuais: ${error.message}`, 0);
+                        } finally {
+                            button.disabled = false;
+                        }
                     });
                 } else {
                     document.getElementById("sync-app-url-save").addEventListener("click", async () => {
@@ -10621,6 +10850,19 @@
                 }, 4000);
             }
 
+            function setChatPopupOpen(isOpen) {
+                const open = Boolean(isOpen) && !chatToggle.hidden;
+                chatPanel.hidden = !open;
+                chatToggle.setAttribute("aria-expanded", String(open));
+                chatToggle.setAttribute("aria-label", open ? "Fechar chat" : "Abrir chat");
+                if (open) {
+                    void loadChatMessages("", true);
+                    window.requestAnimationFrame(() => document.getElementById("chat-message-input").focus());
+                } else if (!chatToggle.hidden) {
+                    chatToggle.focus();
+                }
+            }
+
             let customReportExport = null;
 
             function generateCustomReport() {
@@ -10896,21 +11138,16 @@
                     selectedTab = canShowQueues ? "queues" : "attendance";
                 } else if (selectedTab === "queues" && !canShowQueues) {
                     selectedTab = "attendance";
-                } else if (selectedTab === "chat" && chatTab.hidden) {
-                    selectedTab = canShowQueues ? "queues" : "attendance";
                 }
                 const showPaa = !isStaff && selectedTab === "paa" && Boolean(preferences.paaEnabled);
                 const showQueues = selectedTab === "queues" && canShowQueues;
-                const showChat = selectedTab === "chat" && !chatTab.hidden;
-                currentMainTab = showQueues ? "queues" : showPaa ? "paa" : showChat ? "chat" : "attendance";
+                currentMainTab = showQueues ? "queues" : showPaa ? "paa" : "attendance";
                 queuesTab.setAttribute("aria-selected", String(showQueues));
-                attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues && !showChat));
+                attendanceTab.setAttribute("aria-selected", String(!showPaa && !showQueues));
                 paaTab.setAttribute("aria-selected", String(showPaa));
-                chatTab.setAttribute("aria-selected", String(showChat));
                 queuesPanel.hidden = !showQueues;
-                attendancePanel.hidden = isStaff || showPaa || showChat || mobileIntern && showQueues;
+                attendancePanel.hidden = isStaff || showPaa || mobileIntern && showQueues;
                 paaPanel.hidden = !showPaa;
-                chatPanel.hidden = !showChat;
             }
 
             function setupModuleTabs() {
@@ -12036,6 +12273,16 @@
                         "Não foi possível validar o acesso. Verifique o ambiente local e tente novamente.";
                 });
             });
+            document.getElementById("remember-last-user").addEventListener("change", event => {
+                const checkbox = event.currentTarget;
+                const previousValue = !checkbox.checked;
+                persistRememberLastUserPreference(checkbox.checked).catch(error => {
+                    console.error("Não foi possível salvar a preferência de usuário local.", error);
+                    checkbox.checked = previousValue;
+                    document.getElementById("user-login-status").textContent =
+                        "Não foi possível salvar a preferência neste computador.";
+                });
+            });
             document.getElementById("login-user").addEventListener("input", event => {
                 const enteredName = event.target.value.trim().toLocaleLowerCase("pt-BR");
                 const selectedUser = users.find(user => user.name.toLocaleLowerCase("pt-BR") === enteredName);
@@ -12060,11 +12307,14 @@
                 closeSettingsScreen(false);
                 showUserLogin();
             });
-            document.getElementById("welcome-start").addEventListener("click", beginFirstLogin);
             attendanceTab.addEventListener("click", () => selectMainTab("attendance"));
             paaTab.addEventListener("click", () => selectMainTab("paa"));
             queuesTab.addEventListener("click", () => selectMainTab("queues"));
-            chatTab.addEventListener("click", () => selectMainTab("chat"));
+            chatToggle.addEventListener("click", () => setChatPopupOpen(chatPanel.hidden));
+            document.getElementById("chat-close").addEventListener("click", () => setChatPopupOpen(false));
+            document.addEventListener("keydown", event => {
+                if (event.key === "Escape" && !chatPanel.hidden) setChatPopupOpen(false);
+            });
             document.getElementById("chat-form").addEventListener("submit", submitChatMessage);
             document.getElementById("chat-person-search").addEventListener("input", renderChatPersonSuggestions);
             document.getElementById("chat-person-suggestions").addEventListener("click", event => {

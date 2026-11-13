@@ -50,13 +50,13 @@ APP_NAME = "CRAS-Desktop"
 GITHUB_REPOSITORY = "crasOP-dev/cras-desktop-updates"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPOSITORY}/releases/latest"
 UPDATE_ASSET_NAME = "CRAS-Desktop.exe"
-MANUAL_INSTALL_NAME = "CRAS Desktop.exe"
 MAX_UPDATE_BYTES = 250 * 1024 * 1024
 PORT = 8765
 MOBILE_PORT = 8766
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PEERS = 100
+MAX_MANUAL_ADDRESSES = 32
 AUTO_BACKUP_RETENTION = 30
 MAX_CHAT_TEXT_LENGTH = 4000
 MAX_CHAT_ATTACHMENT_BYTES = 2 * 1024 * 1024
@@ -193,14 +193,6 @@ def powershell_literal(value: str) -> str:
     return "'" + value.replace("'", "''") + "'"
 
 
-def manual_install_target(executable_path: Path) -> Path | None:
-    if executable_path.name.casefold() == MANUAL_INSTALL_NAME.casefold():
-        return None
-    if not re.fullmatch(r"CRAS-Desktop(?: \(\d+\))?\.exe", executable_path.name, re.IGNORECASE):
-        return None
-    return executable_path.with_name(MANUAL_INSTALL_NAME)
-
-
 def launch_update_helper(update_path: Path, executable_path: Path, process_id: int, directory: Path) -> None:
     script_path = directory / "apply-update.ps1"
     log_path = directory / "update.log"
@@ -297,26 +289,6 @@ try {{
         stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW,
     )
-
-
-def install_manual_executable() -> bool:
-    if not getattr(sys, "frozen", False) or os.name != "nt":
-        return False
-    source = Path(sys.executable).resolve()
-    target = manual_install_target(source)
-    if target is None:
-        return False
-    try:
-        launch_update_helper(source, target, os.getpid(), data_path())
-    except OSError as error:
-        logging.exception("Não foi possível instalar o executável baixado manualmente.")
-        show_startup_error(
-            "Não foi possível instalar esta cópia do CRAS Desktop na pasta atual.\n\n"
-            f"Detalhe: {error}"
-        )
-        return False
-    logging.info("Instalação manual solicitada: %s será substituído por %s.", target, source)
-    return True
 
 
 def check_for_update() -> bool:
@@ -435,6 +407,34 @@ def validate_peer_directory(peers: object) -> list[dict[str, str]]:
         if node_id:
             entry["nodeId"] = node_id
         validated.append(entry)
+    return validated
+
+
+def validate_manual_addresses(addresses: object) -> list[str]:
+    if not isinstance(addresses, list) or len(addresses) > MAX_MANUAL_ADDRESSES:
+        raise ValueError("A lista de endereços manuais é inválida.")
+    validated = []
+    seen = set()
+    for value in addresses:
+        if not isinstance(value, str):
+            raise ValueError("Informe endereços IPv4 privados válidos.")
+        try:
+            address = ipaddress.IPv4Address(value.strip())
+        except ipaddress.AddressValueError as error:
+            raise ValueError("Informe endereços IPv4 privados válidos.") from error
+        if (
+            not address.is_private
+            or address.is_loopback
+            or address.is_link_local
+            or address.is_unspecified
+            or address.is_multicast
+            or address.is_reserved
+        ):
+            raise ValueError("Use somente endereços IPv4 privados atribuídos a este computador.")
+        normalized = str(address)
+        if normalized not in seen:
+            seen.add(normalized)
+            validated.append(normalized)
     return validated
 
 
@@ -627,6 +627,7 @@ class PeerStore:
                 self.pairing_key = self.get_or_create(db, "pairing_key", secrets.token_urlsafe(24))
                 self.active_role = self.get_or_create(db, "active_role", "")
                 self.get_or_create(db, "peer_directory", "[]")
+                self.get_or_create(db, "manual_addresses", "[]")
                 self.get_or_create(db, "is_principal", "false")
 # OTIMIZAÇÃO 2: Configuração do SQLite para não travar a escrita em disco
     def connect(self) -> sqlite3.Connection:
@@ -656,6 +657,22 @@ class PeerStore:
                     (canonical(validated),),
                 )
         return len(validated)
+    def get_manual_addresses(self) -> list[str]:
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'manual_addresses'"
+            ).fetchone()
+            return validate_manual_addresses(json.loads(row[0]) if row else [])
+    def set_manual_addresses(self, addresses: object) -> list[str]:
+        validated = validate_manual_addresses(addresses)
+        with self.lock, closing(self.connect()) as db:
+            with db:
+                db.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('manual_addresses', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                    (canonical(validated),),
+                )
+        return validated
     def set_principal(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
             raise ValueError("A configuração do computador principal é inválida.")
@@ -1963,6 +1980,7 @@ document.getElementById('tab-ios').classList.add('active');
             }
             if local_request:
                 info["pairingKey"] = self.store.pairing_key
+                info["manualAddresses"] = self.store.get_manual_addresses()
                 if query.get("details") == ["1"]:
                     info["mobileAddresses"] = addresses
             self.send_json(200, info, self.headers.get("Origin"))
@@ -2234,6 +2252,26 @@ document.getElementById('tab-ios').classList.add('active');
                 self.send_json(500, {"error": "Não foi possível salvar os computadores vinculados."},
                                self.headers.get("Origin"))
             return
+        if path == "/api/local-manual-addresses":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 16 * 1024:
+                    raise ValueError("Tamanho da lista de endereços inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict) or "addresses" not in payload:
+                    raise ValueError("Informe a lista de endereços IP manuais.")
+                addresses = self.store.set_manual_addresses(payload["addresses"])
+                self.send_json(200, {"manualAddresses": addresses}, self.headers.get("Origin"))
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception:
+                logging.exception("Não foi possível salvar os endereços IP manuais.")
+                self.send_json(500, {"error": "Não foi possível salvar os endereços IP manuais."},
+                               self.headers.get("Origin"))
+            return
         if path == "/api/backup-config":
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -2374,8 +2412,6 @@ def main() -> None:
         name="cras-auto-backup",
         daemon=True,
     ).start()
-    if install_manual_executable():
-        return
     if check_for_update():
         return
     mobile_ca_path = None

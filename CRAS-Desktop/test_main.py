@@ -24,9 +24,9 @@ from main import (
     launch_update_helper,
     lan_addresses,
     latest_release,
-    manual_install_target,
     verify_update_checksum,
     validate_chat_message,
+    validate_manual_addresses,
     validate_peer_directory,
     version_tuple,
 )
@@ -66,15 +66,6 @@ class VersionTests(unittest.TestCase):
             self.assertIn("A versão anterior foi restaurada.", script)
             self.assertIn(str(directory / "update.log"), script)
             self.assertEqual(mocked_popen.call_args.args[0][-1], str(script_path))
-
-    def test_manual_executable_uses_canonical_name_in_same_folder(self):
-        source = Path("CRAS-Desktop (1).exe")
-        self.assertEqual(
-            manual_install_target(source),
-            Path("CRAS Desktop.exe"),
-        )
-        self.assertIsNone(manual_install_target(Path("CRAS Desktop.exe")))
-        self.assertIsNone(manual_install_target(Path("another-app.exe")))
 
     def test_update_downloads_use_system_certificate_store(self):
         executable = b"release binary"
@@ -445,6 +436,28 @@ class PeerStoreTests(unittest.TestCase):
         ):
             with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
                 validate_peer_directory([{"endpoint": endpoint, "token": "pairing-token"}])
+
+    def test_manual_addresses_are_normalized_deduplicated_and_persisted(self):
+        addresses = self.store.set_manual_addresses([
+            "192.168.1.25",
+            " 192.168.1.25 ",
+            "10.0.0.12",
+        ])
+        self.assertEqual(addresses, ["192.168.1.25", "10.0.0.12"])
+        self.assertEqual(self.store.get_manual_addresses(), addresses)
+        self.assertEqual(PeerStore(self.store.path).get_manual_addresses(), addresses)
+
+    def test_manual_addresses_reject_non_private_and_invalid_ips(self):
+        for addresses in (
+            ["8.8.8.8"],
+            ["127.0.0.1"],
+            ["169.254.1.2"],
+            ["::1"],
+            ["not-an-ip"],
+            ["192.168.1.1", 42],
+        ):
+            with self.subTest(addresses=addresses), self.assertRaises(ValueError):
+                validate_manual_addresses(addresses)
 
     def test_principal_backup_is_compressed_and_contains_restorable_history(self):
         snapshot = {

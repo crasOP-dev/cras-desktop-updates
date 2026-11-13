@@ -13,8 +13,9 @@ campos diferentes são combinadas; se o mesmo campo divergir, prevalece Admin,
 seguido da Recepção/Estagiário em atendimentos e PAA, do Técnico no Atendimento
 Técnico ou da Cadastradora na fila do Cadastro Único.
 
-O último usuário escolhido é lembrado somente neste dispositivo. Perfis comuns
-entram automaticamente; o perfil Admin continua exigindo o PIN local.
+Na identificação, o último usuário pode ser pré-preenchido somente neste
+dispositivo; desmarque **Lembrar último usuário neste computador** para apagar
+essa lembrança. O perfil Admin continua exigindo o PIN local.
 No Atendimento Técnico, somente a pessoa designada recebe o aviso de ociosidade.
 Todas as cadastradoras recebem o aviso do Cadastro Único; a Recepção e o
 Estagiário não recebem esses avisos. Um Admin pode ser habilitado na Gestão de
@@ -54,18 +55,22 @@ autorizada: um parceiro confiável passa a conhecer os códigos dos demais
 parceiros. O Principal é o primeiro ponto de coordenação; filas e histórico
 continuam replicados nos PCs vinculados, preservando o uso offline. Em
 **Configurações → Sincronização**, os endereços deste PC incluem todos os IPv4
-ativos, inclusive os fixos configurados nas interfaces do Windows.
+ativos, inclusive os fixos configurados nas interfaces do Windows. Se algum IP
+não aparecer, informe-o em **IPs manuais adicionais deste computador**; ele será
+somado aos endereços detectados e compartilhado com os parceiros durante a
+sincronização. Use apenas um IPv4 privado realmente atribuído a este PC. Essa
+opção não altera as configurações de rede do Windows.
 
 ## Chat e backups
 
-A aba **Chat** está disponível no CRAS Desktop. Mensagens, emojis e imagens/GIFs
-(PNG, JPG, GIF ou WebP, até 2 MB) são enviados aos computadores parceiros
-configurados. Uma recomendação pode ser vinculada a um atendimento existente;
-o chat mostra o nome e somente os dois últimos dígitos do CPF para ajudar a
-identificar a pessoa. A referência não altera a fila. Cada PC arquiva, antes de
-limpar, as mensagens dos meses anteriores em
-`%LOCALAPPDATA%\CRAS-Desktop\chat-backups`. Esses arquivos compactados permanecem
-no próprio computador até serem removidos manualmente.
+O botão **Chat**, ao lado de **Sincronizar**, abre a janela de conversa no CRAS
+Desktop. Mensagens, emojis e imagens/GIFs (PNG, JPG, GIF ou WebP, até 2 MB) são
+enviados aos computadores parceiros configurados. Uma recomendação pode ser
+vinculada a um atendimento existente; o chat mostra o nome e somente os dois
+últimos dígitos do CPF para ajudar a identificar a pessoa. A referência não
+altera a fila. Antes da limpeza mensal, cada PC arquiva as mensagens antigas
+em `%LOCALAPPDATA%\CRAS-Desktop\chat-backups`. Esses arquivos compactados
+permanecem no próprio computador até serem removidos manualmente.
 
 No computador principal, um Admin deve ativar **Este é o PC Principal (backup
 diário)** nas Configurações. O CRAS cria backups compactados diários do
@@ -101,9 +106,7 @@ certificados confiáveis do Windows para respeitar certificados corporativos
 instalados no sistema. Se a troca do executável falhar, consulte
 `%LOCALAPPDATA%\CRAS-Desktop\update.log`. A correção do instalador precisa ser
 publicada em uma nova release; computadores cuja atualização anterior falhou
-podem precisar instalar essa primeira versão corrigida manualmente.
-
-Também é possível atualizar manualmente: coloque o executável oficial
-`CRAS-Desktop.exe` na mesma pasta do aplicativo atual e abra o arquivo baixado.
-Ele substitui o executável antigo com segurança, inicia a nova versão como
-`CRAS Desktop.exe` e mantém os dados locais.
+podem precisar instalar essa primeira versão corrigida manualmente: feche o
+aplicativo, substitua o executável existente pelo arquivo oficial mantendo o
+nome e a pasta, e então abra-o novamente. O aplicativo não copia nem renomeia
+mais a si próprio durante a inicialização.
