@@ -5615,7 +5615,7 @@
                                     <button class="button-secondary" id="sync-app-url-save" type="button" style="width: 100%;">Salvar Computador Parceiro</button>
                                 </div>
                                 <div id="multi-peer-settings" hidden>
-                                    <p class="hint">Conecte este computador a um parceiro confiável. Durante a sincronização criptografada, ele recebe e compartilha os demais endereços e códigos já conhecidos, sem precisar cadastrá-los um por um.</p>
+                                    <p class="hint">Conecte este computador a um parceiro confiável. Após uma sincronização bem-sucedida, os endereços e códigos conhecidos pelos parceiros aparecem automaticamente nesta lista.</p>
                                     <div id="sync-peer-list"></div>
                                     <button class="button-secondary" id="sync-peer-add" type="button" style="width: 100%; margin-bottom: 8px;">Adicionar computador vinculado</button>
                                     <button class="button-secondary" id="sync-peers-save" type="button" style="width: 100%;">Salvar computadores vinculados</button>
@@ -5643,7 +5643,7 @@
                             <div class="settings-section-card">
                                 <div class="settings-card-header">
                                     <span class="settings-card-title">🔄 Atualizações</span>
-                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.5</span>
+                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.6</span>
                                 </div>
                                 <button class="button-secondary" id="check-updates-btn" type="button" style="width: 100%;">
                                     🔍 Verificar Atualizações
@@ -7252,6 +7252,22 @@
                     : [];
             }
 
+            function renderDesktopPeerRows(peers = getConfiguredDesktopPeers()) {
+                const peerList = document.getElementById("sync-peer-list");
+                if (!peerList) return;
+                const entries = peers.length ? peers : [{ endpoint: "", token: "" }];
+                peerList.innerHTML = entries.map((peer, index) => `
+                    <div data-sync-peer-row style="border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                        <label class="field-label">Endereço do computador vinculado ${index + 1}
+                            <input class="text-input" data-peer-endpoint type="url" value="${escapeHtml(peer.endpoint || "")}" placeholder="http://192.168.0.10:8765" autocomplete="off">
+                        </label>
+                        <label class="field-label">Código de pareamento do computador ${index + 1}
+                            <input class="text-input" data-peer-token type="password" value="${escapeHtml(peer.token || "")}" placeholder="Cole o código do parceiro" autocomplete="off">
+                        </label>
+                        <button class="button-delete" data-remove-sync-peer type="button" aria-label="Remover computador vinculado ${index + 1}">Remover</button>
+                    </div>`).join("");
+            }
+
             function getLocalPeerAddresses() {
                 const automatic = Array.isArray(desktopNodeInfo?.addresses) ? desktopNodeInfo.addresses : [];
                 const manual = Array.isArray(desktopNodeInfo?.manualAddresses) ? desktopNodeInfo.manualAddresses : [];
@@ -7344,6 +7360,7 @@
                 }
                 preferences = updated;
                 applyPreferences();
+                renderDesktopPeerRows(peers);
                 await publishLocalPeerDirectory(peers);
             }
 
@@ -8679,19 +8696,7 @@
                             endpoint: row.querySelector("[data-peer-endpoint]").value.trim(),
                             token: row.querySelector("[data-peer-token]").value.trim()
                         }));
-                    const renderRows = peers => {
-                        const entries = peers.length ? peers : [{ endpoint: "", token: "" }];
-                        peerList.innerHTML = entries.map((peer, index) => `
-                            <div data-sync-peer-row style="border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                                <label class="field-label">Endereço do computador vinculado ${index + 1}
-                                    <input class="text-input" data-peer-endpoint type="url" value="${escapeHtml(peer.endpoint || "")}" placeholder="http://192.168.0.10:8765" autocomplete="off">
-                                </label>
-                                <label class="field-label">Código de pareamento do computador ${index + 1}
-                                    <input class="text-input" data-peer-token type="password" value="${escapeHtml(peer.token || "")}" placeholder="Cole o código do parceiro" autocomplete="off">
-                                </label>
-                                <button class="button-delete" data-remove-sync-peer type="button" aria-label="Remover computador vinculado ${index + 1}">Remover</button>
-                            </div>`).join("");
-                    };
+                    const renderRows = renderDesktopPeerRows;
                     const configuredPeers = Array.isArray(preferences.syncPeers) && preferences.syncPeers.length
                         ? preferences.syncPeers
                         : preferences.syncEndpoint && preferences.syncToken

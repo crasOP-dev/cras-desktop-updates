@@ -53,6 +53,10 @@ UPDATE_ASSET_NAME = "CRAS-Desktop.exe"
 MAX_UPDATE_BYTES = 250 * 1024 * 1024
 PORT = 8765
 MOBILE_PORT = 8766
+LOCAL_IPV4_NETWORKS = tuple(
+    ipaddress.IPv4Network(network)
+    for network in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+)
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
 MAX_PEERS = 100
@@ -353,6 +357,10 @@ def validate_snapshot(snapshot: object) -> dict:
     return snapshot
 
 
+def is_valid_local_ipv4(address: ipaddress.IPv4Address) -> bool:
+    return any(address in network for network in LOCAL_IPV4_NETWORKS)
+
+
 def validate_peer_directory(peers: object) -> list[dict[str, str]]:
     if not isinstance(peers, list) or len(peers) > MAX_PEERS:
         raise ValueError("A lista de computadores vinculados é inválida.")
@@ -388,11 +396,7 @@ def validate_peer_directory(peers: object) -> list[dict[str, str]]:
             or parsed.path not in ("", "/")
             or parsed.query
             or parsed.fragment
-            or not address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_unspecified
-            or address.is_multicast
+            or not is_valid_local_ipv4(address)
         ):
             raise ValueError("O endereço de um computador parceiro não é válido para a rede local.")
         if not isinstance(node_id, str) or len(node_id) > 100:
@@ -422,14 +426,7 @@ def validate_manual_addresses(addresses: object) -> list[str]:
             address = ipaddress.IPv4Address(value.strip())
         except ipaddress.AddressValueError as error:
             raise ValueError("Informe endereços IPv4 privados válidos.") from error
-        if (
-            not address.is_private
-            or address.is_loopback
-            or address.is_link_local
-            or address.is_unspecified
-            or address.is_multicast
-            or address.is_reserved
-        ):
+        if not is_valid_local_ipv4(address):
             raise ValueError("Use somente endereços IPv4 privados atribuídos a este computador.")
         normalized = str(address)
         if normalized not in seen:
@@ -1438,6 +1435,13 @@ def lan_addresses() -> list[str]:
                 results.add(address)
     except OSError:
         pass
+    results = {
+        address
+        for address in results
+        if is_valid_local_ipv4(ipaddress.IPv4Address(address))
+    }
+    if primary_address not in results:
+        primary_address = ""
     remaining = sorted(results - {primary_address})
     final_addresses = ([primary_address] if primary_address else []) + remaining
     with _LAN_CACHE_LOCK:

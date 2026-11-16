@@ -1,12 +1,14 @@
 import gzip
 import hashlib
 import json
+import sys
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
 from pathlib import Path
 
 import truststore
+import main
 from cryptography import x509
 from cryptography.exceptions import InvalidTag
 
@@ -21,6 +23,7 @@ from main import (
     encode_envelope,
     encode_mobile_payload,
     ensure_mobile_tls_certificates,
+    check_for_update,
     launch_update_helper,
     lan_addresses,
     latest_release,
@@ -66,6 +69,27 @@ class VersionTests(unittest.TestCase):
             self.assertIn("A versão anterior foi restaurada.", script)
             self.assertIn(str(directory / "update.log"), script)
             self.assertEqual(mocked_popen.call_args.args[0][-1], str(script_path))
+
+    def test_declining_startup_update_does_not_download_or_launch(self):
+        root = Mock()
+        tkinter_module = Mock()
+        tkinter_module.Tk.return_value = root
+        messagebox_module = Mock()
+        messagebox_module.askyesno.return_value = False
+        tkinter_module.messagebox = messagebox_module
+        with patch.object(main.sys, "frozen", True, create=True), patch.object(
+            main.os, "name", "nt"
+        ), patch(
+            "main.latest_release", return_value={"version": "v2.0.6"}
+        ), patch.dict(
+            sys.modules,
+            {"tkinter": tkinter_module, "tkinter.messagebox": messagebox_module},
+        ), patch("main.download_update") as download, patch(
+            "main.launch_update_helper"
+        ) as launch:
+            self.assertFalse(check_for_update())
+        download.assert_not_called()
+        launch.assert_not_called()
 
     def test_update_downloads_use_system_certificate_store(self):
         executable = b"release binary"
@@ -433,6 +457,7 @@ class PeerStoreTests(unittest.TestCase):
             "http://example.com:8765",
             "http://192.168.1.10:9999",
             "http://user:pass@192.168.1.10:8765",
+            "http://203.0.113.17:8765",
         ):
             with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
                 validate_peer_directory([{"endpoint": endpoint, "token": "pairing-token"}])
@@ -450,6 +475,8 @@ class PeerStoreTests(unittest.TestCase):
     def test_manual_addresses_reject_non_private_and_invalid_ips(self):
         for addresses in (
             ["8.8.8.8"],
+            ["203.0.113.17"],
+            ["100.64.1.2"],
             ["127.0.0.1"],
             ["169.254.1.2"],
             ["::1"],
@@ -599,6 +626,17 @@ class MobileAccessTests(unittest.TestCase):
             "main.socket.gethostbyname_ex", return_value=("cras-host", [], [])
         ):
             self.assertEqual(lan_addresses(), ["10.0.0.15", "192.168.1.40"])
+
+    def test_mobile_addresses_exclude_non_private_and_reserved_interfaces(self):
+        with patch("main._LAN_ADDRESSES_CACHE", None), patch(
+            "main.windows_interface_addresses",
+            return_value=["192.168.3.115", "100.64.1.2", "203.0.113.17", "8.8.8.8"],
+        ), patch("main.socket.socket", side_effect=OSError), patch(
+            "main.socket.getaddrinfo", return_value=[]
+        ), patch(
+            "main.socket.gethostbyname_ex", return_value=("cras-host", [], [])
+        ):
+            self.assertEqual(lan_addresses(), ["192.168.3.115"])
 
     def test_mobile_access_uses_a_salted_key_and_requires_a_long_code(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

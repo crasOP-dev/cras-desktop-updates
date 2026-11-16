@@ -54,12 +54,12 @@ são adicionados sem recadastrar cada PC. Use somente PCs da rede privada
 autorizada: um parceiro confiável passa a conhecer os códigos dos demais
 parceiros. O Principal é o primeiro ponto de coordenação; filas e histórico
 continuam replicados nos PCs vinculados, preservando o uso offline. Em
-**Configurações → Sincronização**, os endereços deste PC incluem todos os IPv4
-ativos, inclusive os fixos configurados nas interfaces do Windows. Se algum IP
+**Configurações → Sincronização**, os endereços deste PC incluem os IPv4
+privados ativos nas interfaces do Windows, inclusive os fixos. Endereços
+públicos e de adaptadores externos não são compartilhados. Se algum IP privado
 não aparecer, informe-o em **IPs manuais adicionais deste computador**; ele será
-somado aos endereços detectados e compartilhado com os parceiros durante a
-sincronização. Use apenas um IPv4 privado realmente atribuído a este PC. Essa
-opção não altera as configurações de rede do Windows.
+somado aos detectados e compartilhado na sincronização. A opção não altera as
+configurações de rede do Windows.
 
 ## Chat e backups
 
