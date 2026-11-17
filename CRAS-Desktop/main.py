@@ -39,6 +39,13 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
 
 try:
+    from zeroconf import IPVersion, ServiceBrowser, ServiceInfo, ServiceListener, Zeroconf
+    HAVE_ZEROCONF = True
+except ImportError:
+    ServiceListener = object
+    HAVE_ZEROCONF = False
+
+try:
     import qrcode
     import qrcode.image.svg
     HAVE_QRCODE = True
@@ -59,13 +66,12 @@ LOCAL_IPV4_NETWORKS = tuple(
 )
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
-MAX_PEERS = 100
-MAX_MANUAL_ADDRESSES = 32
 AUTO_BACKUP_RETENTION = 30
 MAX_CHAT_TEXT_LENGTH = 4000
 MAX_CHAT_ATTACHMENT_BYTES = 2 * 1024 * 1024
 MAX_CHAT_MESSAGE_BYTES = 3 * 1024 * 1024
 CHAT_ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
+CENTRAL_SERVICE_TYPE = "_cras-central._tcp.local."
 
 PBKDF2_ITERATIONS = 200_000
 MOBILE_ACCESS_ITERATIONS = 600_000
@@ -84,13 +90,17 @@ def update_ssl_context() -> ssl.SSLContext:
 
 class RevisionConflict(Exception):
     def __init__(self, revision: int):
-        super().__init__("O estado P2P mudou durante a gravação.")
+        super().__init__("O estado compartilhado mudou durante a gravação.")
         self.revision = revision
 
 
 def resource_path(name: str) -> Path:
     root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
     return root / name
+
+
+def central_hostname(node_id: str) -> str:
+    return f"cras-{node_id[:12]}.local"
 
 
 def data_path() -> Path:
@@ -361,80 +371,6 @@ def is_valid_local_ipv4(address: ipaddress.IPv4Address) -> bool:
     return any(address in network for network in LOCAL_IPV4_NETWORKS)
 
 
-def validate_peer_directory(peers: object) -> list[dict[str, str]]:
-    if not isinstance(peers, list) or len(peers) > MAX_PEERS:
-        raise ValueError("A lista de computadores vinculados é inválida.")
-    validated = []
-    seen = set()
-    for peer in peers:
-        if not isinstance(peer, dict):
-            raise ValueError("Há um computador inválido na lista de parceiros.")
-        endpoint = peer.get("endpoint")
-        token = peer.get("token")
-        node_id = peer.get("nodeId", "")
-        if not isinstance(endpoint, str) or not isinstance(token, str):
-            raise ValueError("O endereço e o código de um parceiro são inválidos.")
-        if not endpoint or len(endpoint) > 512 or not token or len(token) > 512:
-            raise ValueError("O endereço ou código de um parceiro excede o tamanho permitido.")
-        if any(ord(character) < 32 for character in endpoint + token):
-            raise ValueError("O endereço ou código de um parceiro contém caracteres inválidos.")
-        parsed = urlsplit(endpoint)
-        try:
-            port = parsed.port if parsed.port is not None else PORT
-        except ValueError as error:
-            raise ValueError("A porta de um computador parceiro é inválida.") from error
-        host = parsed.hostname
-        try:
-            address = ipaddress.IPv4Address(host or "")
-        except ipaddress.AddressValueError as error:
-            raise ValueError("Os computadores vinculados precisam usar um endereço IPv4 local.") from error
-        if (
-            parsed.scheme != "http"
-            or port != PORT
-            or parsed.username
-            or parsed.password
-            or parsed.path not in ("", "/")
-            or parsed.query
-            or parsed.fragment
-            or not is_valid_local_ipv4(address)
-        ):
-            raise ValueError("O endereço de um computador parceiro não é válido para a rede local.")
-        if not isinstance(node_id, str) or len(node_id) > 100:
-            raise ValueError("A identificação de um computador parceiro é inválida.")
-        normalized_host = str(address)
-        normalized_endpoint = f"http://{normalized_host}:{PORT}"
-        dedupe_key = normalized_endpoint, token
-        if dedupe_key in seen:
-            continue
-        seen.add(dedupe_key)
-        entry = {"endpoint": normalized_endpoint, "token": token}
-        if node_id:
-            entry["nodeId"] = node_id
-        validated.append(entry)
-    return validated
-
-
-def validate_manual_addresses(addresses: object) -> list[str]:
-    if not isinstance(addresses, list) or len(addresses) > MAX_MANUAL_ADDRESSES:
-        raise ValueError("A lista de endereços manuais é inválida.")
-    validated = []
-    seen = set()
-    for value in addresses:
-        if not isinstance(value, str):
-            raise ValueError("Informe endereços IPv4 privados válidos.")
-        try:
-            address = ipaddress.IPv4Address(value.strip())
-        except ipaddress.AddressValueError as error:
-            raise ValueError("Informe endereços IPv4 privados válidos.") from error
-        if not is_valid_local_ipv4(address):
-            raise ValueError("Use somente endereços IPv4 privados atribuídos a este computador.")
-        normalized = str(address)
-        if normalized not in seen:
-            seen.add(normalized)
-            validated.append(normalized)
-    return validated
-
-
 def validate_chat_message(message: object) -> dict:
     if not isinstance(message, dict):
         raise ValueError("A mensagem do chat está inválida.")
@@ -443,6 +379,7 @@ def validate_chat_message(message: object) -> dict:
     author_id = message.get("authorId")
     author_name = message.get("authorName")
     author_role = message.get("authorRole")
+    recipient_id = message.get("recipientId")
     text = message.get("text", "")
     if (
         not isinstance(message_id, str)
@@ -458,6 +395,13 @@ def validate_chat_message(message: object) -> dict:
         or len(author_name) > 100
         or not isinstance(author_role, str)
         or author_role not in VALID_USER_ROLES
+        or recipient_id is not None
+        and (
+            not isinstance(recipient_id, str)
+            or not recipient_id.strip()
+            or len(recipient_id) > 100
+            or recipient_id == author_id
+        )
         or not isinstance(text, str)
         or len(text) > MAX_CHAT_TEXT_LENGTH
     ):
@@ -476,6 +420,8 @@ def validate_chat_message(message: object) -> dict:
         "authorRole": author_role,
         "text": text,
     }
+    if recipient_id is not None:
+        validated["recipientId"] = recipient_id.strip()
 
     person = message.get("person")
     if person is not None:
@@ -547,6 +493,134 @@ def derive_key(password: str, salt: bytes) -> bytes:
         salt=salt,
         iterations=PBKDF2_ITERATIONS,
     ).derive(password.encode("utf-8"))
+
+
+def validate_user_credential(user_id: object, credential: object) -> tuple[str, str, str]:
+    if (
+        not isinstance(user_id, str)
+        or not user_id.strip()
+        or len(user_id) > 100
+        or not isinstance(credential, dict)
+        or not isinstance(credential.get("salt"), str)
+        or not isinstance(credential.get("hash"), str)
+        or not re.fullmatch(r"[a-f0-9]{64}", credential["hash"], re.IGNORECASE)
+    ):
+        raise ValueError("A credencial individual do usuário está inválida.")
+    try:
+        salt = base64.b64decode(credential["salt"], validate=True)
+    except (ValueError, binascii.Error) as error:
+        raise ValueError("O sal da credencial individual está inválido.") from error
+    if len(salt) != 16:
+        raise ValueError("O sal da credencial individual está inválido.")
+    return user_id.strip(), credential["salt"], credential["hash"].lower()
+
+
+class _CentralServiceListener(ServiceListener):
+    def __init__(self):
+        self.services: dict[str, dict] = {}
+        self.lock = threading.Lock()
+
+    def add_service(self, zeroconf, service_type, name):
+        info = zeroconf.get_service_info(service_type, name)
+        if not info:
+            return
+        try:
+            node_id = info.properties.get(b"nodeId", b"").decode("utf-8")
+            addresses = []
+            for value in info.parsed_scoped_addresses(IPVersion.V4Only):
+                address = ipaddress.IPv4Address(value)
+                if is_valid_local_ipv4(address):
+                    addresses.append(str(address))
+        except (UnicodeError, ValueError):
+            return
+        if not node_id or not addresses or info.port != PORT:
+            return
+        with self.lock:
+            self.services[name] = {
+                "nodeId": node_id,
+                "addresses": sorted(set(addresses)),
+                "port": info.port,
+            }
+
+    def remove_service(self, zeroconf, service_type, name):
+        with self.lock:
+            self.services.pop(name, None)
+
+    def update_service(self, zeroconf, service_type, name):
+        self.add_service(zeroconf, service_type, name)
+
+
+class CentralServiceAdvertiser:
+    def __init__(self, node_id: str):
+        self.node_id = node_id
+        self.zeroconf = None
+        self.info = None
+        self.lock = threading.RLock()
+
+    def set_enabled(self, enabled: bool) -> None:
+        if not isinstance(enabled, bool):
+            raise ValueError("A configuração do servidor central é inválida.")
+        if enabled and not HAVE_ZEROCONF:
+            raise RuntimeError("A descoberta automática não está instalada. Atualize o CRAS Desktop.")
+        with self.lock:
+            if enabled and self.info:
+                return
+            if not enabled and not self.info:
+                return
+            if enabled:
+                addresses = lan_addresses()
+                if not addresses:
+                    raise RuntimeError("Este computador não possui um endereço de rede local ativo.")
+                zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
+                hostname = f"{central_hostname(self.node_id)}."
+                info = ServiceInfo(
+                    CENTRAL_SERVICE_TYPE,
+                    f"CRAS-{self.node_id[:8]}.{CENTRAL_SERVICE_TYPE}",
+                    addresses=[ipaddress.IPv4Address(address).packed for address in addresses],
+                    port=PORT,
+                    properties={"nodeId": self.node_id},
+                    server=hostname,
+                )
+                try:
+                    zeroconf.register_service(info)
+                except Exception:
+                    zeroconf.close()
+                    raise
+                self.zeroconf = zeroconf
+                self.info = info
+                return
+            zeroconf, info = self.zeroconf, self.info
+            self.zeroconf = None
+            self.info = None
+            zeroconf.unregister_service(info)
+            zeroconf.close()
+
+    def close(self) -> None:
+        self.set_enabled(False)
+
+
+def discover_central_services(timeout: float = 1.0) -> list[dict]:
+    if not HAVE_ZEROCONF:
+        raise RuntimeError("A descoberta automática não está instalada. Atualize o CRAS Desktop.")
+    zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
+    listener = _CentralServiceListener()
+    browser = ServiceBrowser(zeroconf, CENTRAL_SERVICE_TYPE, listener)
+    try:
+        time.sleep(timeout)
+        with listener.lock:
+            services = list(listener.services.values())
+        return [
+            {
+                "nodeId": service["nodeId"],
+                "endpoints": [
+                    f"http://{address}:{service['port']}" for address in service["addresses"]
+                ],
+            }
+            for service in services
+        ]
+    finally:
+        browser.cancel()
+        zeroconf.close()
 def derive_mobile_access_key(password: str, salt: bytes) -> bytes:
     return PBKDF2HMAC(
         algorithm=hashes.SHA256(),
@@ -614,18 +688,40 @@ class PeerStore:
                 )
                 db.execute(
                     "CREATE TABLE IF NOT EXISTS chat_messages "
-                    "(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, month TEXT NOT NULL, payload TEXT NOT NULL)"
+                    "(id TEXT PRIMARY KEY, created_at TEXT NOT NULL, month TEXT NOT NULL, payload TEXT NOT NULL, "
+                    "author_id TEXT, recipient_id TEXT)"
                 )
+                chat_columns = {
+                    row[1] for row in db.execute("PRAGMA table_info(chat_messages)").fetchall()
+                }
+                if "author_id" not in chat_columns:
+                    db.execute("ALTER TABLE chat_messages ADD COLUMN author_id TEXT")
+                if "recipient_id" not in chat_columns:
+                    db.execute("ALTER TABLE chat_messages ADD COLUMN recipient_id TEXT")
+                db.execute(
+                    "CREATE TABLE IF NOT EXISTS user_credentials "
+                    "(user_id TEXT PRIMARY KEY, salt TEXT NOT NULL, password_hash TEXT NOT NULL, "
+                    "display_name TEXT, role TEXT)"
+                )
+                credential_columns = {
+                    row[1] for row in db.execute("PRAGMA table_info(user_credentials)").fetchall()
+                }
+                if "display_name" not in credential_columns:
+                    db.execute("ALTER TABLE user_credentials ADD COLUMN display_name TEXT")
+                if "role" not in credential_columns:
+                    db.execute("ALTER TABLE user_credentials ADD COLUMN role TEXT")
                 db.execute(
                     "INSERT OR IGNORE INTO current_snapshot (id, payload) VALUES (1, ?)",
                     (canonical(EMPTY_SNAPSHOT),),
                 )
                 self.node_id = self.get_or_create(db, "node_id", str(uuid.uuid4()))
-                self.pairing_key = self.get_or_create(db, "pairing_key", secrets.token_urlsafe(24))
                 self.active_role = self.get_or_create(db, "active_role", "")
-                self.get_or_create(db, "peer_directory", "[]")
-                self.get_or_create(db, "manual_addresses", "[]")
                 self.get_or_create(db, "is_principal", "false")
+                self.get_or_create(db, "is_central_server", "false")
+                db.execute(
+                    "DELETE FROM metadata WHERE key IN "
+                    "('pairing_key', 'peer_directory', 'manual_addresses')"
+                )
 # OTIMIZAÇÃO 2: Configuração do SQLite para não travar a escrita em disco
     def connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=15)
@@ -639,37 +735,109 @@ class PeerStore:
             return str(row[0])
         db.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", (key, value))
         return value
-    def get_peer_directory(self) -> list[dict[str, str]]:
-        with self.lock, closing(self.connect()) as db:
-            row = db.execute(
-                "SELECT value FROM metadata WHERE key = 'peer_directory'"
-            ).fetchone()
-            return validate_peer_directory(json.loads(row[0]) if row else [])
-    def set_peer_directory(self, peers: object) -> int:
-        validated = validate_peer_directory(peers)
+    def set_central_server(self, enabled: bool) -> None:
+        if not isinstance(enabled, bool):
+            raise ValueError("A configuração do servidor central é inválida.")
         with self.lock, closing(self.connect()) as db:
             with db:
                 db.execute(
-                    "UPDATE metadata SET value = ? WHERE key = 'peer_directory'",
-                    (canonical(validated),),
+                    "UPDATE metadata SET value = ? WHERE key = 'is_central_server'",
+                    ("true" if enabled else "false",),
                 )
-        return len(validated)
-    def get_manual_addresses(self) -> list[str]:
+    def is_central_server(self) -> bool:
         with self.lock, closing(self.connect()) as db:
             row = db.execute(
-                "SELECT value FROM metadata WHERE key = 'manual_addresses'"
+                "SELECT value FROM metadata WHERE key = 'is_central_server'"
             ).fetchone()
-            return validate_manual_addresses(json.loads(row[0]) if row else [])
-    def set_manual_addresses(self, addresses: object) -> list[str]:
-        validated = validate_manual_addresses(addresses)
+            return bool(row and row[0] == "true")
+    def register_user_credential(
+        self,
+        user_id: object,
+        credential: object,
+        display_name: object,
+        role: object,
+    ) -> None:
+        validated_user_id, salt, password_hash = validate_user_credential(user_id, credential)
+        if (
+            not isinstance(display_name, str)
+            or not display_name.strip()
+            or len(display_name) > 100
+            or not isinstance(role, str)
+            or role not in VALID_USER_ROLES
+        ):
+            raise ValueError("O perfil do usuário está inválido.")
         with self.lock, closing(self.connect()) as db:
             with db:
-                db.execute(
-                    "INSERT INTO metadata (key, value) VALUES ('manual_addresses', ?) "
-                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    (canonical(validated),),
+                row = db.execute(
+                    "SELECT salt, password_hash, display_name, role FROM user_credentials WHERE user_id = ?",
+                    (validated_user_id,),
+                ).fetchone()
+                snapshot_row = db.execute(
+                    "SELECT payload FROM current_snapshot WHERE id = 1"
+                ).fetchone()
+                snapshot_users = (
+                    json.loads(snapshot_row[0])
+                    .get("settings", {})
+                    .get("cras-ouro-preto-usuarios-v1", [])
+                    if snapshot_row
+                    else []
                 )
-        return validated
+                if not isinstance(snapshot_users, list):
+                    snapshot_users = []
+                central_user = next(
+                    (
+                        user for user in snapshot_users
+                        if isinstance(user, dict) and user.get("id") == validated_user_id
+                    ),
+                    None,
+                )
+                if central_user:
+                    display_name = central_user.get("name", display_name)
+                    role = central_user.get("role", role)
+                    if (
+                        not isinstance(display_name, str)
+                        or not display_name.strip()
+                        or not isinstance(role, str)
+                        or role not in VALID_USER_ROLES
+                    ):
+                        raise ValueError("O perfil de usuário armazenado no servidor está inválido.")
+                if row:
+                    if row[0] != salt or row[1] != password_hash:
+                        raise ValueError("Este usuário já possui uma senha cadastrada no servidor.")
+                    if row[3] in VALID_USER_ROLES and not central_user:
+                        role = row[3]
+                    if isinstance(row[2], str) and row[2].strip() and not central_user:
+                        display_name = row[2]
+                    db.execute(
+                        "UPDATE user_credentials SET display_name = ?, role = ? WHERE user_id = ?",
+                        (display_name.strip(), role, validated_user_id),
+                    )
+                    return
+                db.execute(
+                    "INSERT INTO user_credentials "
+                    "(user_id, salt, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)",
+                    (validated_user_id, salt, password_hash, display_name.strip(), role),
+                )
+    def get_user_credential(self, user_id: object) -> str | None:
+        if not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 100:
+            return None
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT password_hash FROM user_credentials WHERE user_id = ?",
+                (user_id.strip(),),
+            ).fetchone()
+        return str(row[0]) if row else None
+    def get_user_profile(self, user_id: object) -> dict | None:
+        if not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 100:
+            return None
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT display_name, role FROM user_credentials WHERE user_id = ?",
+                (user_id.strip(),),
+            ).fetchone()
+        if not row or not isinstance(row[0], str) or row[1] not in VALID_USER_ROLES:
+            return None
+        return {"name": row[0], "role": row[1]}
     def set_principal(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
             raise ValueError("A configuração do computador principal é inválida.")
@@ -740,13 +908,36 @@ class PeerStore:
                         raise ValueError("O identificador da mensagem já está associado a outro conteúdo.")
                     return validated
                 db.execute(
-                    "INSERT INTO chat_messages (id, created_at, month, payload) VALUES (?, ?, ?, ?)",
-                    (validated["id"], validated["createdAt"], message_month, payload),
+                    "INSERT INTO chat_messages "
+                    "(id, created_at, month, payload, author_id, recipient_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        validated["id"],
+                        validated["createdAt"],
+                        message_month,
+                        payload,
+                        validated["authorId"],
+                        validated.get("recipientId"),
+                    ),
                 )
         return validated
-    def list_chat_messages(self, limit: int = 50, before: str = "") -> list[dict]:
+    def list_chat_messages(
+        self,
+        limit: int = 50,
+        before: str = "",
+        user_id: str | None = None,
+        recipient_id: str | None = None,
+    ) -> list[dict]:
         if not isinstance(limit, int) or not 1 <= limit <= 100:
             raise ValueError("A quantidade de mensagens solicitada é inválida.")
+        if user_id is not None and (not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 100):
+            raise ValueError("O usuário da conversa é inválido.")
+        if recipient_id is not None and (
+            not isinstance(recipient_id, str)
+            or not recipient_id.strip()
+            or len(recipient_id) > 100
+            or recipient_id == user_id
+        ):
+            raise ValueError("O destinatário da conversa é inválido.")
         if before:
             try:
                 before = datetime.fromisoformat(before.replace("Z", "+00:00")).astimezone(
@@ -755,10 +946,20 @@ class PeerStore:
             except ValueError as error:
                 raise ValueError("A data para carregar mensagens anteriores é inválida.") from error
         query = "SELECT payload FROM chat_messages"
+        conditions = []
         parameters: tuple = ()
         if before:
-            query += " WHERE created_at < ?"
-            parameters = (before,)
+            conditions.append("created_at < ?")
+            parameters += (before,)
+        if user_id is not None and recipient_id is None:
+            conditions.append("recipient_id IS NULL")
+        elif user_id is not None:
+            conditions.append(
+                "((author_id = ? AND recipient_id = ?) OR (author_id = ? AND recipient_id = ?))"
+            )
+            parameters += (user_id, recipient_id, recipient_id, user_id)
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY created_at DESC, id DESC LIMIT ?"
         parameters += (limit,)
         with self.lock, closing(self.connect()) as db:
@@ -771,7 +972,12 @@ class PeerStore:
                     "type": message["attachment"]["type"],
                 }
         return messages
-    def chat_attachment(self, message_id: str) -> tuple[str, bytes] | None:
+    def chat_attachment(
+        self,
+        message_id: str,
+        user_id: str | None = None,
+        recipient_id: str | None = None,
+    ) -> tuple[str, bytes] | None:
         if not isinstance(message_id, str) or not message_id or len(message_id) > 100:
             raise ValueError("A identificação da imagem é inválida.")
         with self.lock, closing(self.connect()) as db:
@@ -781,6 +987,18 @@ class PeerStore:
         if not row:
             return None
         message = json.loads(row[0])
+        target_id = message.get("recipientId")
+        if user_id is not None:
+            if target_id is None and recipient_id is not None:
+                return None
+            if target_id is not None and (
+                recipient_id is None
+                or not (
+                    (message["authorId"] == user_id and target_id == recipient_id)
+                    or (message["authorId"] == recipient_id and target_id == user_id)
+                )
+            ):
+                return None
         attachment = message.get("attachment")
         if not attachment:
             return None
@@ -975,7 +1193,6 @@ class PeerStore:
         local_snapshot: object,
         resolutions: object,
         peer_role: object = None,
-        known_peers: object = None,
     ) -> dict:
         if not self.ready:
             raise ValueError("O outro computador ainda está inicializando. Tente sincronizar novamente em instantes.")
@@ -984,7 +1201,6 @@ class PeerStore:
         if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
             raise ValueError("Identificação da solicitação inválida.")
         local = validate_snapshot(local_snapshot)
-        incoming_peers = validate_peer_directory([] if known_peers is None else known_peers)
         if not isinstance(resolutions, dict):
             raise ValueError("As resoluções de conflito estão inválidas.")
         if peer_role is not None and (
@@ -1013,22 +1229,22 @@ class PeerStore:
                         base, local, remote, peer_role, self.active_role
                     ),
                 }
-                directory_row = db.execute(
-                    "SELECT value FROM metadata WHERE key = 'peer_directory'"
-                ).fetchone()
-                peer_directory = validate_peer_directory(
-                    json.loads(directory_row[0]) if directory_row else []
-                )
-                directory_keys = {
-                    (peer["endpoint"], peer["token"]) for peer in peer_directory
-                }
-                for peer in incoming_peers:
-                    key = (peer["endpoint"], peer["token"])
-                    if key not in directory_keys:
-                        directory_keys.add(key)
-                        peer_directory.append(peer)
-                if len(peer_directory) > MAX_PEERS:
-                    raise ValueError("A rede vinculada excedeu o limite de computadores permitido.")
+                central_users = merged["settings"].get("cras-ouro-preto-usuarios-v1", [])
+                if isinstance(central_users, list):
+                    profiles = {
+                        user["id"]: (user["name"], user["role"])
+                        for user in central_users
+                        if isinstance(user, dict)
+                        and isinstance(user.get("id"), str)
+                        and isinstance(user.get("name"), str)
+                        and isinstance(user.get("role"), str)
+                        and user.get("role") in VALID_USER_ROLES
+                    }
+                    for user_id, (display_name, role) in profiles.items():
+                        db.execute(
+                            "UPDATE user_credentials SET display_name = ?, role = ? WHERE user_id = ?",
+                            (display_name, role, user_id),
+                        )
                 validate_snapshot(merged)
                 payload = canonical(merged)
                 db.execute(
@@ -1044,11 +1260,6 @@ class PeerStore:
                     "INSERT INTO seen_requests (peer_id, request_id) VALUES (?, ?)",
                     (peer_id, request_id),
                 )
-                db.execute(
-                    "INSERT INTO metadata (key, value) VALUES ('peer_directory', ?) "
-                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    (canonical(peer_directory),),
-                )
                 revision = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()[0]
                 return {
                     "status": "ok",
@@ -1057,7 +1268,6 @@ class PeerStore:
                     "syncedAt": datetime.now(timezone.utc).isoformat(),
                     "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
                     "unlinkedPaaIds": [],
-                    "knownPeers": peer_directory,
                 }
     @staticmethod
     def merge_collection(
@@ -1448,7 +1658,11 @@ def lan_addresses() -> list[str]:
         _LAN_ADDRESSES_CACHE = final_addresses
         _LAN_ADDRESSES_CACHE_TIME = now
     return final_addresses
-def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tuple[Path, Path, Path, str]:
+def ensure_mobile_tls_certificates(
+    directory: Path,
+    addresses: list[str],
+    hostname: str = "",
+) -> tuple[Path, Path, Path, str]:
     directory.mkdir(parents=True, exist_ok=True)
     ca_key_path = directory / "mobile-root-ca.key"
     ca_cert_path = directory / "mobile-root-ca.crt"
@@ -1543,6 +1757,8 @@ def ensure_mobile_tls_certificates(directory: Path, addresses: list[str]) -> tup
     server_key = ec.generate_private_key(ec.SECP256R1())
     server_name = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, "CRAS Desktop Local")])
     subject_alt_names = [x509.DNSName("localhost")]
+    if hostname:
+        subject_alt_names.append(x509.DNSName(hostname))
     for address in sorted(set(addresses) | {"127.0.0.1"}):
         subject_alt_names.append(x509.IPAddress(ipaddress.ip_address(address)))
     server_ski = x509.SubjectKeyIdentifier.from_public_key(server_key.public_key())
@@ -1595,6 +1811,7 @@ def mobile_tls_context(certificate_path: Path, private_key_path: Path) -> ssl.SS
 class CRASRequestHandler(BaseHTTPRequestHandler):
     store: PeerStore
     ui_root: Path
+    central_advertiser: CentralServiceAdvertiser
     mobile_ca_path: Path | None
     mobile_ca_fingerprint: str
     mobile_https_ready = False
@@ -1931,6 +2148,20 @@ document.getElementById('tab-ios').classList.add('active');
         self.end_headers()
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/central-servers":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                self.send_json(
+                    200,
+                    {"servers": discover_central_services()},
+                    self.headers.get("Origin"),
+                )
+            except Exception as error:
+                logging.exception("Não foi possível descobrir o servidor central na rede.")
+                self.send_json(503, {"error": str(error)}, self.headers.get("Origin"))
+            return
         if path == "/api/mobile-info":
             if not self.is_private_network_request() or (
                 not self.is_local_loopback_request() and not self.is_secure_mobile_request()
@@ -1974,6 +2205,7 @@ document.getElementById('tab-ios').classList.add('active');
             addresses = lan_addresses()
             info = {
                 "nodeId": self.store.node_id,
+                "hostname": central_hostname(self.store.node_id),
                 "port": PORT,
                 "addresses": addresses,
                 "revision": self.store.get_revision(),
@@ -1981,10 +2213,9 @@ document.getElementById('tab-ios').classList.add('active');
                 "mobilePort": MOBILE_PORT,
                 "mobileCaFingerprint": self.mobile_ca_fingerprint,
                 "mobileHttpsReady": self.mobile_https_ready,
+                "centralServer": self.store.is_central_server(),
             }
             if local_request:
-                info["pairingKey"] = self.store.pairing_key
-                info["manualAddresses"] = self.store.get_manual_addresses()
                 if query.get("details") == ["1"]:
                     info["mobileAddresses"] = addresses
             self.send_json(200, info, self.headers.get("Origin"))
@@ -1997,7 +2228,11 @@ document.getElementById('tab-ios').classList.add('active');
             try:
                 limit = int(query.get("limit", ["50"])[0])
                 before = query.get("before", [""])[0]
-                messages = self.store.list_chat_messages(limit, before)
+                user_id = query.get("userId", [""])[0]
+                recipient_id = query.get("recipientId", [""])[0] or None
+                if not user_id:
+                    raise ValueError("Selecione o usuário da conversa.")
+                messages = self.store.list_chat_messages(limit, before, user_id, recipient_id)
                 self.send_json(200, {"messages": messages}, self.headers.get("Origin"))
             except ValueError as error:
                 self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
@@ -2012,7 +2247,16 @@ document.getElementById('tab-ios').classList.add('active');
                 return
             query = parse_qs(urlsplit(self.path).query)
             try:
-                attachment = self.store.chat_attachment(query.get("id", [""])[0])
+                user_id = query.get("userId", [""])[0]
+                recipient_id = query.get("recipientId", [""])[0] or None
+                if not user_id:
+                    self.send_error(400)
+                    return
+                attachment = self.store.chat_attachment(
+                    query.get("id", [""])[0],
+                    user_id,
+                    recipient_id,
+                )
                 if attachment is None:
                     self.send_error(404)
                     return
@@ -2085,7 +2329,14 @@ document.getElementById('tab-ios').classList.add('active');
             })
             return
         file_name = "CRAS.html" if path in ("/", "/CRAS.html") else path.lstrip("/")
-        if file_name not in ("CRAS.html", "dexie.min.js"):
+        content_types = {
+            "CRAS.html": "text/html; charset=utf-8",
+            "dexie.min.js": "application/javascript; charset=utf-8",
+            "manifest.webmanifest": "application/manifest+json; charset=utf-8",
+            "sw.js": "application/javascript; charset=utf-8",
+            "app-icon.svg": "image/svg+xml",
+        }
+        if file_name not in content_types:
             self.send_error(404)
             return
         file_path = self.ui_root / file_name
@@ -2095,15 +2346,68 @@ document.getElementById('tab-ios').classList.add('active');
             logging.exception("Não foi possível ler o recurso %s.", file_name)
             self.send_error(500, "Não foi possível carregar a interface.")
             return
-        content_type = "text/html; charset=utf-8" if file_name.endswith(".html") else "application/javascript; charset=utf-8"
         self.send_response(200)
-        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Type", content_types[file_name])
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", "no-cache" if file_name == "sw.js" else "no-store")
+        if file_name == "sw.js":
+            self.send_header("Service-Worker-Allowed", "/")
         self.end_headers()
         self.wfile.write(body)
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/central-config":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 1024:
+                    raise ValueError("Tamanho de configuração inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict) or not isinstance(payload.get("enabled"), bool):
+                    raise ValueError("A configuração do servidor central é inválida.")
+                self.central_advertiser.set_enabled(payload["enabled"])
+                self.store.set_central_server(payload["enabled"])
+                self.send_json(
+                    200,
+                    {"enabled": payload["enabled"]},
+                    self.headers.get("Origin"),
+                )
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception as error:
+                logging.exception("Não foi possível atualizar o papel de servidor central.")
+                self.send_json(503, {"error": str(error)}, self.headers.get("Origin"))
+            return
+        if path == "/api/user/register":
+            if not self.is_private_network_request():
+                self.send_error(403)
+                return
+            origin = self.headers.get("Origin")
+            if origin and not self.is_local_origin(origin):
+                self.send_error(403)
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 4096:
+                    raise ValueError("Tamanho de credencial inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("A credencial individual está inválida.")
+                self.store.register_user_credential(
+                    payload.get("userId"),
+                    payload.get("credential"),
+                    payload.get("name"),
+                    payload.get("role"),
+                )
+                self.send_json(200, {"registered": True}, origin)
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(409, {"error": str(error)}, origin)
+            except Exception:
+                logging.exception("Não foi possível cadastrar a credencial individual no servidor.")
+                self.send_json(500, {"error": "Não foi possível cadastrar a senha no servidor."}, origin)
+            return
         if path == "/api/chat/messages":
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -2124,24 +2428,69 @@ document.getElementById('tab-ios').classList.add('active');
             return
         if path == "/api/chat/sync":
             origin = self.headers.get("Origin")
+            if not self.is_private_network_request():
+                self.send_error(403)
+                return
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 if length <= 0 or length > MAX_BODY_BYTES:
                     raise ValueError("Tamanho da mensagem sincronizada inválido.")
                 envelope = json.loads(self.rfile.read(length).decode("utf-8"))
-                salt, payload = decode_envelope(envelope, self.store.pairing_key)
-                message = self.store.store_chat_message(payload.get("message"))
+                user_id = envelope.get("userId") if isinstance(envelope, dict) else None
+                credential = self.store.get_user_credential(user_id)
+                profile = self.store.get_user_profile(user_id)
+                if not credential or not profile:
+                    self.send_json(401, {"error": "Cadastre sua senha individual neste servidor primeiro."}, origin)
+                    return
+                salt, payload = decode_envelope(envelope, credential)
+                if payload.get("userId") != user_id:
+                    raise ValueError("A identidade do usuário não corresponde à solicitação.")
+                operation = payload.get("operation", "send")
+                if operation == "list":
+                    result = {
+                        "messages": self.store.list_chat_messages(
+                            payload.get("limit", 50),
+                            payload.get("before", ""),
+                            user_id,
+                            payload.get("recipientId"),
+                        )
+                    }
+                elif operation == "attachment":
+                    attachment = self.store.chat_attachment(
+                        payload.get("messageId"),
+                        user_id,
+                        payload.get("recipientId"),
+                    )
+                    if attachment is None:
+                        raise ValueError("A imagem da mensagem não foi encontrada no servidor.")
+                    content_type, body = attachment
+                    result = {
+                        "attachment": {
+                            "type": content_type,
+                            "data": base64.b64encode(body).decode("ascii"),
+                        }
+                    }
+                else:
+                    message = validate_chat_message(payload.get("message"))
+                    if (
+                        message["authorId"] != user_id
+                        or message["authorName"] != profile["name"]
+                        or message["authorRole"] != profile["role"]
+                    ):
+                        raise ValueError("Só é possível enviar mensagens em nome do usuário autenticado.")
+                    message = self.store.store_chat_message(message)
+                    result = {"messageId": message["id"]}
                 self.send_json(
                     200,
-                    encode_envelope(salt, self.store.pairing_key, {"messageId": message["id"]}),
+                    encode_envelope(salt, credential, result),
                     origin,
                 )
             except InvalidTag:
-                self.send_json(400, {"error": "Código de pareamento incorreto ou mensagem adulterada."}, origin)
+                self.send_json(401, {"error": "Senha individual inválida ou mensagem adulterada."}, origin)
             except (ValueError, json.JSONDecodeError) as error:
                 self.send_json(400, {"error": str(error)}, origin)
             except Exception:
-                logging.exception("Não foi possível receber uma mensagem P2P do chat.")
+                logging.exception("Não foi possível processar uma operação do chat central.")
                 self.send_json(500, {"error": "Não foi possível sincronizar a mensagem do chat."}, origin)
             return
         if path == "/api/apply-update":
@@ -2236,46 +2585,6 @@ document.getElementById('tab-ios').classList.add('active');
                 logging.exception("Falha ao processar o estado móvel do CRAS Desktop.")
                 self.send_json(500, {"error": "Não foi possível salvar ou carregar os dados móveis."})
             return
-        if path == "/api/local-peer-directory":
-            if not self.is_local_app_request():
-                self.send_error(403)
-                return
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > 256 * 1024:
-                    raise ValueError("Tamanho da lista de computadores inválido.")
-                payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                if not isinstance(payload, dict) or "peers" not in payload:
-                    raise ValueError("A lista de computadores vinculados está inválida.")
-                count = self.store.set_peer_directory(payload["peers"])
-                self.send_json(200, {"count": count}, self.headers.get("Origin"))
-            except (ValueError, json.JSONDecodeError) as error:
-                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
-            except Exception:
-                logging.exception("Não foi possível salvar a lista local de computadores.")
-                self.send_json(500, {"error": "Não foi possível salvar os computadores vinculados."},
-                               self.headers.get("Origin"))
-            return
-        if path == "/api/local-manual-addresses":
-            if not self.is_local_app_request():
-                self.send_error(403)
-                return
-            try:
-                length = int(self.headers.get("Content-Length", "0"))
-                if length <= 0 or length > 16 * 1024:
-                    raise ValueError("Tamanho da lista de endereços inválido.")
-                payload = json.loads(self.rfile.read(length).decode("utf-8"))
-                if not isinstance(payload, dict) or "addresses" not in payload:
-                    raise ValueError("Informe a lista de endereços IP manuais.")
-                addresses = self.store.set_manual_addresses(payload["addresses"])
-                self.send_json(200, {"manualAddresses": addresses}, self.headers.get("Origin"))
-            except (ValueError, json.JSONDecodeError) as error:
-                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
-            except Exception:
-                logging.exception("Não foi possível salvar os endereços IP manuais.")
-                self.send_json(500, {"error": "Não foi possível salvar os endereços IP manuais."},
-                               self.headers.get("Origin"))
-            return
         if path == "/api/backup-config":
             if not self.is_local_app_request():
                 self.send_error(403)
@@ -2336,11 +2645,14 @@ document.getElementById('tab-ios').classList.add('active');
             except (ValueError, json.JSONDecodeError) as error:
                 self.send_json(400, {"error": str(error)}, origin)
             except Exception:
-                logging.exception("Falha ao persistir o estado P2P local.")
+                logging.exception("Falha ao persistir o estado local.")
                 self.send_json(500, {"error": "Não foi possível salvar o estado local de sincronização."}, origin)
             return
         if path != "/api/sync":
             self.send_error(404)
+            return
+        if not self.is_private_network_request():
+            self.send_error(403)
             return
         origin = self.headers.get("Origin")
         try:
@@ -2353,24 +2665,31 @@ document.getElementById('tab-ios').classList.add('active');
             return
         try:
             envelope = json.loads(self.rfile.read(length).decode("utf-8"))
-            salt, payload = decode_envelope(envelope, self.store.pairing_key)
+            user_id = envelope.get("userId") if isinstance(envelope, dict) else None
+            credential = self.store.get_user_credential(user_id)
+            profile = self.store.get_user_profile(user_id)
+            if not credential or not profile:
+                self.send_json(401, {"error": "Cadastre sua senha individual neste servidor primeiro."}, origin)
+                return
+            salt, payload = decode_envelope(envelope, credential)
+            if payload.get("userId") != user_id:
+                raise ValueError("A identidade do usuário não corresponde à solicitação.")
             result = self.store.sync(
                 payload.get("peerId"),
                 payload.get("requestId"),
                 payload.get("localSnapshot"),
                 payload.get("resolutions"),
-                payload.get("actorRole"),
-                payload.get("knownPeers"),
+                profile["role"],
             )
-            self.send_json(200, encode_envelope(salt, self.store.pairing_key, result), origin)
+            self.send_json(200, encode_envelope(salt, credential, result), origin)
         except Exception as error:
             logging.exception("Falha ao processar sincronização de um par.")
             message = "Não foi possível validar ou processar a sincronização."
             if isinstance(error, InvalidTag):
-                message = "Código de pareamento incorreto ou pacote de sincronização adulterado."
+                message = "Senha individual inválida ou pacote de sincronização adulterado."
             if isinstance(error, ValueError):
                 message = str(error)
-            self.send_json(400, {"error": message}, origin)
+            self.send_json(401 if isinstance(error, InvalidTag) else 400, {"error": message}, origin)
 def configure_logging(directory: Path) -> None:
     logging.basicConfig(
         filename=directory / "app.log",
@@ -2424,7 +2743,11 @@ def main() -> None:
     mobile_ca_fingerprint = ""
     try:
         mobile_ca_path, mobile_cert_path, mobile_key_path, mobile_ca_fingerprint = (
-            ensure_mobile_tls_certificates(user_data / "mobile-tls", lan_addresses())
+            ensure_mobile_tls_certificates(
+                user_data / "mobile-tls",
+                lan_addresses(),
+                central_hostname(store.node_id),
+            )
         )
     except Exception as error:
         logging.exception("Não foi possível preparar o acesso HTTPS móvel.")
@@ -2434,10 +2757,22 @@ def main() -> None:
             f"Detalhe: {error}"
         )
     CRASRequestHandler.store = store
+    central_advertiser = CentralServiceAdvertiser(store.node_id)
+    CRASRequestHandler.central_advertiser = central_advertiser
     CRASRequestHandler.ui_root = resource_path(".")
     CRASRequestHandler.mobile_ca_path = mobile_ca_path
     CRASRequestHandler.mobile_ca_fingerprint = mobile_ca_fingerprint
     try:
+        if store.is_central_server():
+            try:
+                central_advertiser.set_enabled(True)
+            except Exception as error:
+                store.set_central_server(False)
+                show_startup_error(
+                    "A descoberta do servidor central não pôde ser iniciada. "
+                    "O aplicativo continuará localmente; ative novamente o servidor nas Configurações.\n\n"
+                    f"Detalhe: {error}"
+                )
         server = ThreadingHTTPServer(("0.0.0.0", PORT), CRASRequestHandler)
     except OSError as error:
         logging.exception("Não foi possível iniciar o servidor da rede local.")
@@ -2509,5 +2844,6 @@ def main() -> None:
         if mobile_server:
             mobile_server.shutdown()
             mobile_server.server_close()
+        central_advertiser.close()
 if __name__ == "__main__":
     main()

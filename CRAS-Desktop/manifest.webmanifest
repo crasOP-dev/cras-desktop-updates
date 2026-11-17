@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "CRAS Ouro Preto",
+  "short_name": "CRAS",
+  "description": "Atendimento e filas do CRAS Ouro Preto",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1f6fa",
+  "theme_color": "#08634c",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

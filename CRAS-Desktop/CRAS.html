@@ -5,11 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#f1f6fa">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <link rel="manifest" href="/manifest.webmanifest">
     <title>Atendimento | CRAS Ouro Preto</title>
     <script>
         window.CRASDesktop = ["127.0.0.1", "localhost"].includes(location.hostname);
         window.CRASMobile = !window.CRASDesktop && location.protocol === "https:" && location.port === "8766";
         if (window.CRASMobile) document.documentElement.classList.add("mobile-client");
+        if (window.CRASMobile && "serviceWorker" in navigator) {
+            window.CRASServiceWorkerRegistration = navigator.serviceWorker.register("/sw.js")
+                .catch(error => {
+                    console.error("Não foi possível instalar o modo offline móvel.", error);
+                    window.CRASServiceWorkerError = error;
+                    return null;
+                });
+        }
     </script>
     <style>
         :root {
@@ -1208,7 +1219,7 @@
             min-height: 66px;
             padding: 10px 14px;
             color: #fff;
-            background: var(--teal);
+            background: #075e54;
         }
 
         .chat-popup-avatar {
@@ -1217,8 +1228,8 @@
             width: 40px;
             height: 40px;
             place-items: center;
-            color: var(--teal);
-            background: #fff;
+            color: #075e54;
+            background: #d9fdd3;
             border-radius: 50%;
             font-size: 13px;
             font-weight: 800;
@@ -1263,15 +1274,16 @@
             display: flex;
             flex: 1;
             flex-direction: column;
-            gap: 8px;
             min-height: 0;
-            padding: 10px;
+            padding: 0;
+            background: #efeae2;
         }
 
         .chat-history-row {
             display: flex;
             flex: 0 0 auto;
             justify-content: center;
+            padding: 9px 10px 0;
         }
 
         .chat-history-row .button-secondary {
@@ -1284,30 +1296,33 @@
             display: flex;
             flex: 1;
             flex-direction: column;
-            gap: 8px;
+            gap: 7px;
             min-height: 0;
             overflow-y: auto;
-            padding: 12px;
-            background: var(--canvas);
+            padding: 10px 12px;
+            background-color: #efeae2;
+            background-image: radial-gradient(rgba(73, 92, 82, .07) .7px, transparent .7px);
+            background-size: 15px 15px;
             border: 0;
             border-radius: 10px;
         }
 
         .chat-message {
+            position: relative;
             align-self: flex-start;
-            max-width: min(88%, 340px);
-            padding: 9px 11px;
-            background: var(--paper);
-            border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
-            border-radius: 12px 12px 12px 3px;
+            max-width: min(88%, 360px);
+            padding: 7px 9px 6px;
+            background: #fff;
+            border: 0;
+            border-radius: 2px 8px 8px 8px;
             box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
             overflow-wrap: anywhere;
         }
 
         .chat-message.own {
             align-self: flex-end;
-            background: var(--green-soft);
-            border-radius: 12px 12px 3px 12px;
+            background: #d9fdd3;
+            border-radius: 8px 2px 8px 8px;
         }
 
         .chat-message-meta,
@@ -1317,11 +1332,16 @@
         }
 
         .chat-message-meta {
-            margin-bottom: 5px;
-            font-weight: 700;
+            margin-bottom: 3px;
+            color: #667781;
+            font-size: 10px;
+            font-weight: 600;
         }
 
         .chat-message-text {
+            color: #111b21;
+            font-size: 13px;
+            line-height: 1.4;
             white-space: pre-wrap;
         }
 
@@ -1343,8 +1363,10 @@
         .chat-composer {
             display: grid;
             flex: 0 0 auto;
-            gap: 7px;
+            gap: 6px;
             margin: 0;
+            padding: 8px 10px;
+            background: #f0f2f5;
         }
 
         .chat-person-details summary {
@@ -1359,10 +1381,52 @@
         }
 
         .chat-composer #chat-message-input {
-            min-height: 58px;
-            max-height: 110px;
-            resize: vertical;
-            border-radius: 18px;
+            min-height: 44px;
+            max-height: 96px;
+            resize: none;
+            border: 0;
+            border-radius: 22px;
+            background: #fff;
+            box-shadow: none;
+        }
+
+        .chat-composer > .hint {
+            margin: 0;
+            font-size: 10px;
+            text-align: center;
+        }
+
+        .chat-compose-row {
+            display: flex;
+            align-items: flex-end;
+            gap: 7px;
+        }
+
+        .chat-send-button {
+            display: grid;
+            flex: 0 0 42px;
+            width: 42px;
+            height: 42px;
+            place-items: center;
+            padding: 0;
+            color: #fff;
+            background: #00a884;
+            border: 0;
+            border-radius: 50%;
+        }
+
+        .chat-send-button:hover {
+            background: #008f72;
+        }
+
+        .chat-send-button:disabled {
+            opacity: .6;
+            cursor: progress;
+        }
+
+        .chat-send-button svg {
+            width: 19px;
+            height: 19px;
         }
 
         .chat-composer-tools {
@@ -2037,7 +2101,6 @@
             gap: 9px;
         }
 
-        .sync-fab,
         .chat-fab {
             position: relative;
             z-index: auto;
@@ -2053,12 +2116,6 @@
             font-weight: 700;
         }
 
-        .sync-fab {
-            right: auto;
-            bottom: auto;
-            background: var(--teal);
-        }
-
         .chat-fab {
             background: var(--green);
         }
@@ -2067,16 +2124,6 @@
             background: var(--green-dark);
         }
 
-        .sync-fab:hover {
-            background: #075b62;
-        }
-
-        .sync-fab:disabled {
-            opacity: .7;
-            cursor: progress;
-        }
-
-        .sync-fab svg,
         .chat-fab svg {
             width: 19px;
             height: 19px;
@@ -2495,7 +2542,6 @@
                 gap: 7px;
             }
 
-            .sync-fab,
             .chat-fab {
                 min-height: 44px;
                 padding: 0 12px;
@@ -4635,6 +4681,28 @@
             background: var(--green-dark);
         }
 
+        body.dark-mode .chat-messages,
+        body.dark-mode .chat-popup-body {
+            background-color: #111b21;
+        }
+
+        body.dark-mode .chat-message,
+        body.dark-mode .chat-composer #chat-message-input {
+            background-color: #202c33;
+        }
+
+        body.dark-mode .chat-message.own {
+            background-color: #005c4b;
+        }
+
+        body.dark-mode .chat-message-text {
+            color: #e9edef;
+        }
+
+        body.dark-mode .chat-composer {
+            background: #202c33;
+        }
+
         @media (max-width: 760px) {
             .topbar {
                 padding-inline: 22px;
@@ -4844,8 +4912,8 @@
                 font-size: 13px;
             }
 
-            .user-login-card #login-admin-pin-wrap:not([hidden]),
-            .user-login-card #login-admin-pin-confirm-wrap:not([hidden]) {
+            .user-login-card #login-password-wrap:not([hidden]),
+            .user-login-card #login-password-confirm-wrap:not([hidden]) {
                 grid-column: 1 / -1;
                 display: grid;
                 grid-template-columns: minmax(90px, .75fr) minmax(0, 1.25fr);
@@ -4853,13 +4921,13 @@
                 gap: 4px 10px;
             }
 
-            .user-login-card #login-admin-pin-wrap > .field-label,
-            .user-login-card #login-admin-pin-confirm-wrap > .field-label {
+            .user-login-card #login-password-wrap > .field-label,
+            .user-login-card #login-password-confirm-wrap > .field-label {
                 grid-column: 1;
             }
 
-            .user-login-card #login-admin-pin,
-            .user-login-card #login-admin-pin-confirm {
+            .user-login-card #login-password,
+            .user-login-card #login-password-confirm {
                 grid-column: 2;
                 min-width: 0;
                 min-height: 38px;
@@ -5372,7 +5440,7 @@
         <form class="access-gate-card mobile-access-card" id="mobile-access-form">
             <p class="eyebrow">Acesso pela rede local</p>
             <h1>CRAS Ouro Preto</h1>
-            <p>Digite o código móvel configurado pelo Admin no computador. Use somente uma rede Wi-Fi privada e confiável.</p>
+            <p>Digite o código móvel configurado pelo Admin. No Android ou iPhone, use o menu do navegador para adicionar o CRAS à tela inicial; depois do primeiro acesso, será possível abrir a cópia local sem conexão.</p>
             <label class="field-label" for="mobile-access-pin">Código de acesso móvel</label>
             <input class="text-input" id="mobile-access-pin" type="password" minlength="12" maxlength="128"
                 autocomplete="current-password" required>
@@ -5388,7 +5456,7 @@
             <div class="welcome-logo login-logo" aria-hidden="true"><span>C</span><span>R</span><span>A</span><span>S</span></div>
             <p class="eyebrow">Acesso ao CRAS Desktop</p>
             <h1 id="user-login-title">Identifique-se para iniciar</h1>
-            <p>Digite seu nome cadastrado e confirme sua função.</p>
+            <p>Selecione seu nome. No primeiro acesso, crie uma senha individual.</p>
             <label class="field-label" for="login-user">Nome do usuário</label>
             <input class="text-input" id="login-user" type="text" list="login-user-list" maxlength="60"
                 autocomplete="name" required>
@@ -5401,20 +5469,20 @@
                 <option value="intern">Estagiário</option>
                 <option value="admin">Admin</option>
             </select>
-            <label class="remember-user-option" for="remember-last-user">
-                <input id="remember-last-user" type="checkbox" checked>
-                <span>Lembrar último usuário neste computador</span>
-            </label>
-            <div id="login-admin-pin-wrap" hidden>
-                <label class="field-label" for="login-admin-pin">PIN administrativo</label>
-                <input class="text-input" id="login-admin-pin" type="password" inputmode="numeric"
-                    autocomplete="off" maxlength="32">
-                <div id="login-admin-pin-confirm-wrap" hidden>
-                    <label class="field-label" for="login-admin-pin-confirm">Confirme o PIN</label>
-                    <input class="text-input" id="login-admin-pin-confirm" type="password" inputmode="numeric"
-                        autocomplete="off" maxlength="32">
+            <div id="login-password-wrap" hidden>
+                <label class="field-label" id="login-password-label" for="login-password">Senha individual</label>
+                <input class="text-input" id="login-password" type="password" minlength="8" maxlength="128"
+                    autocomplete="current-password">
+                <div id="login-password-confirm-wrap" hidden>
+                    <label class="field-label" for="login-password-confirm">Confirme sua senha</label>
+                    <input class="text-input" id="login-password-confirm" type="password" minlength="8"
+                        maxlength="128" autocomplete="new-password">
                 </div>
             </div>
+            <label class="remember-user-option" for="remember-user-session">
+                <input id="remember-user-session" type="checkbox">
+                <span>Lembrar este usuário e pular o login neste dispositivo</span>
+            </label>
             <div class="user-login-actions">
                 <button class="button-primary" type="submit">Entrar</button>
             </div>
@@ -5579,46 +5647,30 @@
                                 <p class="hint">Abra o Portal pelo celular para baixar o certificado CA e liberar a criptografia HTTPS segura na porta 8766.</p>
                             </div>
 
-                            <!-- Card 2: Sincronização entre Computadores (P2P) -->
-                            <div class="settings-section-card">
+                            <!-- Card 2: Servidor central e sincronização offline -->
+                            <div class="settings-section-card" id="desktop-sync-settings-card">
                                 <div class="settings-card-header">
-                                    <span class="settings-card-title">💻 Sincronização de Computadores</span>
+                                    <span class="settings-card-title">💻 Servidor central e sincronização</span>
                                 </div>
-                                <label class="field-label" for="sync-local-addresses">Endereço deste computador</label>
-                                <div class="copy-input-group">
-                                    <input class="text-input" id="sync-local-addresses" type="text" readonly>
-                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-local-addresses', 'Endereço deste computador')">Copiar</button>
+                                <p class="hint" id="central-server-discovery-status" role="status" aria-live="polite">
+                                    O servidor central será localizado automaticamente na rede local.
+                                </p>
+                                <div id="central-server-role-setting" hidden>
+                                    <label class="toggle-row" for="central-server-toggle">
+                                        <input id="central-server-toggle" type="checkbox">
+                                        <span>Este computador é o notebook servidor central</span>
+                                    </label>
+                                    <p class="hint">Ative somente no notebook que mantém o banco central. Os demais computadores o encontrarão automaticamente.</p>
                                 </div>
-
-                                <label class="field-label" for="sync-manual-local-addresses">IPs manuais adicionais deste computador</label>
-                                <input class="text-input" id="sync-manual-local-addresses" type="text"
-                                    placeholder="192.168.0.15, 10.0.0.15" autocomplete="off" style="margin-bottom: 8px;">
-                                <button class="button-secondary" id="sync-manual-addresses-save" type="button"
-                                    style="width: 100%; margin-bottom: 8px;">Salvar IPs manuais</button>
-                                <p class="hint">Os IPs manuais são somados aos detectados e compartilhados com os parceiros na sincronização. Informe apenas IPv4 privado realmente atribuído a este PC; isso não altera a configuração do Windows.</p>
-
-                                <label class="field-label" for="sync-local-key">Código de pareamento deste computador</label>
-                                <div class="copy-input-group">
-                                    <input class="text-input" id="sync-local-key" type="text" readonly>
-                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-local-key', 'Código de pareamento')">Copiar</button>
-                                </div>
-
-                                <hr style="border: 0; border-top: 1px dashed var(--line); margin: 12px 0;">
 
                                 <div id="single-peer-settings">
-                                    <label class="field-label" for="sync-app-url">Endereço do outro computador</label>
+                                    <label class="field-label" for="sync-app-url">Endereço do servidor central</label>
                                     <input class="text-input" id="sync-app-url" type="url" placeholder="http://192.168.0.10:8765" autocomplete="off" style="margin-bottom: 8px;">
 
-                                    <label class="field-label" for="sync-peer-key">Código do outro computador</label>
-                                    <input class="text-input" id="sync-peer-key" type="password" placeholder="Cole o código do parceiro" autocomplete="off" style="margin-bottom: 10px;">
+                                    <label class="field-label" for="sync-peer-key">Código do servidor central</label>
+                                    <input class="text-input" id="sync-peer-key" type="password" placeholder="Cole o código exibido no notebook servidor" autocomplete="off" style="margin-bottom: 10px;">
 
-                                    <button class="button-secondary" id="sync-app-url-save" type="button" style="width: 100%;">Salvar Computador Parceiro</button>
-                                </div>
-                                <div id="multi-peer-settings" hidden>
-                                    <p class="hint">Conecte este computador a um parceiro confiável. Após uma sincronização bem-sucedida, os endereços e códigos conhecidos pelos parceiros aparecem automaticamente nesta lista.</p>
-                                    <div id="sync-peer-list"></div>
-                                    <button class="button-secondary" id="sync-peer-add" type="button" style="width: 100%; margin-bottom: 8px;">Adicionar computador vinculado</button>
-                                    <button class="button-secondary" id="sync-peers-save" type="button" style="width: 100%;">Salvar computadores vinculados</button>
+                                    <button class="button-secondary" id="sync-app-url-save" type="button" style="width: 100%;">Salvar servidor central</button>
                                 </div>
                                 <div id="desktop-paa-sync-settings" hidden>
                                     <hr style="border: 0; border-top: 1px dashed var(--line); margin: 12px 0;">
@@ -5678,14 +5730,6 @@
                 <path d="M8 11h.01M12 11h.01M16 11h.01" />
             </svg>
             <span>Chat</span>
-        </button>
-        <button class="sync-fab" id="sync-now" type="button" aria-label="Sincronizar dados com outro computador">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"
-                stroke-linejoin="round" aria-hidden="true">
-                <path d="M20 7v5h-5M4 17v-5h5" />
-                <path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2" />
-            </svg>
-            <span>Sincronizar</span>
         </button>
     </div>
     <p class="sync-status" id="sync-status" role="status" aria-live="polite" hidden></p>
@@ -6173,6 +6217,17 @@
                 <button class="chat-popup-close" id="chat-close" type="button" aria-label="Fechar chat">×</button>
             </header>
             <div class="chat-popup-body">
+                <div class="chat-conversation-picker">
+                    <label class="field-label" for="chat-conversation-type">Conversa</label>
+                    <select class="text-input" id="chat-conversation-type">
+                        <option value="general">Aviso geral · todos os usuários</option>
+                        <option value="direct">Mensagem individual</option>
+                    </select>
+                    <select class="text-input" id="chat-recipient-id" aria-label="Destinatário"
+                        style="margin-top: 6px;" hidden>
+                        <option value="">Selecione um usuário</option>
+                    </select>
+                </div>
                 <div class="chat-history-row">
                     <button class="button-secondary" id="chat-load-older" type="button" hidden>Mensagens anteriores</button>
                 </div>
@@ -6192,9 +6247,6 @@
                         <span id="chat-selected-person-label"></span>
                         <button class="button-secondary" id="chat-clear-person" type="button">Remover</button>
                     </div>
-                    <textarea class="text-input" id="chat-message-input" rows="2" maxlength="4000"
-                        aria-label="Mensagem"
-                        placeholder="Escreva uma mensagem ou recomendação…"></textarea>
                     <div class="chat-composer-tools">
                         <details>
                             <summary class="button-secondary">Emoji</summary>
@@ -6214,7 +6266,17 @@
                             accept="image/png,image/jpeg,image/gif,image/webp">
                         <span id="chat-attachment-name"></span>
                         <button class="button-secondary" id="chat-clear-attachment" type="button" hidden>Remover imagem</button>
-                        <button class="button-primary" id="chat-send" type="submit">Enviar</button>
+                    </div>
+                    <div class="chat-compose-row">
+                        <textarea class="text-input" id="chat-message-input" rows="1" maxlength="4000"
+                            aria-label="Mensagem" placeholder="Mensagem"></textarea>
+                        <button class="chat-send-button" id="chat-send" type="submit" aria-label="Enviar mensagem">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m22 2-7 20-4-9-9-4Z" />
+                                <path d="M22 2 11 13" />
+                            </svg>
+                        </button>
                     </div>
                     <p class="hint">Imagens e GIFs: até 2 MB. As mensagens antigas são arquivadas neste dispositivo.</p>
                 </form>
@@ -6235,7 +6297,7 @@
             <div class="assistant-admin-content" id="assistant-admin-content" hidden>
                 <section class="panel mobile-admin-settings" id="mobile-admin-settings" hidden>
                     <h3>Acesso pelo celular</h3>
-                    <p class="hint">Defina um código com pelo menos 12 caracteres. Use o celular somente em uma rede Wi-Fi privada e confiável.</p>
+                    <p class="hint">Defina um código com pelo menos 12 caracteres. Use o celular somente em uma rede local privada e confiável.</p>
                     <label class="field-label" for="mobile-admin-pin">Novo código de acesso móvel</label>
                     <input class="text-input" id="mobile-admin-pin" type="password" minlength="12" maxlength="128"
                         autocomplete="new-password">
@@ -6454,7 +6516,12 @@
             const STORAGE_LOCAL_NODE_REVISION = "cras-ouro-preto-local-node-revision-v1";
             const STORAGE_LOCAL_NODE_BASE_SNAPSHOT = "cras-ouro-preto-local-node-base-snapshot-v1";
             const STORAGE_LOCAL_ACTIVE_USER = "cras-ouro-preto-usuario-local-v1";
-            const STORAGE_REMEMBER_LAST_USER = "cras-ouro-preto-lembrar-usuario-v1";
+            const STORAGE_REMEMBER_USER_SESSION = "cras-ouro-preto-lembrar-sessao-v1";
+            const STORAGE_MOBILE_ACCESS_INFO = "cras-mobile-access-info-v1";
+            const STORAGE_MOBILE_ACCESS_PROOF = "cras-mobile-access-proof-v1";
+            const STORAGE_MOBILE_NODE_REVISION = "cras-mobile-node-revision-v1";
+            const STORAGE_MOBILE_NODE_BASE_SNAPSHOT = "cras-mobile-node-base-snapshot-v1";
+            const STORAGE_PENDING_CHAT_MESSAGES = "cras-pending-central-chat-messages-v1";
             const SYSTEM_ADMIN_USER_ID = "cras-system-admin-adm-dev";
             const SYSTEM_ADMIN_NAME = "adm.dev";
             const STORAGE_DAIANE_ADMIN_MIGRATION = "cras-daiane-admin-default-migrated-v1";
@@ -6508,7 +6575,6 @@
             const CHAT_PAGE_SIZE = 50;
             const CHAT_ATTACHMENT_MAX_BYTES = 2 * 1024 * 1024;
             const MAX_BACKUP_FILE_BYTES = 100 * 1024 * 1024;
-            const MAX_DESKTOP_PEERS = 100;
             const CHAT_ATTACHMENT_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
             const form = document.getElementById("appointment-form");
             const assistantChoiceList = document.getElementById("assistant-choice-list");
@@ -6544,6 +6610,9 @@
             let chatMessages = [];
             let chatPerson = null;
             let chatAttachment = null;
+            let chatRecipientId = "";
+            let centralServerDiscoveryCache = null;
+            let centralServerDiscoveryTime = 0;
             let chatLoadInProgress = false;
             let chatPollTimer = null;
             let chatLoadErrorShown = false;
@@ -6799,7 +6868,16 @@
                     name: user.name.trim(),
                     color: user.color.toLowerCase(),
                     role: user.role,
-                    canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true
+                    canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true,
+                    ...(user.passwordCredential
+                        && typeof user.passwordCredential.salt === "string"
+                        && typeof user.passwordCredential.hash === "string"
+                        && /^[a-f0-9]{64}$/i.test(user.passwordCredential.hash)
+                        ? { passwordCredential: {
+                            salt: user.passwordCredential.salt,
+                            hash: user.passwordCredential.hash.toLowerCase()
+                        } }
+                        : {})
                 }))
                 .filter((user, index, list) => list.findIndex(item => item.id === user.id) === index);
             if (!users.length) users = DEFAULT_ASSISTANTS.map((assistant, index) => ({
@@ -6853,7 +6931,6 @@
             let activeUser = null;
             let rememberedUserId = "";
             let currentMainTab = "attendance";
-            let adminPinHash = "";
             let routes = readStorage(STORAGE_ROUTES, null);
             if (!Array.isArray(routes)) routes = [...DEFAULT_ROUTES];
             routes = routes.filter(route => typeof route === "string" && route.trim());
@@ -6879,7 +6956,16 @@
             nationalities = nationalities.filter(value => typeof value === "string" && value.trim().length <= 60)
                 .map(value => value.trim())
                 .filter((value, index, values) => values.findIndex(item => item.toLocaleLowerCase("pt-BR") === value.toLocaleLowerCase("pt-BR")) === index);
-            let preferences = { ...DEFAULT_PREFERENCES, ...readStorage(STORAGE_PREFERENCES, {}) };
+            const savedPreferences = readStorage(STORAGE_PREFERENCES, {});
+            let preferences = { ...DEFAULT_PREFERENCES, ...savedPreferences };
+            const hadLegacyDesktopServerSettings = window.CRASDesktop
+                && ["serverEndpoint", "serverToken", "syncEndpoint", "syncToken", "syncPeers"]
+                    .some(key => Object.hasOwn(savedPreferences, key));
+            if (window.CRASDesktop) {
+                ["serverEndpoint", "serverToken", "syncEndpoint", "syncToken", "syncPeers"].forEach(key => {
+                    delete preferences[key];
+                });
+            }
             if (!Array.isArray(preferences.syncPeers)) {
                 preferences.syncPeers = preferences.syncEndpoint && preferences.syncToken
                     ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
@@ -6908,6 +6994,9 @@
             let offlineMode = false;
             let desktopNodeInfo = null;
             let mobileAccessKey = null;
+            let mobileOfflineMode = false;
+            let mobilePendingSync = false;
+            let mobileOfflineCredentials = { info: null, proof: null };
             let mobileNodeRevision = 0;
             let mobileNodeBaseSnapshot = null;
             let mobileRefreshInProgress = false;
@@ -6937,8 +7026,10 @@
                 document.getElementById("principal-computer-toggle").checked = Boolean(preferences.isPrincipalComputer);
                 document.getElementById("principal-computer-setting").hidden = activeUser?.role !== "admin";
                 document.getElementById("principal-backup-hint").hidden = activeUser?.role !== "admin";
-                document.getElementById("sync-app-url").value = preferences.syncEndpoint || "";
-                document.getElementById("sync-peer-key").value = preferences.syncToken || "";
+                const syncUrlInput = document.getElementById("sync-app-url");
+                const syncKeyInput = document.getElementById("sync-peer-key");
+                if (syncUrlInput) syncUrlInput.value = preferences.syncEndpoint || "";
+                if (syncKeyInput) syncKeyInput.value = preferences.syncToken || "";
                 document.getElementById("paa-google-sheet-url").value = preferences.googleSheetEndpoint || "";
                 paaTab.hidden = !preferences.paaEnabled;
                 chatToggle.hidden = mobileClient || hostedAppsScript;
@@ -6967,6 +7058,8 @@
                 queuesTab.hidden = !isStaff && !hostedAppsScript && !mobileIntern;
                 document.getElementById("principal-computer-setting").hidden = role !== "admin";
                 document.getElementById("principal-backup-hint").hidden = role !== "admin";
+                document.getElementById("central-server-role-setting").hidden =
+                    !window.CRASDesktop || role !== "admin";
                 document.getElementById("settings-switch-user").hidden = !activeUser;
                 document.getElementById("assistant-admin-open").hidden = activeUser?.role !== "admin";
                 document.getElementById("active-user-label").textContent = activeUser
@@ -7012,25 +7105,27 @@
                     : `user-${Date.now()}-${Math.random().toString(16).slice(2)}`;
             }
 
-            async function hashAdminPin(pin, salt) {
+            async function hashUserPassword(password, salt) {
                 if (!window.crypto?.subtle) {
-                    throw new Error("Este ambiente não oferece criptografia local para proteger o PIN administrativo.");
+                    throw new Error("Este ambiente não oferece criptografia para validar a senha.");
                 }
-                const key = await window.crypto.subtle.importKey(
-                    "raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
+                const material = await window.crypto.subtle.importKey(
+                    "raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveBits"]);
                 const digest = await window.crypto.subtle.deriveBits({
                     name: "PBKDF2",
                     salt,
                     iterations: 150000,
                     hash: "SHA-256"
-                }, key, 256);
+                }, material, 256);
                 return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
             }
 
-            async function getAdminPinCredential() {
-                const setting = await database.settings.get("cras-ouro-preto-admin-pin-hash-local");
-                const value = setting?.value;
-                return value && typeof value.salt === "string" && typeof value.hash === "string" ? value : null;
+            async function createUserPasswordCredential(password) {
+                const salt = window.crypto.getRandomValues(new Uint8Array(16));
+                return {
+                    salt: bytesToBase64(salt),
+                    hash: await hashUserPassword(password, salt)
+                };
             }
 
             function renderLoginUsers() {
@@ -7043,34 +7138,36 @@
                     loginName.value = rememberedUser.name;
                     document.getElementById("login-role").value = rememberedUser.role;
                 }
-                updateLoginPinFields();
+                updateLoginPasswordFields();
+                renderChatRecipients();
             }
 
-            async function updateLoginPinFields() {
+            function updateLoginPasswordFields() {
                 const loginName = document.getElementById("login-user").value.trim().toLocaleLowerCase("pt-BR");
                 const selectedRole = document.getElementById("login-role").value;
-                const pinWrap = document.getElementById("login-admin-pin-wrap");
-                const confirmWrap = document.getElementById("login-admin-pin-confirm-wrap");
-                const isAdmin = selectedRole === "admin";
-                pinWrap.hidden = !isAdmin;
-                document.getElementById("login-admin-pin").required = isAdmin;
-                document.getElementById("login-admin-pin-confirm").required = false;
-                if (!isAdmin) {
-                    confirmWrap.hidden = true;
-                    return;
-                }
-                confirmWrap.hidden = Boolean(await getAdminPinCredential());
-                document.getElementById("login-admin-pin-confirm").required = !confirmWrap.hidden;
-                document.getElementById("login-admin-pin").labels[0].textContent =
-                    confirmWrap.hidden ? "PIN administrativo" : "Crie o PIN administrativo";
+                const selectedUser = users.find(user =>
+                    user.name.toLocaleLowerCase("pt-BR") === loginName && user.role === selectedRole);
+                const passwordWrap = document.getElementById("login-password-wrap");
+                const confirmWrap = document.getElementById("login-password-confirm-wrap");
+                const passwordInput = document.getElementById("login-password");
+                const confirmInput = document.getElementById("login-password-confirm");
+                const needsPasswordSetup = Boolean(selectedUser && !selectedUser.passwordCredential);
+                passwordWrap.hidden = !selectedUser;
+                confirmWrap.hidden = !needsPasswordSetup;
+                passwordInput.required = Boolean(selectedUser);
+                confirmInput.required = needsPasswordSetup;
+                passwordInput.autocomplete = needsPasswordSetup ? "new-password" : "current-password";
+                document.getElementById("login-password-label").textContent = needsPasswordSetup
+                    ? "Crie sua senha (mínimo 8 caracteres)"
+                    : "Senha individual";
             }
 
             function showUserLogin(preferredUserId = rememberedUserId) {
                 activeUser = null;
                 document.body.removeAttribute("data-user-role");
                 document.getElementById("user-login-status").textContent = "";
-                document.getElementById("login-admin-pin").value = "";
-                document.getElementById("login-admin-pin-confirm").value = "";
+                document.getElementById("login-password").value = "";
+                document.getElementById("login-password-confirm").value = "";
                 renderLoginUsers();
                 const preferredUser = users.find(user => user.id === preferredUserId);
                 if (preferredUser) {
@@ -7079,11 +7176,7 @@
                 }
                 document.getElementById("user-login").hidden = false;
                 document.getElementById("login-user").focus();
-                updateLoginPinFields().then(() => {
-                    if (document.getElementById("login-role").value === "admin") {
-                        document.getElementById("login-admin-pin").focus();
-                    }
-                });
+                updateLoginPasswordFields();
                 applyActiveUserLayout();
             }
 
@@ -7104,19 +7197,19 @@
             }
 
             async function activateUser(selectedUser, animate = false) {
-                const rememberLastUser = document.getElementById("remember-last-user").checked;
+                const rememberUserSession = document.getElementById("remember-user-session").checked;
                 await database.transaction("rw", database.settings, async () => {
                     await database.settings.put({
-                        key: STORAGE_REMEMBER_LAST_USER,
-                        value: rememberLastUser
+                        key: STORAGE_REMEMBER_USER_SESSION,
+                        value: rememberUserSession
                     });
-                    if (rememberLastUser) {
+                    if (rememberUserSession) {
                         await database.settings.put({ key: STORAGE_LOCAL_ACTIVE_USER, value: selectedUser.id });
                     } else {
                         await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
                     }
                 });
-                rememberedUserId = rememberLastUser ? selectedUser.id : "";
+                rememberedUserId = rememberUserSession ? selectedUser.id : "";
                 activeUser = {
                     id: selectedUser.id,
                     name: selectedUser.name,
@@ -7126,9 +7219,10 @@
                 };
                 const finishActivation = () => {
                     document.getElementById("user-login").hidden = true;
-                    document.getElementById("login-admin-pin").value = "";
-                    document.getElementById("login-admin-pin-confirm").value = "";
+                    document.getElementById("login-password").value = "";
+                    document.getElementById("login-password-confirm").value = "";
                     applyActiveUserLayout();
+                    renderChatRecipients();
                     renderAll();
                     scheduleLocalSnapshotPersist(activeUser.role);
                 };
@@ -7148,56 +7242,71 @@
                     status.textContent = "Nome e função não correspondem a um usuário cadastrado. Procure adm.dev.";
                     return;
                 }
-                if (selectedUser.role === "admin") {
-                    const pin = document.getElementById("login-admin-pin").value;
-                    const savedCredential = await getAdminPinCredential();
-                    if (savedCredential) {
-                        const calculatedHash = await hashAdminPin(pin, base64ToBytes(savedCredential.salt));
-                        if (calculatedHash !== savedCredential.hash) {
-                            status.textContent = "PIN administrativo incorreto.";
-                            document.getElementById("login-admin-pin").select();
-                            return;
-                        }
-                    } else {
-                        const confirmation = document.getElementById("login-admin-pin-confirm").value;
-                        if (pin.length < 4 || pin !== confirmation) {
-                            status.textContent = "Defina um PIN com pelo menos 4 caracteres e confirme-o.";
-                            return;
-                        }
-                        const salt = window.crypto.getRandomValues(new Uint8Array(16));
-                        await database.settings.put({
-                            key: "cras-ouro-preto-admin-pin-hash-local",
-                            value: {
-                                salt: bytesToBase64(salt),
-                                hash: await hashAdminPin(pin, salt)
-                            }
-                        });
+                const passwordInput = document.getElementById("login-password");
+                const password = passwordInput.value;
+                let passwordCreated = false;
+                if (selectedUser.passwordCredential) {
+                    const calculatedHash = await hashUserPassword(
+                        password, base64ToBytes(selectedUser.passwordCredential.salt)
+                    );
+                    if (calculatedHash !== selectedUser.passwordCredential.hash) {
+                        status.textContent = "Senha incorreta.";
+                        passwordInput.select();
+                        return;
                     }
+                } else {
+                    const confirmation = document.getElementById("login-password-confirm").value;
+                    if (password.length < 8 || password.length > 128) {
+                        status.textContent = "Crie uma senha com pelo menos 8 caracteres.";
+                        passwordInput.focus();
+                        return;
+                    }
+                    if (password !== confirmation) {
+                        status.textContent = "As senhas não coincidem.";
+                        document.getElementById("login-password-confirm").select();
+                        return;
+                    }
+                    const credential = await createUserPasswordCredential(password);
+                    const updatedUsers = users.map(user => user.id === selectedUser.id
+                        ? { ...user, passwordCredential: credential }
+                        : user);
+                    if (!await saveStorage(STORAGE_USERS, updatedUsers)) {
+                        status.textContent = "Não foi possível salvar sua senha neste dispositivo.";
+                        return;
+                    }
+                    users = updatedUsers;
+                    passwordCreated = true;
                 }
                 await activateUser(selectedUser, true);
+                if (passwordCreated) schedulePeerSync(selectedUser.role);
             }
 
             async function restoreLocalUser() {
-                const rememberSetting = await database.settings.get(STORAGE_REMEMBER_LAST_USER);
-                const rememberLastUser = rememberSetting?.value !== false;
-                document.getElementById("remember-last-user").checked = rememberLastUser;
+                const rememberSetting = await database.settings.get(STORAGE_REMEMBER_USER_SESSION);
+                const rememberUserSession = rememberSetting?.value === true;
+                document.getElementById("remember-user-session").checked = rememberUserSession;
                 const savedUser = await database.settings.get(STORAGE_LOCAL_ACTIVE_USER);
-                if (!rememberLastUser) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
-                rememberedUserId = rememberLastUser && typeof savedUser?.value === "string"
+                if (!rememberUserSession) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
+                rememberedUserId = rememberUserSession && typeof savedUser?.value === "string"
                     ? savedUser.value
                     : "";
+                const rememberedUser = users.find(user => user.id === rememberedUserId);
+                if (rememberedUser?.passwordCredential) {
+                    await activateUser(rememberedUser);
+                    return;
+                }
                 showUserLogin(rememberedUserId);
             }
 
-            async function persistRememberLastUserPreference(rememberLastUser) {
+            async function persistRememberUserSessionPreference(rememberUserSession) {
                 await database.transaction("rw", database.settings, async () => {
                     await database.settings.put({
-                        key: STORAGE_REMEMBER_LAST_USER,
-                        value: rememberLastUser
+                        key: STORAGE_REMEMBER_USER_SESSION,
+                        value: rememberUserSession
                     });
-                    if (!rememberLastUser) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
+                    if (!rememberUserSession) await database.settings.delete(STORAGE_LOCAL_ACTIVE_USER);
                 });
-                if (!rememberLastUser) {
+                if (!rememberUserSession) {
                     rememberedUserId = "";
                     document.getElementById("login-user").value = "";
                 }
@@ -7208,7 +7317,8 @@
                 try {
                     const url = new URL(endpoint);
                     if (window.CRASDesktop) {
-                        if (url.protocol !== "http:" || !url.hostname || url.username || url.password
+                        if (url.protocol !== "http:" || !isPrivateIPv4Address(url.hostname)
+                            || url.username || url.password
                             || url.pathname !== "/" || url.search || url.hash) return "";
                         return url.origin;
                     }
@@ -7221,6 +7331,17 @@
                 } catch {
                     return "";
                 }
+            }
+
+            function isPrivateIPv4Address(hostname) {
+                const parts = hostname.split(".");
+                if (parts.length !== 4 || parts.some(part => !/^\d{1,3}$/.test(part))) return false;
+                const octets = parts.map(Number);
+                if (octets.some(part => part < 0 || part > 255)) return false;
+                const [first, second] = octets;
+                return first === 10
+                    || first === 172 && second >= 16 && second <= 31
+                    || first === 192 && second === 168;
             }
 
             function getGoogleAppsScriptBridgeUrl(endpoint = window.CRASDesktop
@@ -7242,77 +7363,74 @@
             }
 
             function getConfiguredDesktopPeers() {
-                const configured = Array.isArray(preferences.syncPeers)
-                    ? preferences.syncPeers.filter(peer => peer && typeof peer.endpoint === "string"
-                        && typeof peer.token === "string" && peer.endpoint && peer.token)
-                    : [];
-                if (configured.length) return configured;
-                return preferences.syncEndpoint && preferences.syncToken
-                    ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
-                    : [];
+                const user = users.find(item => item.id === activeUser?.id);
+                if (!window.CRASDesktop || desktopNodeInfo?.centralServer
+                    || !centralServerDiscoveryCache || !user?.passwordCredential) return [];
+                return [{
+                    endpoint: centralServerDiscoveryCache.endpoint,
+                    nodeId: centralServerDiscoveryCache.nodeId,
+                    userId: user.id,
+                    name: user.name,
+                    role: user.role,
+                    credential: user.passwordCredential
+                }];
             }
 
-            function renderDesktopPeerRows(peers = getConfiguredDesktopPeers()) {
-                const peerList = document.getElementById("sync-peer-list");
-                if (!peerList) return;
-                const entries = peers.length ? peers : [{ endpoint: "", token: "" }];
-                peerList.innerHTML = entries.map((peer, index) => `
-                    <div data-sync-peer-row style="border: 1px solid var(--line); border-radius: 8px; padding: 10px; margin-bottom: 10px;">
-                        <label class="field-label">Endereço do computador vinculado ${index + 1}
-                            <input class="text-input" data-peer-endpoint type="url" value="${escapeHtml(peer.endpoint || "")}" placeholder="http://192.168.0.10:8765" autocomplete="off">
-                        </label>
-                        <label class="field-label">Código de pareamento do computador ${index + 1}
-                            <input class="text-input" data-peer-token type="password" value="${escapeHtml(peer.token || "")}" placeholder="Cole o código do parceiro" autocomplete="off">
-                        </label>
-                        <button class="button-delete" data-remove-sync-peer type="button" aria-label="Remover computador vinculado ${index + 1}">Remover</button>
-                    </div>`).join("");
-            }
-
-            function getLocalPeerAddresses() {
-                const automatic = Array.isArray(desktopNodeInfo?.addresses) ? desktopNodeInfo.addresses : [];
-                const manual = Array.isArray(desktopNodeInfo?.manualAddresses) ? desktopNodeInfo.manualAddresses : [];
-                return Array.from(new Set([...automatic, ...manual]
-                    .filter(address => typeof address === "string" && address.trim())
-                    .map(address => address.trim())));
-            }
-
-            function updateLocalPeerAddressDisplay() {
-                const addresses = getLocalPeerAddresses();
-                document.getElementById("sync-local-addresses").value =
-                    addresses.map(address => `http://${address}:${desktopNodeInfo.port}`).join(", ")
-                    || `http://127.0.0.1:${desktopNodeInfo.port}`;
-            }
-
-            function getKnownDesktopPeers() {
-                const peersByEndpoint = new Map(
-                    getConfiguredDesktopPeers().map(peer => [peer.endpoint, { ...peer }])
-                );
-                if (desktopNodeInfo?.pairingKey && desktopNodeInfo?.nodeId) {
-                    for (const address of getLocalPeerAddresses()) {
-                        const endpoint = `http://${address}:${desktopNodeInfo.port || 8765}`;
-                        if (!peersByEndpoint.has(endpoint)) {
-                            if (peersByEndpoint.size >= MAX_DESKTOP_PEERS) break;
-                            peersByEndpoint.set(endpoint, {
-                                endpoint,
-                                token: desktopNodeInfo.pairingKey,
-                                nodeId: desktopNodeInfo.nodeId
-                            });
-                        }
-                    }
+            async function discoverCentralServer(force = false) {
+                if (!window.CRASDesktop || desktopNodeInfo?.centralServer) return [];
+                if (!force && centralServerDiscoveryCache
+                    && Date.now() - centralServerDiscoveryTime < 15000) {
+                    return getConfiguredDesktopPeers();
                 }
-                return Array.from(peersByEndpoint.values()).slice(0, MAX_DESKTOP_PEERS);
+                const response = await fetchPeer("/api/central-servers", { cache: "no-store" }, 4000);
+                const result = await response.json();
+                if (!response.ok || !Array.isArray(result.servers)) {
+                    throw new Error(result.error || "Não foi possível localizar o servidor central na rede.");
+                }
+                const servers = result.servers.filter(server => server
+                    && typeof server.nodeId === "string"
+                    && Array.isArray(server.endpoints)
+                    && server.endpoints.some(endpoint => typeof endpoint === "string"));
+                const uniqueServers = [...new Map(servers.map(server => [server.nodeId, server])).values()];
+                if (uniqueServers.length > 1) {
+                    centralServerDiscoveryCache = null;
+                    throw new Error("Mais de um servidor central foi encontrado. Mantenha ativo somente o notebook servidor.");
+                }
+                if (!uniqueServers.length) {
+                    centralServerDiscoveryCache = null;
+                    centralServerDiscoveryTime = Date.now();
+                    document.getElementById("central-server-discovery-status").textContent =
+                        "Servidor central ainda não encontrado. Os dados permanecem salvos neste computador.";
+                    return [];
+                }
+                const server = uniqueServers[0];
+                const endpoint = server.endpoints.find(value => getSyncBridgeUrl(value));
+                if (!endpoint) throw new Error("O servidor encontrado anunciou um endereço inválido.");
+                centralServerDiscoveryCache = { nodeId: server.nodeId, endpoint };
+                centralServerDiscoveryTime = Date.now();
+                document.getElementById("central-server-discovery-status").textContent =
+                    "Servidor central localizado automaticamente na rede.";
+                return getConfiguredDesktopPeers();
             }
 
-            async function publishLocalPeerDirectory(peers) {
-                if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) return;
-                const response = await fetchPeer("/api/local-peer-directory", {
+            async function registerUserWithServer(peer) {
+                if (!peer?.userId || !peer.credential?.salt || !peer.credential?.hash) {
+                    throw new Error("O usuário precisa cadastrar uma senha individual antes de sincronizar.");
+                }
+                const endpoint = getSyncBridgeUrl(peer.endpoint);
+                const response = await fetchPeer(`${endpoint}/api/user/register`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ peers })
-                });
+                    body: JSON.stringify({
+                        userId: peer.userId,
+                        name: peer.name,
+                        role: peer.role,
+                        credential: peer.credential
+                    })
+                }, 5000);
                 const result = await response.json();
                 if (!response.ok) {
-                    throw new Error(result.error || "Não foi possível registrar os computadores conhecidos.");
+                    throw new Error(result.error || "Não foi possível cadastrar sua senha no servidor central.");
                 }
             }
 
@@ -7328,40 +7446,6 @@
                     throw new Error(result.error || "Não foi possível configurar os backups diários.");
                 }
                 return result;
-            }
-
-            async function rememberDiscoveredPeers(discoveredPeers) {
-                if (!Array.isArray(discoveredPeers)) return;
-                const localEndpoints = new Set(getLocalPeerAddresses()
-                    .map(address => `http://${address}:${desktopNodeInfo.port || 8765}`));
-                const peersByEndpoint = new Map(
-                    getConfiguredDesktopPeers().map(peer => [peer.endpoint, { ...peer }])
-                );
-                discoveredPeers.forEach(peer => {
-                    if (!peer || typeof peer.endpoint !== "string" || typeof peer.token !== "string") return;
-                    const endpoint = getSyncBridgeUrl(peer.endpoint);
-                    if (!endpoint || localEndpoints.has(endpoint) || peersByEndpoint.has(endpoint)) return;
-                    peersByEndpoint.set(endpoint, {
-                        endpoint,
-                        token: peer.token,
-                        ...(typeof peer.nodeId === "string" ? { nodeId: peer.nodeId } : {})
-                    });
-                });
-                const peers = Array.from(peersByEndpoint.values());
-                if (syncValuesEqual(peers, getConfiguredDesktopPeers())) return;
-                const updated = {
-                    ...preferences,
-                    syncPeers: peers,
-                    syncEndpoint: "",
-                    syncToken: ""
-                };
-                if (!await saveStorage(STORAGE_PREFERENCES, updated)) {
-                    throw new Error("Os novos computadores foram encontrados, mas não puderam ser salvos neste dispositivo.");
-                }
-                preferences = updated;
-                applyPreferences();
-                renderDesktopPeerRows(peers);
-                await publishLocalPeerDirectory(peers);
             }
 
             function configureSyncBridge() {
@@ -7406,61 +7490,131 @@
                     const mobileStatus = document.getElementById("mobile-access-status");
                     const mobileSubmit = document.getElementById("mobile-access-submit");
                     let info = null;
+                    let offlineCredentialError = "";
                     mobileSubmit.disabled = true;
                     return new Promise(resolve => {
                         mobileForm.addEventListener("submit", async event => {
                             event.preventDefault();
-                            if (!info?.enabled || !info.ready) return;
+                            const canUseServer = info?.enabled && info.ready;
+                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof)
+                                && info?.enabled !== false;
+                            if (!canUseServer && !canUseOffline) return;
                             mobileSubmit.disabled = true;
-                            mobileStatus.textContent = "Validando o código e carregando os dados…";
+                            mobileStatus.textContent = "Validando o código móvel…";
                             try {
-                                mobileAccessKey = await deriveMobileAccessKey(pinInput.value, info);
-                                const state = await mobileRequest({ operation: "read" });
-                                if (!state || !Array.isArray(state.snapshot?.appointments)
-                                    || !Array.isArray(state.snapshot?.paaRecords)
-                                    || !Number.isSafeInteger(state.revision)) {
-                                    throw new Error("O computador retornou dados móveis inválidos.");
+                                let state = null;
+                                if (canUseServer) {
+                                    mobileAccessKey = await deriveMobileAccessKey(pinInput.value, info);
+                                    try {
+                                        state = await mobileRequest({ operation: "read" });
+                                    } catch (error) {
+                                        if (error.status === 401 || error.status === 403 || !canUseOffline) throw error;
+                                        mobileStatus.textContent = "Servidor indisponível. Abrindo a cópia offline…";
+                                    }
                                 }
-                                mobileNodeRevision = state.revision;
-                                mobileNodeBaseSnapshot = state.snapshot;
-                                await applySyncedSnapshot(
-                                    state.snapshot,
-                                    { appointments: [], paaRecords: [], settings: {} },
-                                    [],
-                                    false
-                                );
+                                if (state) {
+                                    if (!Array.isArray(state.snapshot?.appointments)
+                                        || !Array.isArray(state.snapshot?.paaRecords)
+                                        || !Number.isSafeInteger(state.revision)) {
+                                        throw new Error("O computador retornou dados móveis inválidos.");
+                                    }
+                                    const localSnapshot = createSyncSnapshot();
+                                    const mergedSnapshot = mergePeerSnapshots(
+                                        mobileNodeBaseSnapshot,
+                                        localSnapshot,
+                                        state.snapshot,
+                                        activeUser?.role,
+                                        state.actorRole
+                                    );
+                                    await applySyncedSnapshot(
+                                        mergedSnapshot,
+                                        state.snapshot,
+                                        [],
+                                        false
+                                    );
+                                    await rememberMobileServerState(state.snapshot, state.revision);
+                                    mobileOfflineMode = false;
+                                    try {
+                                        const proof = await saveMobileOfflineCredentials(info, mobileAccessKey);
+                                        mobileOfflineCredentials = { info, proof };
+                                    } catch (error) {
+                                        console.error("Não foi possível preparar o acesso offline neste celular.", error);
+                                        void clearMobileOfflineCredentials();
+                                        offlineCredentialError = error.message;
+                                    }
+                                    mobilePendingSync = !syncValuesEqual(mergedSnapshot, state.snapshot);
+                                } else {
+                                    mobileAccessKey = await verifyMobileOfflineCredentials(
+                                        pinInput.value,
+                                        mobileOfflineCredentials.info,
+                                        mobileOfflineCredentials.proof
+                                    );
+                                    mobileOfflineMode = true;
+                                    const localSnapshot = createSyncSnapshot();
+                                    if (!Array.isArray(localSnapshot.appointments)
+                                        || !Array.isArray(localSnapshot.paaRecords)) {
+                                        throw new Error("Não há uma cópia local válida neste celular.");
+                                    }
+                                }
                                 document.documentElement.classList.add("mobile-authenticated");
                                 gate.hidden = true;
-                                document.getElementById("sync-now").hidden = true;
-                                document.querySelector(".offline").textContent = "Conectado ao computador pela rede local";
+                                document.querySelector(".offline").textContent = mobileOfflineMode
+                                    ? "Modo offline · dados salvos neste celular"
+                                    : "Conectado ao servidor CRAS";
+                                if (mobileOfflineMode) {
+                                    showSyncStatus("Modo offline: as alterações ficam neste celular e serão sincronizadas quando o servidor voltar.", 0);
+                                } else if (offlineCredentialError) {
+                                    showSyncStatus(`Conectado, mas não foi possível preparar o modo offline: ${offlineCredentialError}`, 0);
+                                } else if (window.CRASServiceWorkerError) {
+                                    showSyncStatus("Conectado. O cache offline do aplicativo não foi instalado neste navegador.", 0);
+                                }
                                 resolve();
                             } catch (error) {
                                 mobileAccessKey = null;
                                 mobileStatus.textContent = error.message || "Não foi possível abrir o sistema.";
                             } finally {
-                                mobileSubmit.disabled = !info?.enabled || !info.ready;
+                                mobileSubmit.disabled = !(info?.enabled && info.ready)
+                                    && !(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof
+                                        && info?.enabled !== false);
                                 pinInput.value = "";
                                 if (!gate.hidden) pinInput.focus();
                             }
                         });
-                        fetch("/api/mobile-info", { cache: "no-store" })
-                            .then(response => {
-                                if (!response.ok) throw new Error("Não foi possível consultar o computador.");
-                                return response.json();
-                            })
-                            .then(mobileInfo => {
-                                info = mobileInfo;
-                                mobileSubmit.disabled = !info.enabled || !info.ready;
-                                mobileStatus.textContent = !info.enabled
-                                    ? "O Admin precisa configurar o código móvel no computador."
-                                    : !info.ready
-                                        ? "O computador ainda está inicializando. Tente novamente em instantes."
-                                        : "";
-                                pinInput.focus();
-                            })
-                            .catch(error => {
-                                mobileStatus.textContent = error.message || "Não foi possível localizar o computador.";
-                            });
+                        Promise.all([
+                            readMobileOfflineCredentials(),
+                            database.settings.get(STORAGE_MOBILE_NODE_REVISION),
+                            database.settings.get(STORAGE_MOBILE_NODE_BASE_SNAPSHOT)
+                        ]).then(async ([credentials, revisionEntry, baseEntry]) => {
+                            mobileOfflineCredentials = credentials;
+                            mobileNodeRevision = Number(revisionEntry?.value) || 0;
+                            mobileNodeBaseSnapshot = baseEntry?.value || null;
+                            try {
+                                const response = await fetchPeer("/api/mobile-info", { cache: "no-store" }, 5000);
+                                if (!response.ok) throw new Error("Não foi possível consultar o servidor CRAS.");
+                                info = await response.json();
+                            } catch (error) {
+                                console.error("Servidor móvel indisponível; verificando a cópia offline.", error);
+                            }
+                            if (info?.enabled === false) {
+                                await clearMobileOfflineCredentials();
+                            }
+                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof)
+                                && info?.enabled !== false;
+                            mobileSubmit.disabled = !(info?.enabled && info.ready) && !canUseOffline;
+                            mobileStatus.textContent = info?.enabled === false
+                                ? "O Admin desativou o acesso móvel."
+                                : info?.ready
+                                    ? "Conecte-se ao servidor ou use a cópia offline deste dispositivo."
+                                    : canUseOffline
+                                        ? "Servidor indisponível. Entre com o código móvel para abrir a cópia offline."
+                                        : "Conecte-se ao servidor para preparar o acesso offline neste dispositivo.";
+                            if (window.CRASServiceWorkerError) {
+                                mobileStatus.textContent += " O cache offline do aplicativo não foi instalado.";
+                            }
+                            pinInput.focus();
+                        }).catch(error => {
+                            mobileStatus.textContent = `Não foi possível carregar o acesso móvel: ${error.message}`;
+                        });
                     });
                 }
                 if (window.CRASDesktop) {
@@ -7468,28 +7622,29 @@
                         const response = await fetch("/api/info?details=1", { cache: "no-store" });
                         if (!response.ok) throw new Error("O serviço local não respondeu corretamente.");
                         desktopNodeInfo = await response.json();
-                        if (!desktopNodeInfo.nodeId || !desktopNodeInfo.pairingKey) {
-                            throw new Error("Não foi possível carregar a identificação e o código de pareamento deste computador.");
+                        if (!desktopNodeInfo.nodeId) throw new Error("Não foi possível carregar a identificação deste computador.");
+                        document.getElementById("central-server-toggle").checked =
+                            desktopNodeInfo.centralServer === true;
+                        if (hadLegacyDesktopServerSettings) {
+                            if (!await saveStorage(STORAGE_PREFERENCES, preferences)) {
+                                throw new Error("Não foi possível remover as antigas configurações de IP e código salvas neste computador.");
+                            }
                         }
-                        void publishLocalPeerDirectory(getConfiguredDesktopPeers()).catch(error => {
-                            console.error("Não foi possível publicar os computadores conhecidos pelo PC.", error);
-                            showSyncStatus(`A conexão automática não conseguiu publicar a lista de parceiros: ${error.message}`, 0);
-                        });
                         void configureAutomaticBackup(preferences.isPrincipalComputer).catch(error => {
                             console.error("Não foi possível sincronizar a configuração do backup automático.", error);
                             showSyncStatus(`A configuração do backup automático não pôde ser aplicada: ${error.message}`, 0);
                         });
-                        document.getElementById("sync-local-key").value = desktopNodeInfo.pairingKey;
-                        document.getElementById("sync-manual-local-addresses").value =
-                            (desktopNodeInfo.manualAddresses || []).join(", ");
-                        updateLocalPeerAddressDisplay();
+                        document.getElementById("central-server-discovery-status").textContent =
+                            desktopNodeInfo.centralServer
+                                ? "Este computador está configurado como servidor central."
+                                : "Localizando automaticamente o servidor central na rede.";
                         document.getElementById("sync-mobile-addresses").value =
-                            desktopNodeInfo.mobileHttpsReady
-                                ? (desktopNodeInfo.mobileAddresses || [])
-                                    .map(address => `https://${address}:${desktopNodeInfo.mobilePort}`).join(", ")
-                                : "Acesso HTTPS móvel indisponível";
-                        document.getElementById("sync-mobile-ca").value = (desktopNodeInfo.mobileAddresses || [])
-                            .map(address => `http://${address}:${desktopNodeInfo.port}/api/mobile-ca`).join(", ");
+                            desktopNodeInfo.centralServer && desktopNodeInfo.mobileHttpsReady
+                                ? `https://${desktopNodeInfo.hostname}:${desktopNodeInfo.mobilePort}`
+                                : "Ative o servidor central neste notebook para habilitar o acesso móvel automático";
+                        document.getElementById("sync-mobile-ca").value = desktopNodeInfo.centralServer
+                            ? `http://${desktopNodeInfo.hostname}:${desktopNodeInfo.port}/api/mobile-ca`
+                            : "Disponível após ativar o servidor central";
                         document.getElementById("sync-mobile-fingerprint").value =
                             desktopNodeInfo.mobileCaFingerprint || "Certificado HTTPS não configurado";
 
@@ -7504,28 +7659,40 @@
                             }
                         }
 
-                        const primaryIp = (desktopNodeInfo.addresses && desktopNodeInfo.addresses[0]) || "";
+                        const serviceHost = desktopNodeInfo.hostname || "";
                         const qrContainer = document.getElementById("qr-code-container");
                         const qrImg = document.getElementById("mobile-qr-image");
-                        if (qrContainer && qrImg && primaryIp) {
-                            qrImg.src = `/api/qr?text=${encodeURIComponent(`http://${primaryIp}:${desktopNodeInfo.port}/`)}`;
+                        if (qrContainer && qrImg && serviceHost && desktopNodeInfo.centralServer) {
+                            qrImg.src = `/api/qr?text=${encodeURIComponent(`http://${serviceHost}:${desktopNodeInfo.port}/`)}`;
                             qrContainer.hidden = false;
+                        } else if (qrContainer) {
+                            qrContainer.hidden = true;
                         }
                         const caQrContainer = document.getElementById("mobile-ca-qr-container");
                         const caQrImg = document.getElementById("mobile-ca-qr-image");
-                        if (caQrContainer && caQrImg && primaryIp && desktopNodeInfo.mobileCaFingerprint) {
-                            caQrImg.src = `/api/qr?text=${encodeURIComponent(`http://${primaryIp}:${desktopNodeInfo.port}/api/mobile-ca`)}`;
+                        if (caQrContainer && caQrImg && serviceHost
+                            && desktopNodeInfo.centralServer && desktopNodeInfo.mobileCaFingerprint) {
+                            caQrImg.src = `/api/qr?text=${encodeURIComponent(`http://${serviceHost}:${desktopNodeInfo.port}/api/mobile-ca`)}`;
                             caQrContainer.hidden = false;
+                        } else if (caQrContainer) {
+                            caQrContainer.hidden = true;
                         }
 
-                        document.querySelector(".offline").textContent = "Dados salvos neste dispositivo · P2P";
+                        document.querySelector(".offline").textContent = "Dados locais · sincronização com servidor";
                         gate.hidden = true;
-                        showSyncStatus("Aplicativo desktop pronto. Configure o endereço e o código de outro computador nas Configurações.", 0);
+                        showSyncStatus(desktopNodeInfo.centralServer
+                            ? "Servidor central pronto; outros computadores o localizarão automaticamente."
+                            : "Aplicativo pronto. O servidor central será localizado automaticamente na rede.", 0);
+                        if (!desktopNodeInfo.centralServer) {
+                            void discoverCentralServer(true).catch(error => {
+                                console.error("Não foi possível localizar o servidor central.", error);
+                            });
+                        }
                     } catch (error) {
-                        console.error("Não foi possível inicializar a rede P2P do CRAS Desktop.", error);
+                        console.error("Não foi possível inicializar o armazenamento local do CRAS Desktop.", error);
                         offlineMode = true;
                         gate.hidden = true;
-                        window.alert(`A interface continuará disponível apenas neste computador. Não foi possível inicializar a rede P2P: ${error.message}`);
+                        window.alert(`A interface continuará disponível apenas neste computador. Não foi possível inicializar o armazenamento local: ${error.message}`);
                     }
                     return;
                 }
@@ -7662,14 +7829,81 @@
                 return JSON.parse(new TextDecoder().decode(plaintext));
             }
 
+            async function saveMobileOfflineCredentials(info, key) {
+                const proof = await encryptMobilePayload(
+                    { proof: "cras-mobile-offline-v1" },
+                    key
+                );
+                await database.settings.bulkPut([
+                    { key: STORAGE_MOBILE_ACCESS_INFO, value: info },
+                    { key: STORAGE_MOBILE_ACCESS_PROOF, value: proof }
+                ]);
+                return proof;
+            }
+
+            async function readMobileOfflineCredentials() {
+                const [infoEntry, proofEntry] = await Promise.all([
+                    database.settings.get(STORAGE_MOBILE_ACCESS_INFO),
+                    database.settings.get(STORAGE_MOBILE_ACCESS_PROOF)
+                ]);
+                return {
+                    info: infoEntry?.value || null,
+                    proof: proofEntry?.value || null
+                };
+            }
+
+            async function verifyMobileOfflineCredentials(pin, info, proof) {
+                if (!info?.salt || !Number.isSafeInteger(info.iterations) || !proof?.nonce || !proof?.ciphertext) {
+                    throw new Error("Este celular ainda não tem acesso offline. Conecte-o ao servidor e entre uma vez.");
+                }
+                const key = await deriveMobileAccessKey(pin, info);
+                try {
+                    const plaintext = await crypto.subtle.decrypt(
+                        { name: "AES-GCM", iv: base64ToBytes(proof.nonce) },
+                        key,
+                        base64ToBytes(proof.ciphertext)
+                    );
+                    const result = JSON.parse(new TextDecoder().decode(plaintext));
+                    if (result.proof !== "cras-mobile-offline-v1") throw new Error("Código inválido.");
+                    return key;
+                } catch {
+                    throw new Error("Código móvel incorreto para este dispositivo offline.");
+                }
+            }
+
+            async function rememberMobileServerState(snapshot, revision) {
+                if (!Number.isSafeInteger(revision) || revision < 0) {
+                    throw new Error("O servidor retornou uma revisão móvel inválida.");
+                }
+                await database.settings.bulkPut([
+                    { key: STORAGE_MOBILE_NODE_REVISION, value: revision },
+                    { key: STORAGE_MOBILE_NODE_BASE_SNAPSHOT, value: snapshot }
+                ]);
+                mobileNodeRevision = revision;
+                mobileNodeBaseSnapshot = snapshot;
+            }
+
+            async function clearMobileOfflineCredentials() {
+                try {
+                    await database.settings.bulkDelete([
+                        STORAGE_MOBILE_ACCESS_INFO,
+                        STORAGE_MOBILE_ACCESS_PROOF
+                    ]);
+                    mobileOfflineCredentials = { info: null, proof: null };
+                } catch (error) {
+                    console.error("Não foi possível remover as credenciais móveis locais.", error);
+                    showSyncStatus("Não foi possível remover as credenciais móveis deste dispositivo.", 0);
+                }
+            }
+
             async function fetchPeerInfo(endpoint = getSyncBridgeUrl()) {
                 const response = await fetchPeer(`${endpoint}/api/info`, { cache: "no-store" });
-                if (!response.ok) throw new Error("Não foi possível localizar o outro computador na rede.");
+                if (!response.ok) throw new Error("Não foi possível localizar o servidor central na rede.");
                 const info = await response.json();
-                if (!info.nodeId || info.nodeId === desktopNodeInfo?.nodeId) {
-                    throw new Error("O endereço configurado não identifica outro computador.");
+                if (!info.nodeId || info.nodeId === desktopNodeInfo?.nodeId || info.centralServer !== true) {
+                    throw new Error("O computador encontrado não está configurado como servidor central.");
                 }
-                if (!info.ready) throw new Error("O outro computador ainda está inicializando. Tente novamente em instantes.");
+                if (!info.ready) throw new Error("O servidor central ainda está inicializando. Tente novamente em instantes.");
                 return info;
             }
 
@@ -7704,12 +7938,12 @@
                         candidate = createSyncSnapshot();
                         continue;
                     }
-                    if (!response.ok) throw new Error(result.error || "Não foi possível atualizar o estado local P2P.");
+                    if (!response.ok) throw new Error(result.error || "Não foi possível atualizar o estado local.");
                     await rememberLocalNodeState(candidate, result.revision);
                     if (desktopNodeInfo) desktopNodeInfo.ready = true;
                     return;
                 }
-                throw new Error("O estado local P2P mudou repetidamente. Tente sincronizar novamente.");
+                throw new Error("O estado local mudou repetidamente. Tente sincronizar novamente.");
             }
 
             async function persistAcceptedPeerSnapshot(peerId, peerBase, actorRole = activeUser?.role) {
@@ -7737,7 +7971,7 @@
                     await rememberLocalNodeState(candidate, result.revision);
                     return;
                 }
-                throw new Error("O estado P2P mudou repetidamente durante a sincronização. Tente novamente.");
+                throw new Error("O estado mudou repetidamente durante a sincronização. Tente novamente.");
             }
 
             async function rememberLocalNodeState(snapshot, revision) {
@@ -7774,6 +8008,12 @@
             function scheduleLocalSnapshotPersist(actorRole = activeUser?.role) {
                 if (mobileClient) {
                     if (!mobileAccessKey) return;
+                    if (mobileOfflineMode || !navigator.onLine) {
+                        mobileOfflineMode = true;
+                        mobilePendingSync = true;
+                        document.querySelector(".offline").textContent = "Modo offline · alterações salvas neste celular";
+                        return;
+                    }
                 } else if (!window.CRASDesktop || !desktopNodeInfo?.nodeId) {
                     return;
                 }
@@ -7791,23 +8031,22 @@
                         await refreshLocalNodeFromServer(true);
                         await persistLocalSnapshotToServer(createSyncSnapshot(), actorRole);
                     } catch (error) {
-                        console.error("Não foi possível atualizar o estado P2P deste computador.", error);
-                        showSyncStatus(`Os dados continuam salvos localmente, mas o estado P2P não foi atualizado: ${error.message}`, 0);
+                        if (mobileClient) {
+                            mobileOfflineMode = true;
+                            mobilePendingSync = true;
+                            document.querySelector(".offline").textContent = "Modo offline · alterações salvas neste celular";
+                            console.error("Não foi possível enviar os dados móveis ao servidor.", error);
+                            showSyncStatus("Os dados continuam salvos neste celular e serão sincronizados quando o servidor estiver disponível.", 0);
+                        } else {
+                            console.error("Não foi possível atualizar o estado local deste computador.", error);
+                            showSyncStatus(`Os dados continuam salvos localmente; o servidor central será atualizado quando estiver disponível: ${error.message}`, 0);
+                        }
                     }
                 }, 400);
             }
 
-            function schedulePeerSync(actorRole = activeUser?.role, warnIfUnconfigured = false) {
+            function schedulePeerSync(actorRole = activeUser?.role) {
                 if (offlineMode || mobileClient) return;
-                if (window.CRASDesktop && !getConfiguredDesktopPeers().length) {
-                    if (warnIfUnconfigured) {
-                        showSyncStatus(
-                            "Dados salvos neste computador, mas não enviados. Configure um computador parceiro em Configurações > Sincronização.",
-                            0
-                        );
-                    }
-                    return;
-                }
                 window.clearTimeout(syncChangeTimer);
                 queuedSyncRole = actorRole || queuedSyncRole || null;
                 syncChangeTimer = window.setTimeout(() => {
@@ -7830,11 +8069,11 @@
                 localNodeRefreshInProgress = true;
                 try {
                     const infoResponse = await fetchPeer("/api/info", { cache: "no-store" });
-                    if (!infoResponse.ok) throw new Error("Não foi possível consultar o estado local P2P.");
+                    if (!infoResponse.ok) throw new Error("Não foi possível consultar o estado local.");
                     const info = await infoResponse.json();
                     if (Number(info.revision) <= localNodeRevision) return;
                     const stateResponse = await fetchPeer("/api/local-snapshot", { cache: "no-store" });
-                    if (!stateResponse.ok) throw new Error("Não foi possível carregar os dados recebidos de outro computador.");
+                    if (!stateResponse.ok) throw new Error("Não foi possível carregar o estado local sincronizado.");
                     const state = await stateResponse.json();
                     const currentSnapshot = createSyncSnapshot();
                     const snapshotToApply = mergePeerSnapshots(
@@ -7848,8 +8087,8 @@
                         await persistLocalSnapshotToServer(snapshotToApply, activeUser?.role);
                     }
                 } catch (error) {
-                    console.error("Não foi possível atualizar os dados recebidos de outro computador.", error);
-                    showSyncStatus(`Há dados P2P que não puderam ser carregados: ${error.message}`, 10000);
+                    console.error("Não foi possível atualizar o estado local sincronizado.", error);
+                    showSyncStatus(`Há dados locais que não puderam ser carregados: ${error.message}`, 10000);
                     if (force) throw error;
                 } finally {
                     localNodeRefreshInProgress = false;
@@ -7868,14 +8107,15 @@
                 if (window.CRASDesktop && method === "syncCrASSnapshot") {
                     const peerConfig = args.pop();
                     const endpoint = getSyncBridgeUrl(peerConfig?.endpoint);
-                    const peerKey = peerConfig?.token || "";
-                    if (!endpoint || !peerKey) {
-                        return Promise.reject(new Error("Informe o endereço e o código de pareamento do outro computador nas Configurações."));
+                    const peerKey = peerConfig?.credential?.hash || "";
+                    if (!endpoint || !peerConfig?.userId || !peerKey) {
+                        return Promise.reject(new Error("Usuário sem credencial individual ou servidor central não encontrado."));
                     }
                     if (!desktopNodeInfo?.nodeId || !window.crypto?.subtle) {
-                        return Promise.reject(new Error("A criptografia P2P não está disponível neste computador."));
+                        return Promise.reject(new Error("A criptografia de sincronização não está disponível neste computador."));
                     }
                     return (async () => {
+                        await registerUserWithServer(peerConfig);
                         const remoteInfo = peerConfig.info || await fetchPeerInfo(endpoint);
                         activePeerId = remoteInfo.nodeId;
                         syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
@@ -7888,7 +8128,7 @@
                             localSnapshot: args[1],
                             resolutions: args[2],
                             actorRole: args[3],
-                            knownPeers: getKnownDesktopPeers()
+                            userId: peerConfig.userId
                         };
                         const cleartext = new TextEncoder().encode(JSON.stringify(payload));
                         const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
@@ -7898,6 +8138,7 @@
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
+                                userId: peerConfig.userId,
                                 salt: bytesToBase64(salt),
                                 nonce: bytesToBase64(nonce),
                                 ciphertext: bytesToBase64(ciphertext)
@@ -7905,7 +8146,7 @@
                         });
                         const resultEnvelope = await response.json();
                         if (!response.ok) {
-                            throw new Error(resultEnvelope.error || "O outro computador recusou a sincronização.");
+                            throw new Error(resultEnvelope.error || "O servidor central recusou a sincronização.");
                         }
                         const resultNonce = base64ToBytes(resultEnvelope.nonce);
                         const resultCiphertext = base64ToBytes(resultEnvelope.ciphertext);
@@ -8049,8 +8290,10 @@
                         if (!Number.isSafeInteger(result.revision) || result.revision < 0) {
                             throw new Error("O computador retornou uma revisão móvel inválida.");
                         }
-                        mobileNodeRevision = result.revision;
-                        mobileNodeBaseSnapshot = candidate;
+                        await rememberMobileServerState(candidate, result.revision);
+                        mobileOfflineMode = false;
+                        mobilePendingSync = false;
+                        document.querySelector(".offline").textContent = "Conectado ao servidor CRAS";
                         return;
                     } catch (error) {
                         if (error.status !== 409) throw error;
@@ -8068,8 +8311,7 @@
                             [],
                             false
                         );
-                        mobileNodeRevision = current.revision;
-                        mobileNodeBaseSnapshot = current.snapshot;
+                        await rememberMobileServerState(current.snapshot, current.revision);
                         candidate = createSyncSnapshot();
                         if (attempt === 3) {
                             throw new Error("Os dados mudaram repetidamente. Tente sincronizar novamente.");
@@ -8080,7 +8322,7 @@
 
             async function refreshMobileSnapshotFromServer() {
                 if (!mobileClient || !mobileAccessKey || mobileRefreshInProgress
-                    || document.visibilityState !== "visible") return;
+                    || document.visibilityState !== "visible" || !navigator.onLine) return;
                 mobileRefreshInProgress = true;
                 try {
                     const state = await mobileRequest({ operation: "read" });
@@ -8099,21 +8341,26 @@
                         [],
                         false
                     );
-                    mobileNodeRevision = state.revision;
-                    mobileNodeBaseSnapshot = state.snapshot;
+                    await rememberMobileServerState(state.snapshot, state.revision);
+                    mobileOfflineMode = false;
+                    document.querySelector(".offline").textContent = "Conectado ao servidor CRAS";
                     if (!syncValuesEqual(merged, state.snapshot)) {
                         scheduleLocalSnapshotPersist(activeUser?.role);
                     }
                 } catch (error) {
                     if (error.status === 401 || error.status === 403) {
                         mobileAccessKey = null;
+                        mobileOfflineMode = false;
+                        void clearMobileOfflineCredentials();
                         document.documentElement.classList.remove("mobile-authenticated");
                         document.getElementById("access-gate").hidden = false;
                         document.getElementById("mobile-access-status").textContent =
                             "O acesso móvel foi desativado ou o código mudou. Atualize a página e autentique-se novamente.";
                     } else {
+                        mobileOfflineMode = true;
+                        document.querySelector(".offline").textContent = "Modo offline · alterações salvas neste celular";
                         console.error("Não foi possível atualizar a fila no celular.", error);
-                        showSyncStatus(`Não foi possível atualizar os dados do computador: ${error.message}`, 10000);
+                        showSyncStatus("Servidor indisponível. As alterações ficam salvas neste celular e serão sincronizadas quando a conexão voltar.", 10000);
                     }
                 } finally {
                     mobileRefreshInProgress = false;
@@ -8381,7 +8628,7 @@
             async function applySyncedSnapshot(snapshot, baseSnapshot, unlinkedPaaIds = [], updatePeerBase = true) {
                 if (!snapshot || !Array.isArray(snapshot.appointments) || !Array.isArray(snapshot.paaRecords)
                     || !snapshot.settings || typeof snapshot.settings !== "object") {
-                    throw new Error("O outro computador retornou um pacote de sincronização inválido.");
+                    throw new Error("O servidor retornou um pacote de sincronização inválido.");
                 }
                 const nextSettings = { ...snapshot.settings };
                 const hasSnapshotSetting = key => Object.prototype.hasOwnProperty.call(nextSettings, key);
@@ -8389,7 +8636,7 @@
                 const remotePreferences = nextSettings[STORAGE_PREFERENCES];
                 if (hasSnapshotSetting(STORAGE_PREFERENCES)
                     && (!remotePreferences || typeof remotePreferences !== "object" || Array.isArray(remotePreferences))) {
-                    throw new Error("As preferências retornadas pelo outro computador têm formato inválido.");
+                    throw new Error("As preferências retornadas pelo servidor têm formato inválido.");
                 }
                 persistedSettings.delete(STORAGE_PREFERENCES);
                 const nextPreferences = preferences;
@@ -8410,13 +8657,13 @@
                 if (!Array.isArray(nextRoutes) || !Array.isArray(nextAssistants) || !Array.isArray(nextUsers)
                     || !Array.isArray(nextNationalities)
                     || !nextRouteQueueTags || typeof nextRouteQueueTags !== "object" || Array.isArray(nextRouteQueueTags)) {
-                    throw new Error("As configurações retornadas pelo outro computador têm formato inválido.");
+                    throw new Error("As configurações retornadas pelo servidor têm formato inválido.");
                 }
                 if (nextUsers.some(user => !user || typeof user.id !== "string" || typeof user.name !== "string"
                     || typeof user.color !== "string" || !/^#[0-9a-f]{6}$/i.test(user.color)
                     || (user.canAttendTechnical !== undefined && typeof user.canAttendTechnical !== "boolean")
                     || !["assistant", "caseworker", "reception", "intern", "admin"].includes(user.role))) {
-                    throw new Error("A lista de usuários retornada pelo outro computador é inválida.");
+                    throw new Error("A lista de usuários retornada pelo servidor é inválida.");
                 }
                 nextUsers.forEach(user => {
                     user.canAttendTechnical = user.role === "admin" && user.canAttendTechnical === true;
@@ -8478,12 +8725,15 @@
                 routes = nextRoutes;
                 preferences = nextPreferences;
                 users = nextUsers;
+                const refreshedActiveUser = users.find(user => user.id === activeUser?.id);
+                if (refreshedActiveUser) activeUser = userSnapshot(refreshedActiveUser);
                 assistants = users.filter(isTechnicalUser)
                     .map(({ name, color }) => ({ name, color }));
                 nationalities = nextNationalities;
                 routeQueueTags = nextRouteQueueTags;
                 if (updatePeerBase) syncBaseSnapshot = baseSnapshot;
                 applyPreferences();
+                renderChatRecipients();
                 renderAssistants();
                 renderLoginUsers();
                 renderRoutes();
@@ -8510,11 +8760,11 @@
                         { ...peer, endpoint, info: peerInfo }
                     );
                     if (!result || typeof result !== "object") {
-                        throw new Error("O outro computador retornou uma resposta de sincronização inválida.");
+                        throw new Error("O servidor retornou uma resposta de sincronização inválida.");
                     }
                     if (result.status !== "conflicts") break;
                     if (!Array.isArray(result.conflicts) || !result.conflicts.length) {
-                        throw new Error("O outro computador informou conflito sem detalhes suficientes.");
+                        throw new Error("O servidor informou conflito sem detalhes suficientes.");
                     }
                     result.conflicts.forEach(conflict => {
                         resolutions[conflict.key] = chooseSyncConflict(
@@ -8531,13 +8781,16 @@
                 );
                 await applySyncedSnapshot(snapshotToApply, result.snapshot, result.unlinkedPaaIds || []);
                 await persistAcceptedPeerSnapshot(activePeerId, result.snapshot, actorRole);
-                await rememberDiscoveredPeers(result.knownPeers);
                 return result;
             }
 
             async function syncWithGoogle(manual = false, actorRole = activeUser?.role) {
                 if (offlineMode) {
                     if (manual) showSyncStatus("Modo offline ativo. Os dados continuam salvos neste dispositivo.", 0);
+                    return;
+                }
+                if (window.CRASDesktop && desktopNodeInfo?.centralServer) {
+                    if (manual) showSyncStatus("Este computador é o servidor central; os dados já estão salvos no SQLite local.");
                     return;
                 }
                 if (syncInProgress) {
@@ -8551,21 +8804,26 @@
                     if (manual) showSyncStatus("Sem conexão com a rede. Os dados continuam salvos neste dispositivo.");
                     return;
                 }
-                const desktopPeers = window.CRASDesktop ? getConfiguredDesktopPeers() : [];
+                let desktopPeers = [];
+                if (window.CRASDesktop) {
+                    try {
+                        desktopPeers = await discoverCentralServer();
+                    } catch (error) {
+                        if (manual) showSyncStatus(`Não foi possível localizar o servidor central: ${error.message}`, 0);
+                        return;
+                    }
+                }
                 if (window.CRASDesktop && !desktopPeers.length) {
-                    if (manual) showSyncStatus("Adicione os computadores destinatários em Configurações > Sincronização.");
+                    if (manual) showSyncStatus("Servidor central não encontrado. Os dados continuam salvos neste computador.");
                     return;
                 }
                 if (!window.CRASDesktop && !window.google?.script?.run && !getSyncBridgeUrl()) {
                     if (manual) showSyncStatus("Configure o link publicado do Apps Script em Configurações para ativar a sincronização.");
                     return;
                 }
-                const button = document.getElementById("sync-now");
                 syncInProgress = true;
-                button.disabled = true;
-                button.setAttribute("aria-busy", "true");
                 if (manual) showSyncStatus(window.CRASDesktop
-                    ? "Sincronizando dados com outro computador…"
+                    ? "Sincronizando dados com o servidor central…"
                     : "Sincronizando dados com o Google…", 0);
                 try {
                     if (window.CRASDesktop) {
@@ -8578,18 +8836,16 @@
                                 const result = await syncWithDesktopPeer(peer, actorRole);
                                 results.push(result);
                             } catch (error) {
-                                const label = (peer.endpoint || "endereço inválido")
-                                    .replace(/^https?:\/\//i, "").split(/[/?#]/)[0];
-                                failures.push(`${label}: ${error.message}`);
+                                failures.push(error.message);
                             }
                         }
                         if (!results.length) {
-                            throw new Error(`Nenhum computador sincronizou. ${failures.join(" | ")}`);
+                            throw new Error(`Servidor central indisponível. Os dados continuam salvos neste dispositivo e serão reenviados quando a conexão voltar. ${failures.join(" | ")}`);
                         }
                         if (manual || failures.length) {
                             const details = failures.length ? ` Falharam: ${failures.join(" | ")}` : "";
                             showSyncStatus(
-                                `Sincronização concluída com ${results.length}/${desktopPeers.length} computador(es).${details}`,
+                                `Sincronização concluída com o servidor central.${details}`,
                                 manual ? 0 : 10000
                             );
                         }
@@ -8604,11 +8860,11 @@
                             "syncCrASSnapshot", baseSnapshot, localSnapshot, resolutions, actorRole
                         );
                         if (!result || typeof result !== "object") {
-                            throw new Error("O outro computador retornou uma resposta de sincronização inválida.");
+                            throw new Error("O servidor retornou uma resposta de sincronização inválida.");
                         }
                         if (result.status !== "conflicts") break;
                         if (!Array.isArray(result.conflicts) || !result.conflicts.length) {
-                            throw new Error("O outro computador informou conflito sem detalhes suficientes.");
+                            throw new Error("O servidor informou conflito sem detalhes suficientes.");
                         }
                         result.conflicts.forEach(conflict => {
                             resolutions[conflict.key] = chooseSyncConflict(
@@ -8634,8 +8890,6 @@
                     showSyncStatus(`Não foi possível sincronizar: ${error.message}`, manual ? 0 : 10000);
                 } finally {
                     syncInProgress = false;
-                    button.disabled = false;
-                    button.removeAttribute("aria-busy");
                     if (syncRequestedAfterCurrent) {
                         syncRequestedAfterCurrent = false;
                         window.setTimeout(() => {
@@ -8649,11 +8903,15 @@
 
             function setupGoogleSync() {
                 const singlePeerSettings = document.getElementById("single-peer-settings");
-                const multiPeerSettings = document.getElementById("multi-peer-settings");
                 const desktopPaaSyncSettings = document.getElementById("desktop-paa-sync-settings");
-                singlePeerSettings.hidden = Boolean(window.CRASDesktop);
-                multiPeerSettings.hidden = !window.CRASDesktop;
+                document.getElementById("desktop-sync-settings-card").hidden = mobileClient;
+                singlePeerSettings.hidden = mobileClient || window.CRASDesktop;
                 desktopPaaSyncSettings.hidden = !window.CRASDesktop;
+                if (!window.CRASDesktop && !mobileClient) {
+                    document.querySelector('label[for="sync-app-url"]').textContent = "Link de sincronização do Apps Script";
+                    document.querySelector('label[for="sync-peer-key"]').textContent = "Código do Apps Script";
+                    document.getElementById("sync-app-url-save").textContent = "Salvar link do Apps Script";
+                }
                 if (window.CRASDesktop) {
                     document.getElementById("paa-google-connect").addEventListener("click", async event => {
                         const button = event.currentTarget;
@@ -8690,98 +8948,32 @@
                             button.disabled = false;
                         }
                     });
-                    const peerList = document.getElementById("sync-peer-list");
-                    const readRows = () => Array.from(peerList.querySelectorAll("[data-sync-peer-row]"))
-                        .map(row => ({
-                            endpoint: row.querySelector("[data-peer-endpoint]").value.trim(),
-                            token: row.querySelector("[data-peer-token]").value.trim()
-                        }));
-                    const renderRows = renderDesktopPeerRows;
-                    const configuredPeers = Array.isArray(preferences.syncPeers) && preferences.syncPeers.length
-                        ? preferences.syncPeers
-                        : preferences.syncEndpoint && preferences.syncToken
-                            ? [{ endpoint: preferences.syncEndpoint, token: preferences.syncToken }]
-                            : [];
-                    renderRows(configuredPeers);
-                    document.getElementById("sync-peer-add").addEventListener("click", () => {
-                        const rows = readRows();
-                        if (rows.length === 1 && !rows[0].endpoint && !rows[0].token) rows.pop();
-                        renderRows([...rows, { endpoint: "", token: "" }]);
-                    });
-                    peerList.addEventListener("click", event => {
-                        if (!event.target.closest("[data-remove-sync-peer]")) return;
-                        const row = event.target.closest("[data-sync-peer-row]");
-                        const rows = readRows();
-                        const index = Array.from(peerList.querySelectorAll("[data-sync-peer-row]")).indexOf(row);
-                        rows.splice(index, 1);
-                        renderRows(rows);
-                    });
-                    document.getElementById("sync-peers-save").addEventListener("click", async () => {
-                        const rows = readRows();
-                        const peers = [];
-                        for (const row of rows) {
-                            if (!row.endpoint && !row.token) continue;
-                            const endpoint = getSyncBridgeUrl(row.endpoint);
-                            if (!endpoint) {
-                                showSyncStatus("Endereço inválido. Informe um endereço HTTP, como http://192.168.0.10:8765.");
-                                return;
-                            }
-                            if (!row.token) {
-                                showSyncStatus("Informe o código de pareamento de cada computador vinculado.");
-                                return;
-                            }
-                            if (peers.some(peer => peer.endpoint === endpoint)) {
-                                showSyncStatus("O mesmo endereço de computador não pode ser adicionado mais de uma vez.");
-                                return;
-                            }
-                            peers.push({ endpoint, token: row.token });
-                        }
-                        if (!await updatePreferences({
-                            syncPeers: peers,
-                            syncEndpoint: "",
-                            syncToken: ""
-                        })) return;
+                    const centralServerToggle = document.getElementById("central-server-toggle");
+                    centralServerToggle.addEventListener("change", async () => {
+                        const enabled = centralServerToggle.checked;
+                        centralServerToggle.disabled = true;
                         try {
-                            await publishLocalPeerDirectory(peers);
-                        } catch (error) {
-                            console.error("Não foi possível registrar os computadores conhecidos neste PC.", error);
-                            showSyncStatus(`A lista foi salva, mas não pôde ser publicada neste computador: ${error.message}`, 0);
-                            return;
-                        }
-                        renderRows(peers);
-                        showSyncStatus(peers.length
-                            ? `${peers.length} computador(es) vinculado(s) salvo(s). Iniciando sincronização.`
-                            : "Lista de computadores parceiros removida deste dispositivo.");
-                        if (peers.length && navigator.onLine) void syncWithGoogle();
-                    });
-                    document.getElementById("sync-manual-addresses-save").addEventListener("click", async event => {
-                        const button = event.currentTarget;
-                        const input = document.getElementById("sync-manual-local-addresses");
-                        const addresses = input.value.split(/[,;\s]+/).filter(Boolean);
-                        button.disabled = true;
-                        try {
-                            const response = await fetchPeer("/api/local-manual-addresses", {
+                            const response = await fetchPeer("/api/central-config", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ addresses })
+                                body: JSON.stringify({ enabled })
                             });
                             const result = await response.json();
-                            if (!response.ok) {
-                                throw new Error(result.error || "Não foi possível salvar os IPs manuais.");
-                            }
-                            desktopNodeInfo.manualAddresses = result.manualAddresses || [];
-                            input.value = desktopNodeInfo.manualAddresses.join(", ");
-                            updateLocalPeerAddressDisplay();
-                            showSyncStatus(
-                                "IPs manuais salvos e somados aos endereços detectados deste computador."
-                            );
-                            if (getConfiguredDesktopPeers().length && navigator.onLine) {
-                                void syncWithGoogle();
-                            }
+                            if (!response.ok) throw new Error(result.error || "Não foi possível alterar o servidor central.");
+                            desktopNodeInfo.centralServer = enabled;
+                            centralServerDiscoveryCache = null;
+                            document.getElementById("central-server-discovery-status").textContent = enabled
+                                ? "Este computador está anunciando o servidor central na rede local."
+                                : "Este computador não é mais o servidor central.";
+                            showSyncStatus(enabled
+                                ? "Servidor central ativado. Os demais computadores o localizarão automaticamente."
+                                : "Servidor central desativado neste computador.");
+                            if (!enabled && navigator.onLine) void syncWithGoogle();
                         } catch (error) {
-                            showSyncStatus(`Não foi possível salvar os IPs manuais: ${error.message}`, 0);
+                            centralServerToggle.checked = !enabled;
+                            showSyncStatus(`Não foi possível alterar o servidor central: ${error.message}`, 0);
                         } finally {
-                            button.disabled = false;
+                            centralServerToggle.disabled = false;
                         }
                     });
                 } else {
@@ -8802,8 +8994,16 @@
                         }
                     });
                 }
-                document.getElementById("sync-now").addEventListener("click", () => syncWithGoogle(true));
-                window.addEventListener("online", () => syncWithGoogle());
+                window.addEventListener("online", () => {
+                    if (mobileClient) {
+                        if (!mobileAccessKey) return;
+                        mobileOfflineMode = false;
+                        scheduleLocalSnapshotPersist(activeUser?.role);
+                        void refreshMobileSnapshotFromServer();
+                        return;
+                    }
+                    void syncWithGoogle();
+                });
                 window.setInterval(() => {
                     if (!offlineMode && navigator.onLine) void syncWithGoogle();
                 }, 30000);
@@ -8904,10 +9104,7 @@
                     }
                     storageCache.set(key, value);
                     scheduleLocalSnapshotPersist(actorRole);
-                    schedulePeerSync(
-                        actorRole,
-                        key === STORAGE_RECORDS || key === STORAGE_PAA_RECORDS
-                    );
+                    schedulePeerSync(actorRole);
                     return true;
                 } catch (error) {
                     console.error("Falha ao salvar dados no IndexedDB.", error);
@@ -8955,7 +9152,7 @@
                     storageCache.set(STORAGE_NATIONALITIES, importedNationalities);
                     storageCache.set(STORAGE_PAA_RECORDS, importedPaaRecords);
                     scheduleLocalSnapshotPersist(actorRole);
-                    schedulePeerSync(actorRole, true);
+                    schedulePeerSync(actorRole);
                     return true;
                 } catch (error) {
                     console.error("Falha ao importar dados para o IndexedDB.", error);
@@ -9124,13 +9321,17 @@
                 document.getElementById("assistant-admin-save").addEventListener("click", async () => {
                     const nextUsers = Array.from(document.querySelectorAll(".assistant-admin-row")).map(row => {
                         const role = row.querySelector("[data-user-role]").value;
+                        const existingUser = users.find(user => user.id === row.dataset.userId);
                         return {
                             id: row.dataset.userId || createUserId(),
                             name: row.querySelector("[data-user-name]").value.trim(),
                             role,
                             color: row.querySelector("[data-user-color]").value.toLowerCase(),
                             canAttendTechnical: role === "admin"
-                                && row.querySelector("[data-user-technical]").checked
+                                && row.querySelector("[data-user-technical]").checked,
+                            ...(existingUser?.passwordCredential
+                                ? { passwordCredential: existingUser.passwordCredential }
+                                : {})
                         };
                     });
                     const protectedUser = users.find(user => user.id === SYSTEM_ADMIN_USER_ID);
@@ -10110,13 +10311,20 @@
                 appointments = updatedAppointments;
                 if (mobileClient && mobileAccessKey) {
                     window.clearTimeout(localSnapshotPersistTimer);
-                    try {
-                        await persistMobileSnapshotToServer(createSyncSnapshot(), activeUser?.role);
-                    } catch (error) {
-                        console.error("Não foi possível registrar a ação da fila no computador.", error);
-                        showSyncStatus(`A alteração continua salva neste celular, mas não chegou ao computador: ${error.message}`, 0);
-                        renderAll();
-                        return false;
+                    if (mobileOfflineMode || !navigator.onLine) {
+                        mobileOfflineMode = true;
+                        mobilePendingSync = true;
+                        showSyncStatus("A alteração foi salva neste celular e será sincronizada quando o servidor voltar.", 0);
+                    } else {
+                        try {
+                            await persistMobileSnapshotToServer(createSyncSnapshot(), activeUser?.role);
+                        } catch (error) {
+                            mobileOfflineMode = true;
+                            mobilePendingSync = true;
+                            document.querySelector(".offline").textContent = "Modo offline · alterações salvas neste celular";
+                            console.error("Não foi possível enviar a ação da fila ao servidor.", error);
+                            showSyncStatus(`A alteração foi salva neste celular; sincronização pendente: ${error.message}`, 0);
+                        }
                     }
                 }
                 renderAll();
@@ -10602,21 +10810,23 @@
                     container.innerHTML = "";
                     const empty = document.createElement("p");
                     empty.className = "hint";
-                    empty.textContent = "Ainda não há mensagens neste computador.";
+                    empty.textContent = chatConversationRecipientId()
+                        ? "Ainda não há mensagens nesta conversa individual."
+                        : "Ainda não há avisos gerais.";
                     container.appendChild(empty);
                     return;
                 }
                 container.innerHTML = "";
                 chatMessages.forEach(message => {
                     const article = document.createElement("article");
-                    article.className = `chat-message${message.authorId === activeUser?.id ? " own" : ""}`;
+                    const ownMessage = message.authorId === activeUser?.id;
+                    article.className = `chat-message${ownMessage ? " own" : ""}`;
                     const metadata = document.createElement("div");
                     metadata.className = "chat-message-meta";
                     const timestamp = new Intl.DateTimeFormat("pt-BR", {
-                        dateStyle: "short",
                         timeStyle: "short"
                     }).format(new Date(message.createdAt));
-                    metadata.textContent = `${message.authorName} · ${timestamp}`;
+                    metadata.textContent = ownMessage ? timestamp : `${message.authorName} · ${timestamp}`;
                     article.appendChild(metadata);
 
                     if (message.person) {
@@ -10636,7 +10846,12 @@
                         image.className = "chat-message-image";
                         image.loading = "lazy";
                         image.alt = message.attachment.name || "Imagem anexada";
-                        image.src = `/api/chat/attachment?id=${encodeURIComponent(message.id)}`;
+                        const query = new URLSearchParams({
+                            id: message.id,
+                            userId: activeUser?.id || ""
+                        });
+                        if (chatConversationRecipientId()) query.set("recipientId", chatConversationRecipientId());
+                        image.src = `/api/chat/attachment?${query.toString()}`;
                         article.appendChild(image);
                     }
                     container.appendChild(article);
@@ -10644,13 +10859,78 @@
                 if (scrollToBottom) container.scrollTop = container.scrollHeight;
             }
 
+            function chatConversationRecipientId() {
+                return document.getElementById("chat-conversation-type").value === "direct"
+                    ? chatRecipientId
+                    : "";
+            }
+
+            function renderChatRecipients() {
+                const selector = document.getElementById("chat-recipient-id");
+                const previousValue = selector.value;
+                const recipients = users
+                    .filter(user => user.id !== activeUser?.id)
+                    .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+                selector.innerHTML = '<option value="">Selecione um usuário</option>';
+                recipients.forEach(user => {
+                    const option = document.createElement("option");
+                    option.value = user.id;
+                    option.textContent = `${user.name} · ${userRoleLabel(user.role)}`;
+                    selector.appendChild(option);
+                });
+                if (recipients.some(user => user.id === previousValue)) selector.value = previousValue;
+                chatRecipientId = selector.value;
+                selector.hidden = document.getElementById("chat-conversation-type").value !== "direct";
+                selector.disabled = recipients.length === 0;
+                document.getElementById("chat-title").textContent = chatRecipientId
+                    ? `Chat com ${recipients.find(user => user.id === chatRecipientId)?.name || "usuário"}`
+                    : "Avisos gerais";
+            }
+
+            async function readPendingChatMessages() {
+                const entry = await database.settings.get(STORAGE_PENDING_CHAT_MESSAGES);
+                const messages = entry?.value || [];
+                if (!Array.isArray(messages)) {
+                    throw new Error("A fila local de mensagens do chat está inválida.");
+                }
+                return messages;
+            }
+
+            async function savePendingChatMessage(message) {
+                const messages = await readPendingChatMessages();
+                if (!messages.some(item => item.id === message.id)) messages.push(message);
+                await database.settings.put({ key: STORAGE_PENDING_CHAT_MESSAGES, value: messages });
+            }
+
+            async function removePendingChatMessage(messageId) {
+                const messages = await readPendingChatMessages();
+                await database.settings.put({
+                    key: STORAGE_PENDING_CHAT_MESSAGES,
+                    value: messages.filter(message => message.id !== messageId)
+                });
+            }
+
             async function loadChatMessages(before = "", reset = false) {
                 if (!window.CRASDesktop || chatLoadInProgress) return;
+                if (!activeUser) return;
+                const recipientId = chatConversationRecipientId();
+                if (document.getElementById("chat-conversation-type").value === "direct" && !recipientId) {
+                    chatMessages = [];
+                    renderChatMessages();
+                    document.getElementById("chat-load-older").hidden = true;
+                    document.getElementById("chat-connection-status").textContent =
+                        "Escolha um usuário para abrir a conversa individual.";
+                    return;
+                }
                 chatLoadInProgress = true;
                 const wasNearBottom = chatMessagesElement.scrollHeight
                     - chatMessagesElement.scrollTop - chatMessagesElement.clientHeight < 60;
                 try {
-                    const query = new URLSearchParams({ limit: String(CHAT_PAGE_SIZE) });
+                    const query = new URLSearchParams({
+                        limit: String(CHAT_PAGE_SIZE),
+                        userId: activeUser.id
+                    });
+                    if (recipientId) query.set("recipientId", recipientId);
                     if (before) query.set("before", before);
                     const response = await fetchPeer(
                         `/api/chat/messages?${query.toString()}`,
@@ -10663,17 +10943,80 @@
                     }
                     const byId = new Map((reset ? [] : chatMessages).map(message => [message.id, message]));
                     result.messages.forEach(message => byId.set(message.id, message));
+                    let server = null;
+                    let serverStatus = desktopNodeInfo?.centralServer
+                        ? "Chat conectado ao servidor central."
+                        : "Mensagens locais; procurando o servidor central automaticamente.";
+                    if (!desktopNodeInfo?.centralServer) {
+                        try {
+                            server = (await discoverCentralServer())[0] || null;
+                        } catch (error) {
+                            serverStatus = `Chat local; descoberta indisponível: ${error.message}`;
+                        }
+                    }
+                    if (server) {
+                        try {
+                            const pendingMessages = await readPendingChatMessages();
+                            for (const message of pendingMessages.filter(item => item.authorId === activeUser.id)) {
+                                await syncChatMessageWithServer(server, message);
+                                await removePendingChatMessage(message.id);
+                            }
+                            const remote = await syncChatRequest(server, {
+                                operation: "list",
+                                limit: CHAT_PAGE_SIZE,
+                                before,
+                                recipientId: recipientId || null
+                            });
+                            if (!Array.isArray(remote.messages)) {
+                                throw new Error("O servidor central retornou uma lista de mensagens inválida.");
+                            }
+                            for (const remoteMessage of remote.messages) {
+                                if (byId.has(remoteMessage.id)) continue;
+                                const message = { ...remoteMessage };
+                                if (message.attachment) {
+                                    const attachment = await syncChatRequest(server, {
+                                        operation: "attachment",
+                                        messageId: message.id,
+                                        recipientId: recipientId || null
+                                    });
+                                    if (!attachment.attachment
+                                        || !CHAT_ATTACHMENT_TYPES.has(attachment.attachment.type)
+                                        || typeof attachment.attachment.data !== "string") {
+                                        throw new Error("O servidor central retornou uma imagem inválida.");
+                                    }
+                                    message.attachment = {
+                                        ...message.attachment,
+                                        type: attachment.attachment.type,
+                                        data: attachment.attachment.data
+                                    };
+                                }
+                                const storeResponse = await fetchPeer("/api/chat/messages", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(message)
+                                });
+                                const stored = await storeResponse.json();
+                                if (!storeResponse.ok || !stored.message) {
+                                    throw new Error(stored.error || "Não foi possível guardar a mensagem sincronizada neste computador.");
+                                }
+                                byId.set(stored.message.id, stored.message);
+                            }
+                            serverStatus = "Chat sincronizado com o servidor central.";
+                        } catch (error) {
+                            serverStatus = `Chat local; servidor central indisponível: ${error.message}`;
+                            if (!chatLoadErrorShown) {
+                                console.error("Não foi possível sincronizar o chat com o servidor central.", error);
+                                chatLoadErrorShown = true;
+                            }
+                        }
+                    }
                     chatMessages = Array.from(byId.values())
                         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
                         .slice(-300);
-                    document.getElementById("chat-load-older").hidden =
-                        before ? result.messages.length < CHAT_PAGE_SIZE : result.messages.length < CHAT_PAGE_SIZE;
+                    document.getElementById("chat-load-older").hidden = result.messages.length < CHAT_PAGE_SIZE;
                     renderChatMessages(!before && wasNearBottom);
-                    const peers = getConfiguredDesktopPeers();
-                    document.getElementById("chat-connection-status").textContent = peers.length
-                        ? `Chat local · ${peers.length} computador(es) vinculado(s)`
-                        : "Mensagens salvas neste PC; vincule um parceiro para compartilhar o chat.";
-                    chatLoadErrorShown = false;
+                    document.getElementById("chat-connection-status").textContent = serverStatus;
+                    if (server) chatLoadErrorShown = serverStatus.startsWith("Chat local;");
                 } catch (error) {
                     document.getElementById("chat-connection-status").textContent =
                         `Não foi possível atualizar o chat: ${error.message}`;
@@ -10746,21 +11089,26 @@
                 return { name: file.name.slice(0, 120), type: file.type, data };
             }
 
-            async function syncChatMessageWithPeer(peer, message) {
+            async function syncChatRequest(peer, payload) {
                 const endpoint = getSyncBridgeUrl(peer.endpoint);
-                if (!endpoint || !peer.token) throw new Error("Parceiro do chat sem endereço ou código válido.");
+                if (!endpoint || !peer.userId || !peer.credential?.hash) {
+                    throw new Error("A conversa não possui uma credencial individual válida.");
+                }
+                await registerUserWithServer(peer);
                 const salt = crypto.getRandomValues(new Uint8Array(16));
                 const nonce = crypto.getRandomValues(new Uint8Array(12));
-                const key = await derivePeerKey(peer.token, salt);
+                const key = await derivePeerKey(peer.credential.hash, salt);
+                const authenticatedPayload = { ...payload, userId: peer.userId };
                 const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
                     { name: "AES-GCM", iv: nonce },
                     key,
-                    new TextEncoder().encode(JSON.stringify({ message }))
+                    new TextEncoder().encode(JSON.stringify(authenticatedPayload))
                 ));
                 const response = await fetchPeer(`${endpoint}/api/chat/sync`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
+                        userId: peer.userId,
                         salt: bytesToBase64(salt),
                         nonce: bytesToBase64(nonce),
                         ciphertext: bytesToBase64(ciphertext)
@@ -10768,16 +11116,23 @@
                 }, 5000);
                 const resultEnvelope = await response.json();
                 if (!response.ok) {
-                    throw new Error(resultEnvelope.error || "O computador parceiro recusou a mensagem.");
+                    throw new Error(resultEnvelope.error || "O servidor central recusou a operação de chat.");
                 }
                 const result = await crypto.subtle.decrypt(
                     { name: "AES-GCM", iv: base64ToBytes(resultEnvelope.nonce) },
                     key,
                     base64ToBytes(resultEnvelope.ciphertext)
                 );
-                const acknowledgement = JSON.parse(new TextDecoder().decode(result));
-                if (acknowledgement.messageId !== message.id) {
-                    throw new Error("O computador parceiro confirmou uma mensagem diferente.");
+                return JSON.parse(new TextDecoder().decode(result));
+            }
+
+            async function syncChatMessageWithServer(server, message) {
+                if (message.authorId !== server.userId) {
+                    throw new Error("A mensagem pendente pertence a outro usuário.");
+                }
+                const result = await syncChatRequest(server, { operation: "send", message });
+                if (result.messageId !== message.id) {
+                    throw new Error("O servidor central confirmou uma mensagem diferente.");
                 }
             }
 
@@ -10786,6 +11141,13 @@
                 if (!activeUser) {
                     document.getElementById("chat-connection-status").textContent =
                         "Selecione um usuário antes de enviar mensagens.";
+                    return;
+                }
+                const recipientId = chatConversationRecipientId();
+                if (document.getElementById("chat-conversation-type").value === "direct" && !recipientId) {
+                    document.getElementById("chat-connection-status").textContent =
+                        "Selecione um usuário para a mensagem individual.";
+                    document.getElementById("chat-recipient-id").focus();
                     return;
                 }
                 const textInput = document.getElementById("chat-message-input");
@@ -10804,6 +11166,7 @@
                     authorId: activeUser.id,
                     authorName: activeUser.name,
                     authorRole: activeUser.role,
+                    ...(recipientId ? { recipientId } : {}),
                     text,
                     ...(chatPerson ? { person: chatPerson } : {}),
                     ...(chatAttachment ? { attachment: chatAttachment } : {})
@@ -10825,17 +11188,36 @@
                     clearChatPerson();
                     clearChatAttachment();
 
-                    const peers = getConfiguredDesktopPeers();
+                    let server = null;
+                    if (!desktopNodeInfo?.centralServer) {
+                        try {
+                            server = (await discoverCentralServer())[0] || null;
+                        } catch (error) {
+                            console.warn("Não foi possível localizar o servidor central para o chat.", error);
+                        }
+                    }
                     const results = await Promise.allSettled(
-                        peers.map(peer => syncChatMessageWithPeer(peer, result.message))
+                        server ? [syncChatMessageWithServer(server, result.message)] : []
                     );
                     const failures = results.filter(item => item.status === "rejected");
-                    document.getElementById("chat-connection-status").textContent = failures.length
-                        ? `Mensagem salva neste PC; não foi possível enviá-la a ${failures.length} computador(es).`
-                        : peers.length
-                            ? `Mensagem enviada aos ${peers.length} computador(es) vinculado(s).`
-                            : "Mensagem salva neste PC; vincule um parceiro para compartilhá-la.";
-                    failures.forEach(failure => console.error("Falha ao enviar mensagem a um computador parceiro.", failure.reason));
+                    if (desktopNodeInfo?.centralServer) {
+                        document.getElementById("chat-connection-status").textContent =
+                            "Mensagem salva no servidor central.";
+                    } else if (failures.length || !server) {
+                        try {
+                            await savePendingChatMessage(result.message);
+                            document.getElementById("chat-connection-status").textContent = server
+                                ? "Mensagem salva neste PC; envio ao servidor central pendente."
+                                : "Mensagem salva neste PC; será enviada quando o servidor central for encontrado.";
+                        } catch (error) {
+                            console.error("Não foi possível registrar a mensagem na fila de reenvio.", error);
+                            document.getElementById("chat-connection-status").textContent =
+                                `Mensagem salva neste PC, mas não foi possível preparar o reenvio: ${error.message}`;
+                        }
+                    } else {
+                        document.getElementById("chat-connection-status").textContent = "Mensagem enviada ao servidor central.";
+                    }
+                    failures.forEach(failure => console.error("Falha ao enviar mensagem ao servidor central.", failure.reason));
                 } catch (error) {
                     console.error("Falha ao salvar a mensagem do chat.", error);
                     document.getElementById("chat-connection-status").textContent =
@@ -11608,12 +11990,22 @@
                             || !["assistant", "caseworker", "reception", "intern", "admin"].includes(user.role)) {
                             throw new Error(`O usuário ${index + 1} do arquivo está inválido.`);
                         }
+                        const passwordCredential = user.passwordCredential
+                            && typeof user.passwordCredential.salt === "string"
+                            && typeof user.passwordCredential.hash === "string"
+                            && /^[a-f0-9]{64}$/i.test(user.passwordCredential.hash)
+                            ? {
+                                salt: user.passwordCredential.salt,
+                                hash: user.passwordCredential.hash.toLowerCase()
+                            }
+                            : null;
                         return {
                             id: user.id,
                             name: user.name.trim(),
                             color: user.color.toLowerCase(),
                             role: user.role,
-                            canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true
+                            canAttendTechnical: user.role === "admin" && user.canAttendTechnical === true,
+                            ...(passwordCredential ? { passwordCredential } : {})
                         };
                     });
                     if (new Set(importedUsers.map(user => user.name.toLocaleLowerCase("pt-BR"))).size !== importedUsers.length) {
@@ -12278,10 +12670,10 @@
                         "Não foi possível validar o acesso. Verifique o ambiente local e tente novamente.";
                 });
             });
-            document.getElementById("remember-last-user").addEventListener("change", event => {
+            document.getElementById("remember-user-session").addEventListener("change", event => {
                 const checkbox = event.currentTarget;
                 const previousValue = !checkbox.checked;
-                persistRememberLastUserPreference(checkbox.checked).catch(error => {
+                persistRememberUserSessionPreference(checkbox.checked).catch(error => {
                     console.error("Não foi possível salvar a preferência de usuário local.", error);
                     checkbox.checked = previousValue;
                     document.getElementById("user-login-status").textContent =
@@ -12292,21 +12684,13 @@
                 const enteredName = event.target.value.trim().toLocaleLowerCase("pt-BR");
                 const selectedUser = users.find(user => user.name.toLocaleLowerCase("pt-BR") === enteredName);
                 if (selectedUser) document.getElementById("login-role").value = selectedUser.role;
-                updateLoginPinFields().catch(error => {
-                    console.error("Não foi possível verificar a configuração do PIN administrativo.", error);
-                    document.getElementById("user-login-status").textContent =
-                        "Não foi possível verificar a configuração do PIN administrativo.";
-                });
+                updateLoginPasswordFields();
                 if (!document.getElementById("user-login-status").textContent.startsWith("Não foi possível")) {
                     document.getElementById("user-login-status").textContent = "";
                 }
             });
             document.getElementById("login-role").addEventListener("change", () => {
-                updateLoginPinFields().catch(error => {
-                    console.error("Não foi possível verificar a configuração do PIN administrativo.", error);
-                    document.getElementById("user-login-status").textContent =
-                        "Não foi possível verificar a configuração do PIN administrativo.";
-                });
+                updateLoginPasswordFields();
             });
             document.getElementById("settings-switch-user").addEventListener("click", () => {
                 closeSettingsScreen(false);
@@ -12321,6 +12705,24 @@
                 if (event.key === "Escape" && !chatPanel.hidden) setChatPopupOpen(false);
             });
             document.getElementById("chat-form").addEventListener("submit", submitChatMessage);
+            document.getElementById("chat-conversation-type").addEventListener("change", () => {
+                if (document.getElementById("chat-conversation-type").value !== "direct") {
+                    chatRecipientId = "";
+                }
+                renderChatRecipients();
+                void loadChatMessages("", true);
+            });
+            document.getElementById("chat-recipient-id").addEventListener("change", event => {
+                chatRecipientId = event.currentTarget.value;
+                renderChatRecipients();
+                void loadChatMessages("", true);
+            });
+            document.getElementById("chat-message-input").addEventListener("keydown", event => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    event.currentTarget.form.requestSubmit();
+                }
+            });
             document.getElementById("chat-person-search").addEventListener("input", renderChatPersonSuggestions);
             document.getElementById("chat-person-suggestions").addEventListener("click", event => {
                 const button = event.target.closest("[data-person-id]");
@@ -12576,6 +12978,9 @@
             applyPreferences();
             await setupAccessGate();
             await restoreLocalUser();
+            if (mobilePendingSync && !mobileOfflineMode) {
+                scheduleLocalSnapshotPersist(activeUser?.role);
+            }
             completeBootScreen();
             await refreshCurrentDay();
             await ensureQueueTimestamps();

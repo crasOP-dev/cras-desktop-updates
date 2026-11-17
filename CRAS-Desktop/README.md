@@ -7,22 +7,32 @@ locais dos computadores não são enviados nem modificados pela atualização.
 
 ## Sincronização e perfis
 
-Os registros são sincronizados automaticamente após cada gravação, sem pedir
-para escolher entre a versão local e a do outro computador. Alterações em
-campos diferentes são combinadas; se o mesmo campo divergir, prevalece Admin,
-seguido da Recepção/Estagiário em atendimentos e PAA, do Técnico no Atendimento
-Técnico ou da Cadastradora na fila do Cadastro Único.
+Os registros são sincronizados automaticamente após cada gravação com o
+servidor central, sem pedir para escolher entre a cópia local e a do servidor.
+Alterações em campos diferentes são combinadas; se o mesmo campo divergir,
+prevalece Admin, seguido da Recepção/Estagiário em atendimentos e PAA, do
+Técnico no Atendimento Técnico ou da Cadastradora na fila do Cadastro Único.
 
-Na identificação, o último usuário pode ser pré-preenchido somente neste
-dispositivo; desmarque **Lembrar último usuário neste computador** para apagar
-essa lembrança. O perfil Admin continua exigindo o PIN local.
+Cada usuário cria uma senha individual no primeiro acesso (mínimo de 8
+caracteres); o sistema guarda apenas um hash com salt e sincroniza a credencial
+com a lista de usuários. O primeiro cadastro é feito pela própria pessoa ao
+selecionar o nome, sem validação externa de identidade: em um computador
+compartilhado, alguém poderia cadastrar a senha no lugar de outra pessoa.
+Confirme a identidade durante o primeiro acesso.
+O hash individual também autentica as solicitações de sincronização e chat ao
+servidor central; o código compartilhado de pareamento não é mais utilizado.
+
+Na tela de entrada, marque **Lembrar este usuário e pular o login neste
+dispositivo** para abrir automaticamente essa conta nos próximos inícios. Isso
+também se aplica ao Admin; use somente em um dispositivo de acesso controlado.
+Desmarque a opção ou troque de usuário para encerrar esse acesso automático.
 No Atendimento Técnico, somente a pessoa designada recebe o aviso de ociosidade.
 Todas as cadastradoras recebem o aviso do Cadastro Único; a Recepção e o
 Estagiário não recebem esses avisos. Um Admin pode ser habilitado na Gestão de
 usuários para também ser designado como Técnico, mantendo suas permissões
 administrativas. A Recepção e o Estagiário podem encerrar diretamente qualquer
 fila, inclusive enquanto ainda aguarda; essa ação tem prioridade na sincronização
-com os computadores parceiros. Quando a Recepção finaliza uma fila atribuída,
+com o servidor central. Quando a Recepção finaliza uma fila atribuída,
 a pessoa designada recebe a pergunta de confirmação; sem responsável designado,
 a pergunta não é exibida.
 
@@ -32,44 +42,67 @@ a fila do Atendimento Técnico. O Estagiário pode adquirir uma pasta sem inicia
 o atendimento; a fila mostra quem a retirou e quando. Ele pode devolver a
 própria pasta à fila.
 
-Para usar o celular, mantenha o CRAS Desktop aberto no computador e conecte os
-dois à mesma rede Wi-Fi privada e confiável. Um Admin deve configurar um código
-móvel de pelo menos 12 caracteres em **Usuários → Acesso pelo celular**. Nas
-Configurações do computador, baixe o certificado raiz pelo endereço informado,
-confira sua impressão digital e instale-o como certificado confiável em cada
-celular autorizado. Depois, abra no celular um dos endereços HTTPS exibidos,
-informe o código e selecione o usuário. As alterações da fila são sincronizadas
-com o computador; o celular atualiza a tela periodicamente. Não use essa função
-em Wi-Fi público nem exponha as portas do aplicativo à Internet. Se o endereço
-não abrir, confirme que os dois dispositivos estão na mesma rede Wi-Fi (não em
-uma rede de convidados) e permita o CRAS Desktop na rede privada do Firewall do
-Windows. O servidor móvel usa a porta TCP 8766; instalar a CA valida o
-certificado, mas não libera a conexão através do firewall.
+## Servidor central e operação offline
 
-Para iniciar a rede P2P, conecte cada computador a pelo menos um parceiro
-confiável usando o endereço IPv4 e o código de pareamento desse parceiro. Na
-primeira conexão, os computadores trocam, dentro do pacote P2P criptografado, os
-endereços e códigos de pareamento já conhecidos; assim, os demais parceiros
-são adicionados sem recadastrar cada PC. Use somente PCs da rede privada
-autorizada: um parceiro confiável passa a conhecer os códigos dos demais
-parceiros. O Principal é o primeiro ponto de coordenação; filas e histórico
-continuam replicados nos PCs vinculados, preservando o uso offline. Em
-**Configurações → Sincronização**, os endereços deste PC incluem os IPv4
-privados ativos nas interfaces do Windows, inclusive os fixos. Endereços
-públicos e de adaptadores externos não são compartilhados. Se algum IP privado
-não aparecer, informe-o em **IPs manuais adicionais deste computador**; ele será
-somado aos detectados e compartilhado na sincronização. A opção não altera as
-configurações de rede do Windows.
+Execute o CRAS Desktop no notebook que será o servidor central, entre como
+Admin e ative **Este computador é o servidor central** em
+**Configurações → Sincronização**. Mantenha-o ligado e aberto. O SQLite desse
+computador guarda o estado central; os outros desktops o localizam
+automaticamente por mDNS na rede local, sem configurar endereço IP ou código
+compartilhado. Mantenha somente um computador ativado como servidor central.
+Não exponha as portas 8765 e 8766 à Internet. Uma rede cabeada Ethernet
+funciona sem Wi‑Fi.
+
+Os postos mantêm uma cópia local para que a Recepção continue registrando e
+operando filas quando não houver nenhuma rede. As gravações locais são enviadas
+ao servidor quando a conexão retorna; os conflitos são mesclados pelas regras
+de prioridade por perfil já existentes. Os outros postos podem aguardar o
+servidor. A descoberta mDNS exige que os dispositivos estejam na mesma rede
+local e que ela permita tráfego multicast DNS.
+
+### Primeira migração do computador Principal
+
+Atualize o CRAS Desktop em todos os computadores e ative o servidor central no
+notebook. No computador Principal atual, aguarde a descoberta automática e a
+conclusão da sincronização antes de abrir os demais postos. Essa primeira
+sincronização mescla o conteúdo do Principal ao SQLite do servidor; ela não
+apaga os dados locais. Cada usuário deve entrar e criar ou validar sua senha
+individual em cada posto. Ative o backup diário no notebook servidor e confira
+os arquivos em
+`%LOCALAPPDATA%\CRAS-Desktop\backups`.
+
+### Celulares Android e iOS
+
+Um Admin configura um código móvel de pelo menos 12 caracteres em
+**Usuários → Acesso pelo celular**. Na primeira conexão, acesse um dos endereços
+HTTPS `.local` exibidos quando o servidor central está ativo, baixe o
+certificado CA, confira a impressão digital e instale-o como confiável no
+celular. Abra o endereço HTTPS e adicione o CRAS à tela
+inicial pelo navegador (PWA). Após carregar e autenticar uma vez, a aplicação e
+os dados ficam disponíveis offline naquele dispositivo; alterações feitas
+offline são sincronizadas quando o servidor volta. No iOS, use **Adicionar à
+Tela de Início** no Safari.
+
+Celulares precisam de Wi‑Fi ou outra conexão para a primeira instalação e para
+sincronizar; sem qualquer rede, só podem usar a cópia offline previamente
+carregada. Não use Wi‑Fi público nem exponha as portas 8765 e 8766 à Internet.
+Se o endereço não abrir, conecte os dispositivos à mesma rede privada e permita
+o CRAS Desktop nas regras de rede privada do Firewall do Windows. Instalar a CA
+valida o certificado, mas não libera a conexão no firewall.
 
 ## Chat e backups
 
-O botão **Chat**, ao lado de **Sincronizar**, abre a janela de conversa no CRAS
-Desktop. Mensagens, emojis e imagens/GIFs (PNG, JPG, GIF ou WebP, até 2 MB) são
-enviados aos computadores parceiros configurados. Uma recomendação pode ser
-vinculada a um atendimento existente; o chat mostra o nome e somente os dois
-últimos dígitos do CPF para ajudar a identificar a pessoa. A referência não
-altera a fila. Antes da limpeza mensal, cada PC arquiva as mensagens antigas
-em `%LOCALAPPDATA%\CRAS-Desktop\chat-backups`. Esses arquivos compactados
+O botão **Chat** abre a equipe. Escolha **Aviso geral** para enviar a todos ou
+**Mensagem individual** para selecionar um usuário. O histórico e os anexos
+individuais ficam visíveis somente aos dois participantes. Enter envia a
+mensagem; Shift+Enter cria uma nova linha. Mensagens, emojis e imagens/GIFs
+(PNG, JPG, GIF ou WebP, até 2 MB) são enviados ao servidor central. Uma
+recomendação pode ser vinculada a um atendimento existente; o chat mostra o
+nome e somente os dois últimos dígitos do CPF para ajudar a identificar a
+pessoa. A referência não altera a fila. Se o servidor estiver indisponível, a
+mensagem fica na fila local de reenvio. Antes da limpeza mensal, cada PC arquiva
+as mensagens antigas em
+`%LOCALAPPDATA%\CRAS-Desktop\chat-backups`. Esses arquivos compactados
 permanecem no próprio computador até serem removidos manualmente.
 
 No computador principal, um Admin deve ativar **Este é o PC Principal (backup
@@ -77,8 +110,8 @@ diário)** nas Configurações. O CRAS cria backups compactados diários do
 histórico, encaminhamentos, usuários e dados do PAA em
 `%LOCALAPPDATA%\CRAS-Desktop\backups`, mantendo os 30 mais recentes. O arquivo
 `.json.gz` pode ser selecionado diretamente em **Exportação → Importar backup**;
-o conteúdo é mesclado aos registros locais. Códigos de pareamento não são
-incluídos nesses backups.
+o conteúdo é mesclado aos registros locais. As contas incluem hashes de senha
+com salt; proteja os backups adequadamente.
 
 O histórico continua completo e independente do preenchimento automático do
 formulário. A tabela mostra 50 registros por página; filtros e exportação

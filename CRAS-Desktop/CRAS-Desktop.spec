@@ -1,12 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('CRAS.html', '.'), ('dexie.min.js', '.'), ('version.txt', '.')]
+datas = [('CRAS.html', '.'), ('dexie.min.js', '.'), ('manifest.webmanifest', '.'), ('sw.js', '.'), ('app-icon.svg', '.'), ('version.txt', '.')]
 binaries = []
 hiddenimports = []
 tmp_ret = collect_all('webview')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 tmp_ret = collect_all('truststore')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+tmp_ret = collect_all('zeroconf')
 datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
 
 

@@ -1,9 +1,12 @@
 import gzip
+import base64
 import hashlib
+import io
 import json
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 from unittest.mock import Mock, patch
 from pathlib import Path
 
@@ -13,6 +16,7 @@ from cryptography import x509
 from cryptography.exceptions import InvalidTag
 
 from main import (
+    CentralServiceAdvertiser,
     CRASRequestHandler,
     PORT,
     PeerStore,
@@ -24,13 +28,12 @@ from main import (
     encode_mobile_payload,
     ensure_mobile_tls_certificates,
     check_for_update,
+    discover_central_services,
     launch_update_helper,
     lan_addresses,
     latest_release,
     verify_update_checksum,
     validate_chat_message,
-    validate_manual_addresses,
-    validate_peer_directory,
     version_tuple,
 )
 
@@ -435,56 +438,43 @@ class PeerStoreTests(unittest.TestCase):
         with self.assertRaises(RevisionConflict):
             self.store.save_local_snapshot(snapshot, 0)
 
-    def test_sync_shares_known_peer_directory_over_authenticated_sync(self):
-        primary_peer = {"endpoint": "http://192.168.1.10:8765", "token": "primary-token"}
-        new_peer = {"endpoint": "http://192.168.1.11:8765", "token": "new-peer-token"}
-        self.store.set_peer_directory([primary_peer])
+    def test_user_credential_is_idempotent_and_cannot_be_replaced(self):
+        credential = {
+            "salt": base64.b64encode(b"0123456789abcdef").decode("ascii"),
+            "hash": "a" * 64,
+        }
+        self.store.register_user_credential("user-1", credential, "Técnica", "assistant")
+        self.store.register_user_credential("user-1", credential, "Técnica", "assistant")
+        self.store.register_user_credential("user-1", credential, "Nome falsificado", "admin")
 
-        result = self.store.sync(
-            "peer-a",
-            "directory-request",
-            {"appointments": [], "paaRecords": [], "settings": {}},
-            {},
-            known_peers=[new_peer],
+        self.assertEqual(self.store.get_user_credential("user-1"), "a" * 64)
+        self.assertEqual(
+            self.store.get_user_profile("user-1"),
+            {"name": "Técnica", "role": "assistant"},
         )
+        with self.assertRaisesRegex(ValueError, "já possui"):
+            self.store.register_user_credential("user-1", {
+                **credential,
+                "hash": "b" * 64,
+            }, "Técnica", "assistant")
 
-        self.assertEqual(result["knownPeers"], [primary_peer, new_peer])
-        self.assertEqual(self.store.get_peer_directory(), [primary_peer, new_peer])
+    def test_central_server_role_persists(self):
+        self.store.set_central_server(True)
 
-    def test_peer_directory_rejects_non_local_or_malformed_endpoints(self):
-        for endpoint in (
-            "https://192.168.1.10:8765",
-            "http://example.com:8765",
-            "http://192.168.1.10:9999",
-            "http://user:pass@192.168.1.10:8765",
-            "http://203.0.113.17:8765",
-        ):
-            with self.subTest(endpoint=endpoint), self.assertRaises(ValueError):
-                validate_peer_directory([{"endpoint": endpoint, "token": "pairing-token"}])
+        self.assertTrue(PeerStore(self.store.path).is_central_server())
+        self.store.set_central_server(False)
+        self.assertFalse(self.store.is_central_server())
 
-    def test_manual_addresses_are_normalized_deduplicated_and_persisted(self):
-        addresses = self.store.set_manual_addresses([
-            "192.168.1.25",
-            " 192.168.1.25 ",
-            "10.0.0.12",
-        ])
-        self.assertEqual(addresses, ["192.168.1.25", "10.0.0.12"])
-        self.assertEqual(self.store.get_manual_addresses(), addresses)
-        self.assertEqual(PeerStore(self.store.path).get_manual_addresses(), addresses)
+    def test_legacy_shared_pairing_and_ip_configuration_is_removed(self):
+        with closing(self.store.connect()) as db:
+            db.execute("INSERT INTO metadata (key, value) VALUES ('pairing_key', 'old-secret')")
+            db.execute("INSERT INTO metadata (key, value) VALUES ('manual_addresses', '[]')")
+        PeerStore(self.store.path)
 
-    def test_manual_addresses_reject_non_private_and_invalid_ips(self):
-        for addresses in (
-            ["8.8.8.8"],
-            ["203.0.113.17"],
-            ["100.64.1.2"],
-            ["127.0.0.1"],
-            ["169.254.1.2"],
-            ["::1"],
-            ["not-an-ip"],
-            ["192.168.1.1", 42],
-        ):
-            with self.subTest(addresses=addresses), self.assertRaises(ValueError):
-                validate_manual_addresses(addresses)
+        with closing(self.store.connect()) as db:
+            keys = {row[0] for row in db.execute("SELECT key FROM metadata")}
+        self.assertNotIn("pairing_key", keys)
+        self.assertNotIn("manual_addresses", keys)
 
     def test_principal_backup_is_compressed_and_contains_restorable_history(self):
         snapshot = {
@@ -574,6 +564,69 @@ class PeerStoreTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(ValueError, "anexo"):
             validate_chat_message(message)
+
+    def test_chat_lists_only_the_selected_general_or_direct_conversation(self):
+        general = {
+            "id": "general",
+            "createdAt": "2026-01-15T12:00:00Z",
+            "authorId": "user-a",
+            "authorName": "Técnica A",
+            "authorRole": "assistant",
+            "text": "Aviso geral",
+        }
+        direct = {
+            "id": "direct",
+            "createdAt": "2026-01-15T12:01:00Z",
+            "authorId": "user-a",
+            "authorName": "Técnica A",
+            "authorRole": "assistant",
+            "recipientId": "user-b",
+            "text": "Mensagem privada",
+        }
+        other_direct = {
+            **direct,
+            "id": "other-direct",
+            "recipientId": "user-c",
+        }
+        for message in (general, direct, other_direct):
+            self.store.store_chat_message(message)
+
+        self.assertEqual(
+            [message["id"] for message in self.store.list_chat_messages(user_id="user-b")],
+            ["general"],
+        )
+        self.assertEqual(
+            [message["id"] for message in self.store.list_chat_messages(
+                user_id="user-b", recipient_id="user-a"
+            )],
+            ["direct"],
+        )
+        self.assertEqual(
+            self.store.list_chat_messages(user_id="user-b", recipient_id="user-c"),
+            [],
+        )
+
+    def test_chat_attachment_is_available_only_to_conversation_participants(self):
+        self.store.store_chat_message({
+            "id": "private-image",
+            "createdAt": "2026-01-15T12:00:00Z",
+            "authorId": "user-a",
+            "authorName": "Técnica A",
+            "authorRole": "assistant",
+            "recipientId": "user-b",
+            "text": "Imagem privada",
+            "attachment": {
+                "name": "documento.png",
+                "type": "image/png",
+                "data": "iVBORw0KGgo=",
+            },
+        })
+
+        self.assertIsNone(self.store.chat_attachment("private-image", "user-c", "user-a"))
+        self.assertEqual(
+            self.store.chat_attachment("private-image", "user-b", "user-a"),
+            ("image/png", b"\x89PNG\r\n\x1a\n"),
+        )
 
 
 class EncryptionTests(unittest.TestCase):
@@ -681,6 +734,7 @@ class MobileAccessTests(unittest.TestCase):
             ca_path, server_path, key_path, fingerprint = ensure_mobile_tls_certificates(
                 directory,
                 ["192.168.1.25"],
+                "cras-central.local",
             )
             ca_cert = x509.load_pem_x509_certificate(ca_path.read_bytes())
             server_cert = x509.load_pem_x509_certificate(server_path.read_bytes())
@@ -688,12 +742,14 @@ class MobileAccessTests(unittest.TestCase):
                 x509.SubjectAlternativeName
             ).value
             self.assertIn("192.168.1.25", [str(value) for value in names.get_values_for_type(x509.IPAddress)])
+            self.assertIn("cras-central.local", names.get_values_for_type(x509.DNSName))
             self.assertTrue(fingerprint)
             self.assertTrue(key_path.exists())
 
             second_ca_path, _, _, second_fingerprint = ensure_mobile_tls_certificates(
                 directory,
                 ["192.168.1.25"],
+                "cras-central.local",
             )
             self.assertEqual(second_ca_path.read_bytes(), ca_path.read_bytes())
             self.assertEqual(second_fingerprint, fingerprint)
@@ -703,6 +759,226 @@ class MobileAccessTests(unittest.TestCase):
             server_ski = server_cert.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value
             self.assertEqual(server_aki.key_identifier, ca_ski.digest)
             self.assertTrue(server_ski.digest)
+
+
+class CentralChatSyncTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = PeerStore(Path(self.temp_dir.name) / "chat.sqlite3")
+        self.user_id = "user-1"
+        self.credential = {
+            "salt": base64.b64encode(b"0123456789abcdef").decode("ascii"),
+            "hash": "a" * 64,
+        }
+        self.store.register_user_credential(
+            self.user_id, self.credential, "Técnica", "assistant"
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def request(self, payload, expected_status=200):
+        salt = b"0123456789abcdef"
+        payload = {**payload, "userId": self.user_id}
+        envelope = encode_envelope(salt, self.credential["hash"], payload)
+        envelope["userId"] = self.user_id
+        body = json.dumps(envelope).encode("utf-8")
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/chat/sync"
+        handler.headers = {"Content-Length": str(len(body))}
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.rfile = io.BytesIO(body)
+        handler.store = self.store
+        handler.send_json = Mock()
+
+        handler.do_POST()
+
+        status, response = handler.send_json.call_args.args[:2]
+        self.assertEqual(status, expected_status)
+        if status != 200:
+            return response
+        _, result = decode_envelope(response, self.credential["hash"])
+        return result
+
+    def test_server_chat_supports_message_delivery_and_offline_history_fetch(self):
+        message = {
+            "id": "chat-message-1",
+            "createdAt": "2026-01-15T12:00:00Z",
+            "authorId": "user-1",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "text": "Mensagem central",
+            "attachment": {
+                "name": "documento.png",
+                "type": "image/png",
+                "data": "iVBORw0KGgo=",
+            },
+        }
+
+        acknowledgement = self.request({"operation": "send", "message": message})
+        history = self.request({"operation": "list", "limit": 50})
+        attachment = self.request({
+            "operation": "attachment",
+            "messageId": message["id"],
+        })
+
+        self.assertEqual(acknowledgement, {"messageId": message["id"]})
+        self.assertEqual(history["messages"][0]["id"], message["id"])
+        self.assertNotIn("data", history["messages"][0]["attachment"])
+        self.assertEqual(attachment["attachment"], {
+            "type": "image/png",
+            "data": "iVBORw0KGgo=",
+        })
+
+    def test_server_chat_rejects_requests_outside_private_network(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/chat/sync"
+        handler.client_address = ("8.8.8.8", 12345)
+        handler.headers = {}
+        handler.send_error = Mock()
+        handler.send_json = Mock()
+
+        handler.do_POST()
+
+        handler.send_error.assert_called_once_with(403)
+        handler.send_json.assert_not_called()
+
+    def test_server_chat_does_not_expose_other_users_private_messages(self):
+        for message_id, recipient_id in (("visible", "user-2"), ("private", "user-3")):
+            self.store.store_chat_message({
+                "id": message_id,
+                "createdAt": "2026-01-15T12:00:00Z",
+                "authorId": self.user_id,
+                "authorName": "Técnica",
+                "authorRole": "assistant",
+                "recipientId": recipient_id,
+                "text": "Mensagem individual",
+            })
+
+        history = self.request({
+            "operation": "list",
+            "limit": 50,
+            "recipientId": "user-2",
+        })
+
+        self.assertEqual([message["id"] for message in history["messages"]], ["visible"])
+
+    def test_server_chat_rejects_spoofed_author_role(self):
+        error = self.request({
+            "operation": "send",
+            "message": {
+                "id": "spoofed-role",
+                "createdAt": "2026-01-15T12:00:00Z",
+                "authorId": self.user_id,
+                "authorName": "Técnica",
+                "authorRole": "admin",
+                "text": "Mensagem",
+            },
+        }, expected_status=400)
+
+        self.assertIn("usuário autenticado", error["error"])
+
+
+class CentralSyncAuthenticationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = PeerStore(Path(self.temp_dir.name) / "sync.sqlite3")
+        self.store.save_local_snapshot(
+            {"appointments": [], "paaRecords": [], "settings": {}},
+            self.store.get_revision(),
+        )
+        self.user_id = "user-1"
+        self.credential = {
+            "salt": base64.b64encode(b"0123456789abcdef").decode("ascii"),
+            "hash": "c" * 64,
+        }
+        self.store.register_user_credential(
+            self.user_id, self.credential, "Técnica", "assistant"
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def request(self, user_id, key):
+        payload = {
+            "peerId": "workstation-1",
+            "requestId": "sync-request-1",
+            "localSnapshot": {"appointments": [], "paaRecords": [], "settings": {}},
+            "resolutions": {},
+            "userId": user_id,
+        }
+        envelope = encode_envelope(b"0123456789abcdef", key, payload)
+        envelope["userId"] = user_id
+        body = json.dumps(envelope).encode("utf-8")
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/sync"
+        handler.headers = {"Content-Length": str(len(body))}
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.rfile = io.BytesIO(body)
+        handler.store = self.store
+        handler.send_json = Mock()
+
+        handler.do_POST()
+
+        return handler.send_json.call_args.args[:2]
+
+    def test_sync_uses_registered_individual_credential(self):
+        status, response = self.request(self.user_id, self.credential["hash"])
+
+        self.assertEqual(status, 200)
+        _, result = decode_envelope(response, self.credential["hash"])
+        self.assertEqual(result["status"], "ok")
+
+    def test_sync_rejects_an_unregistered_user(self):
+        status, response = self.request("unknown-user", self.credential["hash"])
+
+        self.assertEqual(status, 401)
+        self.assertIn("senha individual", response["error"].lower())
+
+    @patch("main.HAVE_ZEROCONF", True)
+    @patch("main.lan_addresses", return_value=["192.168.1.25"])
+    @patch("main.Zeroconf")
+    @patch("main.ServiceInfo")
+    def test_central_advertiser_registers_and_unregisters_discovery_service(
+        self, service_info, zeroconf_class, _
+    ):
+        advertiser = CentralServiceAdvertiser("1234567890abcdef")
+
+        advertiser.set_enabled(True)
+        advertiser.set_enabled(False)
+
+        zeroconf = zeroconf_class.return_value
+        zeroconf.register_service.assert_called_once_with(service_info.return_value)
+        zeroconf.unregister_service.assert_called_once_with(service_info.return_value)
+        zeroconf.close.assert_called_once()
+
+    @patch("main.HAVE_ZEROCONF", True)
+    @patch("main.time.sleep")
+    @patch("main.ServiceBrowser")
+    @patch("main.Zeroconf")
+    def test_discovery_returns_only_private_central_endpoints(
+        self, zeroconf_class, browser_class, _
+    ):
+        zeroconf = zeroconf_class.return_value
+        info = Mock()
+        info.properties = {b"nodeId": b"central-node"}
+        info.port = PORT
+        info.parsed_scoped_addresses.return_value = ["192.168.1.25", "8.8.8.8"]
+        zeroconf.get_service_info.return_value = info
+
+        def start_browser(instance, service_type, listener):
+            listener.add_service(instance, service_type, "CRAS._cras-central._tcp.local.")
+            return Mock()
+
+        browser_class.side_effect = start_browser
+
+        servers = discover_central_services()
+
+        self.assertEqual(servers, [{
+            "nodeId": "central-node",
+            "endpoints": ["http://192.168.1.25:8765"],
+        }])
+        zeroconf.close.assert_called_once()
 
 
 class LocalAppRequestTests(unittest.TestCase):
@@ -717,6 +993,23 @@ class LocalAppRequestTests(unittest.TestCase):
 
         handler.headers = {"Origin": "https://example.invalid"}
         self.assertFalse(handler.is_local_app_read_request())
+
+    def test_pwa_resources_are_served_with_service_worker_scope(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/sw.js"
+        handler.ui_root = Path(__file__).parent
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        handler.wfile = io.BytesIO()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        handler.do_GET()
+
+        self.assertIn(b"cras-mobile-shell-v1", handler.wfile.getvalue())
+        handler.send_header.assert_any_call("Content-Type", "application/javascript; charset=utf-8")
+        handler.send_header.assert_any_call("Service-Worker-Allowed", "/")
 
 
 if __name__ == "__main__":

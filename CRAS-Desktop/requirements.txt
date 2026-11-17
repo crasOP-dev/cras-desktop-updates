@@ -3,3 +3,4 @@ cryptography>=44.0
 pyinstaller>=6.11
 truststore>=0.10.0
 qrcode>=8.0
+zeroconf>=0.131
