@@ -7383,6 +7383,12 @@
                     return getConfiguredDesktopPeers();
                 }
                 const response = await fetchPeer("/api/central-servers", { cache: "no-store" }, 12000);
+                if (!response.headers.get("content-type")?.toLowerCase().includes("application/json")) {
+                    throw new Error(
+                        `O serviço local respondeu HTTP ${response.status} sem JSON. ` +
+                        "Feche e reabra o CRAS Desktop e tente novamente."
+                    );
+                }
                 const result = await response.json();
                 if (!response.ok || !Array.isArray(result.servers)) {
                     throw new Error(result.error || "Não foi possível localizar o servidor central na rede.");

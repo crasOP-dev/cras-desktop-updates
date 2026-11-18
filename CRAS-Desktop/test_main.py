@@ -1056,6 +1056,12 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
 
 
 class LocalAppRequestTests(unittest.TestCase):
+    def test_local_origin_accepts_desktop_loopback_hosts_only_on_app_port(self):
+        self.assertTrue(CRASRequestHandler.is_local_origin(f"http://127.0.0.1:{PORT}"))
+        self.assertTrue(CRASRequestHandler.is_local_origin(f"http://localhost:{PORT}"))
+        self.assertFalse(CRASRequestHandler.is_local_origin(f"http://localhost:{PORT + 1}"))
+        self.assertFalse(CRASRequestHandler.is_local_origin("http://example.invalid:8765"))
+
     def test_local_reads_allow_missing_origin_but_reject_foreign_origin(self):
         handler = object.__new__(CRASRequestHandler)
         handler.client_address = ("127.0.0.1", 12345)
@@ -1067,6 +1073,13 @@ class LocalAppRequestTests(unittest.TestCase):
 
         handler.headers = {"Origin": "https://example.invalid"}
         self.assertFalse(handler.is_local_app_read_request())
+
+    def test_local_app_requests_accept_localhost_origin(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {"Origin": f"http://localhost:{PORT}"}
+
+        self.assertTrue(handler.is_local_app_request())
 
     def test_pwa_resources_are_served_with_service_worker_scope(self):
         handler = object.__new__(CRASRequestHandler)

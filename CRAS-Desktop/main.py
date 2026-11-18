@@ -1897,10 +1897,10 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             self.send_header("Vary", "Origin")
     @staticmethod
     def is_local_origin(origin: str) -> bool:
-        try:
-            return origin == f"http://127.0.0.1:{PORT}"
-        except ValueError:
-            return False
+        return origin in {
+            f"http://127.0.0.1:{PORT}",
+            f"http://localhost:{PORT}",
+        }
     def is_local_app_request(self) -> bool:
         origin = self.headers.get("Origin")
         return (
