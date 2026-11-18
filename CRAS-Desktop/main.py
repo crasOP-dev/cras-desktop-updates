@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, wait
 from contextlib import closing
 import ctypes
 import hashlib
@@ -617,27 +617,42 @@ def _probe_central_endpoint(address: str) -> dict | None:
 
 
 def _scan_central_services() -> list[dict]:
-    candidates: set[str] = set()
+    candidates: list[str] = []
+    seen_candidates: set[str] = set()
     for address_text in lan_addresses():
         try:
             address = ipaddress.IPv4Address(address_text)
         except ipaddress.AddressValueError:
             continue
         network = ipaddress.IPv4Network(f"{address}/24", strict=False)
-        candidates.update(str(candidate) for candidate in network.hosts() if candidate != address)
+        for candidate in network.hosts():
+            candidate_text = str(candidate)
+            if candidate != address and candidate_text not in seen_candidates:
+                candidates.append(candidate_text)
+                seen_candidates.add(candidate_text)
     if not candidates:
         return []
 
     found: dict[str, dict] = {}
-    with ThreadPoolExecutor(max_workers=32, thread_name_prefix="cras-discovery") as executor:
-        futures = {executor.submit(_probe_central_endpoint, candidate): candidate for candidate in candidates}
-        for future in as_completed(futures, timeout=4.0):
+    executor = ThreadPoolExecutor(max_workers=32, thread_name_prefix="cras-discovery")
+    futures = {
+        executor.submit(_probe_central_endpoint, candidate): candidate
+        for candidate in candidates
+    }
+    pending = set(futures)
+    try:
+        completed, pending = wait(futures, timeout=6.0)
+        for future in completed:
             try:
                 result = future.result()
             except Exception:
                 continue
             if result:
                 found[result["nodeId"]] = result
+    finally:
+        for future in pending:
+            future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
     return list(found.values())
 
 

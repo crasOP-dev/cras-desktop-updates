@@ -6,6 +6,7 @@ import json
 import sys
 import tempfile
 import unittest
+from concurrent.futures import Future
 from contextlib import closing
 from unittest.mock import Mock, patch
 from pathlib import Path
@@ -1000,6 +1001,58 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
             "endpoints": ["http://192.168.1.25:8765"],
         }])
         scan_services.assert_called_once_with()
+
+    @patch("main._probe_central_endpoint")
+    @patch("main.lan_addresses", return_value=["192.168.3.120"])
+    def test_network_scan_finds_central_service_on_local_subnet(
+        self, _, probe_endpoint
+    ):
+        server = {
+            "nodeId": "central-node",
+            "endpoints": ["http://192.168.3.103:8765"],
+        }
+        probe_endpoint.side_effect = lambda address: (
+            server if address == "192.168.3.103" else None
+        )
+
+        servers = main._scan_central_services()
+
+        self.assertEqual(servers, [server])
+
+    @patch("main.wait")
+    @patch("main.ThreadPoolExecutor")
+    @patch("main.lan_addresses", return_value=["192.168.3.120"])
+    def test_network_scan_keeps_found_server_when_other_probes_are_pending(
+        self, _, executor_class, wait_for_probes
+    ):
+        server = {
+            "nodeId": "central-node",
+            "endpoints": ["http://192.168.3.103:8765"],
+        }
+        executor = executor_class.return_value
+        futures = []
+
+        def submit_probe(probe, address):
+            future = Future()
+            if address == "192.168.3.103":
+                future.set_result(server)
+            futures.append(future)
+            return future
+
+        executor.submit.side_effect = submit_probe
+        wait_for_probes.side_effect = lambda submitted, timeout: (
+            {future for future in submitted if future.done()},
+            {future for future in submitted if not future.done()},
+        )
+
+        servers = main._scan_central_services()
+
+        self.assertEqual(servers, [server])
+        self.assertEqual(
+            sum(future.cancelled() for future in futures),
+            len(futures) - 1,
+        )
+        executor.shutdown.assert_called_once_with(wait=False, cancel_futures=True)
 
 
 class LocalAppRequestTests(unittest.TestCase):

@@ -7382,7 +7382,7 @@
                     && Date.now() - centralServerDiscoveryTime < 15000) {
                     return getConfiguredDesktopPeers();
                 }
-                const response = await fetchPeer("/api/central-servers", { cache: "no-store" }, 4000);
+                const response = await fetchPeer("/api/central-servers", { cache: "no-store" }, 12000);
                 const result = await response.json();
                 if (!response.ok || !Array.isArray(result.servers)) {
                     throw new Error(result.error || "Não foi possível localizar o servidor central na rede.");
@@ -7686,6 +7686,8 @@
                         if (!desktopNodeInfo.centralServer) {
                             void discoverCentralServer(true).catch(error => {
                                 console.error("Não foi possível localizar o servidor central.", error);
+                                document.getElementById("central-server-discovery-status").textContent =
+                                    `A descoberta automática falhou: ${error.message}`;
                             });
                         }
                     } catch (error) {

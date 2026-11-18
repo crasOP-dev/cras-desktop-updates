@@ -49,7 +49,9 @@ Admin e ative **Este computador é o servidor central** em
 **Configurações → Sincronização**. Mantenha-o ligado e aberto. O SQLite desse
 computador guarda o estado central; os outros desktops o localizam
 automaticamente por mDNS na rede local, sem configurar endereço IP ou código
-compartilhado. Mantenha somente um computador ativado como servidor central.
+compartilhado. Se mDNS não estiver disponível, o aplicativo também tenta
+localizar o servidor na rede local. Mantenha somente um computador ativado
+como servidor central.
 Não exponha as portas 8765 e 8766 à Internet. Uma rede cabeada Ethernet
 funciona sem Wi‑Fi.
 
@@ -57,8 +59,8 @@ Os postos mantêm uma cópia local para que a Recepção continue registrando e
 operando filas quando não houver nenhuma rede. As gravações locais são enviadas
 ao servidor quando a conexão retorna; os conflitos são mesclados pelas regras
 de prioridade por perfil já existentes. Os outros postos podem aguardar o
-servidor. A descoberta mDNS exige que os dispositivos estejam na mesma rede
-local e que ela permita tráfego multicast DNS.
+servidor. Para localizar o servidor, os dispositivos devem estar na mesma rede
+local; políticas de rede podem bloquear mDNS e a descoberta automática.
 
 ### Primeira migração do computador Principal
 
