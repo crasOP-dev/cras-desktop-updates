@@ -980,6 +980,27 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
         }])
         zeroconf.close.assert_called_once()
 
+    @patch("main._scan_central_services")
+    @patch("main.time.sleep")
+    @patch("main.ServiceBrowser")
+    @patch("main.Zeroconf")
+    def test_discovery_uses_network_scan_when_mdns_has_no_result(
+        self, zeroconf_class, browser_class, _, scan_services
+    ):
+        browser_class.return_value = Mock()
+        scan_services.return_value = [{
+            "nodeId": "central-node",
+            "endpoints": ["http://192.168.1.25:8765"],
+        }]
+
+        servers = discover_central_services()
+
+        self.assertEqual(servers, [{
+            "nodeId": "central-node",
+            "endpoints": ["http://192.168.1.25:8765"],
+        }])
+        scan_services.assert_called_once_with()
+
 
 class LocalAppRequestTests(unittest.TestCase):
     def test_local_reads_allow_missing_origin_but_reject_foreign_origin(self):

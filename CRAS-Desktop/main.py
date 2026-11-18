@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import closing
 import ctypes
 import hashlib
@@ -599,7 +600,48 @@ class CentralServiceAdvertiser:
         self.set_enabled(False)
 
 
-def discover_central_services(timeout: float = 1.0) -> list[dict]:
+def _probe_central_endpoint(address: str) -> dict | None:
+    url = f"http://{address}:{PORT}/api/info"
+    try:
+        request = Request(url, headers={"Accept": "application/json", "Cache-Control": "no-store"})
+        with urlopen(request, timeout=0.20) as response:
+            if response.status != 200:
+                return None
+            info = json.loads(response.read(MAX_BODY_BYTES).decode("utf-8"))
+    except (HTTPError, URLError, OSError, json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    node_id = info.get("nodeId") if isinstance(info, dict) else None
+    if not isinstance(node_id, str) or not node_id or info.get("centralServer") is not True:
+        return None
+    return {"nodeId": node_id, "endpoints": [f"http://{address}:{PORT}"]}
+
+
+def _scan_central_services() -> list[dict]:
+    candidates: set[str] = set()
+    for address_text in lan_addresses():
+        try:
+            address = ipaddress.IPv4Address(address_text)
+        except ipaddress.AddressValueError:
+            continue
+        network = ipaddress.IPv4Network(f"{address}/24", strict=False)
+        candidates.update(str(candidate) for candidate in network.hosts() if candidate != address)
+    if not candidates:
+        return []
+
+    found: dict[str, dict] = {}
+    with ThreadPoolExecutor(max_workers=32, thread_name_prefix="cras-discovery") as executor:
+        futures = {executor.submit(_probe_central_endpoint, candidate): candidate for candidate in candidates}
+        for future in as_completed(futures, timeout=4.0):
+            try:
+                result = future.result()
+            except Exception:
+                continue
+            if result:
+                found[result["nodeId"]] = result
+    return list(found.values())
+
+
+def discover_central_services(timeout: float = 3.0) -> list[dict]:
     if not HAVE_ZEROCONF:
         raise RuntimeError("A descoberta automática não está instalada. Atualize o CRAS Desktop.")
     zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
@@ -609,7 +651,7 @@ def discover_central_services(timeout: float = 1.0) -> list[dict]:
         time.sleep(timeout)
         with listener.lock:
             services = list(listener.services.values())
-        return [
+        discovered = [
             {
                 "nodeId": service["nodeId"],
                 "endpoints": [
@@ -618,6 +660,9 @@ def discover_central_services(timeout: float = 1.0) -> list[dict]:
             }
             for service in services
         ]
+        if discovered:
+            return discovered
+        return _scan_central_services()
     finally:
         browser.cancel()
         zeroconf.close()
