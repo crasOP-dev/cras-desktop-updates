@@ -1081,6 +1081,20 @@ class LocalAppRequestTests(unittest.TestCase):
 
         self.assertTrue(handler.is_local_app_request())
 
+    def test_central_server_discovery_accepts_same_origin_get_without_origin_header(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/central-servers"
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        handler.send_error = Mock()
+        handler.send_json = Mock()
+
+        with patch("main.discover_central_services", return_value=[]):
+            handler.do_GET()
+
+        handler.send_error.assert_not_called()
+        handler.send_json.assert_called_once_with(200, {"servers": []}, None)
+
     def test_pwa_resources_are_served_with_service_worker_scope(self):
         handler = object.__new__(CRASRequestHandler)
         handler.path = "/sw.js"

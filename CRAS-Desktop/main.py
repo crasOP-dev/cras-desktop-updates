@@ -2209,7 +2209,7 @@ document.getElementById('tab-ios').classList.add('active');
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
         if path == "/api/central-servers":
-            if not self.is_local_app_request():
+            if not self.is_local_app_read_request():
                 self.send_error(403)
                 return
             try:
