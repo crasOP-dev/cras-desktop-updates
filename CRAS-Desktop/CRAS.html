@@ -4703,6 +4703,425 @@
             background: #202c33;
         }
 
+        .chat-popup {
+            right: 24px;
+            bottom: 86px;
+            width: min(940px, calc(100vw - 40px));
+            height: min(700px, calc(100vh - 110px));
+            border-color: color-mix(in srgb, var(--line) 75%, transparent);
+            border-radius: 18px;
+            box-shadow: 0 24px 70px rgba(24, 43, 58, .22);
+        }
+
+        .chat-popup-header {
+            min-height: 68px;
+            padding: 12px 18px;
+            color: var(--ink);
+            background: var(--paper);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .chat-popup-avatar {
+            color: var(--accent-dark);
+            background: var(--accent-soft);
+        }
+
+        .chat-popup-title p {
+            color: var(--muted);
+        }
+
+        .chat-popup-close {
+            color: var(--muted);
+        }
+
+        .chat-popup-close:hover {
+            color: var(--ink);
+            background: var(--canvas);
+        }
+
+        .chat-popup-body {
+            background: var(--paper);
+        }
+
+        .chat-workspace {
+            display: grid;
+            flex: 1;
+            grid-template-columns: minmax(210px, 270px) minmax(0, 1fr);
+            min-width: 0;
+            min-height: 0;
+        }
+
+        .chat-conversation-sidebar {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            flex-direction: column;
+            padding: 18px 12px 12px;
+            background: var(--paper);
+            border-right: 1px solid var(--line);
+        }
+
+        .chat-sidebar-heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 8px 12px;
+        }
+
+        .chat-sidebar-heading h3 {
+            margin: 0;
+            font-size: 15px;
+        }
+
+        .chat-conversation-search {
+            width: 100%;
+            min-height: 38px;
+            margin-bottom: 10px;
+            padding: 0 12px;
+            color: var(--ink);
+            background: var(--canvas);
+            border: 1px solid transparent;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        .chat-conversation-search:focus {
+            border-color: var(--accent);
+            outline: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+        }
+
+        .chat-conversation-list {
+            display: flex;
+            flex: 1;
+            flex-direction: column;
+            min-width: 0;
+            gap: 4px;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .chat-conversation-item {
+            display: flex;
+            width: 100%;
+            min-height: 62px;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 10px;
+            color: var(--ink);
+            background: transparent;
+            border: 0;
+            border-radius: 11px;
+            text-align: left;
+        }
+
+        .chat-conversation-item:hover {
+            background: var(--canvas);
+        }
+
+        .chat-conversation-item[aria-current="true"] {
+            background: var(--accent-soft);
+        }
+
+        .chat-conversation-item-avatar,
+        .chat-active-avatar {
+            display: grid;
+            flex: 0 0 38px;
+            width: 38px;
+            height: 38px;
+            place-items: center;
+            color: var(--accent-dark);
+            background: var(--canvas);
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: 750;
+        }
+
+        .chat-conversation-item[aria-current="true"] .chat-conversation-item-avatar {
+            color: var(--accent-dark);
+            background: var(--paper);
+        }
+
+        .chat-conversation-item-copy {
+            display: grid;
+            min-width: 0;
+            gap: 4px;
+        }
+
+        .chat-conversation-item-copy strong,
+        .chat-conversation-item-copy small {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .chat-conversation-item-copy strong {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .chat-conversation-item-copy small {
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        .chat-conversation-main {
+            display: flex;
+            min-width: 0;
+            min-height: 0;
+            flex-direction: column;
+            background: #f6f8f6;
+        }
+
+        .chat-active-header {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 11px;
+            min-height: 68px;
+            padding: 10px 18px;
+            background: var(--paper);
+            border-bottom: 1px solid var(--line);
+        }
+
+        .chat-active-header h2 {
+            margin: 0;
+            font-family: inherit;
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .chat-active-header .chat-active-avatar {
+            color: var(--accent-dark);
+            background: var(--accent-soft);
+        }
+
+        .chat-active-info {
+            min-width: 0;
+        }
+
+        .chat-active-info p {
+            margin: 4px 0 0;
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        .chat-history-row {
+            padding-top: 10px;
+        }
+
+        .chat-messages {
+            gap: 10px;
+            padding: 16px clamp(14px, 3vw, 30px);
+            background: #f6f8f6;
+            border-radius: 0;
+        }
+
+        .chat-messages > .hint {
+            margin: auto;
+            padding: 24px;
+            color: var(--muted);
+            text-align: center;
+        }
+
+        .chat-message {
+            max-width: min(82%, 480px);
+            padding: 10px 13px 8px;
+            border-radius: 13px 13px 13px 4px;
+            box-shadow: 0 2px 6px rgba(24, 43, 58, .06);
+        }
+
+        .chat-message.own {
+            background: var(--accent-soft);
+            border-radius: 13px 13px 4px 13px;
+        }
+
+        .chat-message-meta {
+            color: var(--muted);
+        }
+
+        .chat-message-text {
+            color: var(--ink);
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .chat-composer {
+            gap: 8px;
+            min-width: 0;
+            padding: 10px 14px 12px;
+            background: var(--paper);
+            border-top: 1px solid var(--line);
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .chat-compose-row {
+            min-width: 0;
+        }
+
+        .chat-composer #chat-message-input {
+            width: auto;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .chat-composer #chat-message-input {
+            min-height: 42px;
+            padding: 10px 14px;
+            background: var(--canvas);
+            border: 1px solid transparent;
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .chat-composer #chat-message-input:focus {
+            border-color: var(--accent);
+            outline: none;
+        }
+
+        .chat-send-button {
+            background: var(--accent);
+            border-radius: 12px;
+        }
+
+        .chat-send-button:hover {
+            background: var(--accent-dark);
+        }
+
+        .chat-composer-tools {
+            justify-content: flex-start;
+            gap: 6px;
+        }
+
+        .chat-composer-tools .button-secondary {
+            min-height: 30px;
+            padding-inline: 9px;
+            font-size: 11px;
+        }
+
+        body.dark-mode .chat-popup-header,
+        body.dark-mode .chat-conversation-sidebar,
+        body.dark-mode .chat-active-header,
+        body.dark-mode .chat-composer {
+            color: var(--ink);
+            background: var(--paper);
+        }
+
+        body.dark-mode .chat-popup-close {
+            color: var(--muted);
+        }
+
+        body.dark-mode .chat-conversation-item {
+            color: var(--ink);
+        }
+
+        body.dark-mode .chat-conversation-item:hover,
+        body.dark-mode .chat-conversation-item-avatar {
+            background: var(--canvas);
+        }
+
+        body.dark-mode .chat-conversation-item[aria-current="true"],
+        body.dark-mode .chat-conversation-item[aria-current="true"] .chat-conversation-item-avatar {
+            background: var(--accent-soft);
+        }
+
+        body.dark-mode .chat-conversation-main,
+        body.dark-mode .chat-messages {
+            background: #111b21;
+        }
+
+        body.dark-mode .chat-message.own {
+            background: var(--accent-soft);
+        }
+
+        body.dark-mode .chat-message-text {
+            color: var(--ink);
+        }
+
+        body.dark-mode .chat-composer #chat-message-input {
+            color: var(--ink);
+            background: var(--canvas);
+        }
+
+        @media (max-width: 700px) {
+            .chat-popup {
+                right: 12px;
+                bottom: 72px;
+                width: calc(100vw - 24px);
+                height: min(720px, calc(100vh - 88px));
+            }
+
+            .chat-workspace {
+                grid-template-columns: 190px minmax(0, 1fr);
+            }
+
+            .chat-conversation-sidebar {
+                padding-inline: 8px;
+            }
+
+            .chat-conversation-item {
+                gap: 7px;
+                padding-inline: 7px;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .chat-popup {
+                right: 8px;
+                bottom: 62px;
+                width: calc(100vw - 32px);
+                height: calc(100vh - 74px);
+            }
+
+            .chat-workspace {
+                grid-template-columns: minmax(0, 1fr);
+                grid-template-rows: auto minmax(0, 1fr);
+            }
+
+            .chat-conversation-sidebar {
+                max-height: 142px;
+                padding: 8px 10px;
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .chat-sidebar-heading {
+                padding: 0 4px 6px;
+            }
+
+            .chat-conversation-search {
+                min-height: 32px;
+                margin-bottom: 5px;
+            }
+
+            .chat-conversation-list {
+                flex-direction: row;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+
+            .chat-conversation-item {
+                flex: 0 0 150px;
+                min-height: 48px;
+            }
+
+            .chat-active-header {
+                min-height: 58px;
+                padding-inline: 12px;
+            }
+
+            .chat-messages {
+                padding-inline: 12px;
+            }
+
+            .chat-message {
+                max-width: 92%;
+            }
+
+            .chat-composer {
+                padding-inline: 9px;
+            }
+        }
+
         @media (max-width: 760px) {
             .topbar {
                 padding-inline: 22px;
@@ -6211,29 +6630,44 @@
             <header class="chat-popup-header">
                 <div class="chat-popup-avatar" aria-hidden="true">CR</div>
                 <div class="chat-popup-title">
-                    <h2 id="chat-title">Chat da equipe</h2>
-                    <p id="chat-connection-status" role="status" aria-live="polite">Carregando conversa…</p>
+                    <h2>Mensagens</h2>
+                    <p>Converse com sua equipe</p>
                 </div>
                 <button class="chat-popup-close" id="chat-close" type="button" aria-label="Fechar chat">×</button>
             </header>
             <div class="chat-popup-body">
-                <div class="chat-conversation-picker">
-                    <label class="field-label" for="chat-conversation-type">Conversa</label>
-                    <select class="text-input" id="chat-conversation-type">
-                        <option value="general">Aviso geral · todos os usuários</option>
-                        <option value="direct">Mensagem individual</option>
-                    </select>
-                    <select class="text-input" id="chat-recipient-id" aria-label="Destinatário"
-                        style="margin-top: 6px;" hidden>
-                        <option value="">Selecione um usuário</option>
-                    </select>
-                </div>
-                <div class="chat-history-row">
-                    <button class="button-secondary" id="chat-load-older" type="button" hidden>Mensagens anteriores</button>
-                </div>
-                <div class="chat-messages" id="chat-messages" role="log" aria-live="polite"
-                    aria-label="Mensagens do chat"></div>
-                <form class="chat-composer" id="chat-form">
+                <div class="chat-workspace">
+                    <aside class="chat-conversation-sidebar" aria-label="Lista de conversas">
+                        <div class="chat-sidebar-heading">
+                            <h3>Conversas</h3>
+                        </div>
+                        <input class="chat-conversation-search" id="chat-conversation-search" type="search"
+                            placeholder="Buscar conversa ou pessoa" aria-label="Buscar conversa ou pessoa">
+                        <nav class="chat-conversation-list" id="chat-conversation-list" aria-label="Conversas"></nav>
+                    </aside>
+                    <section class="chat-conversation-main" aria-label="Conversa selecionada">
+                        <div class="chat-conversation-picker" hidden aria-hidden="true">
+                            <select id="chat-conversation-type">
+                                <option value="general">Avisos gerais</option>
+                                <option value="direct">Mensagem individual</option>
+                            </select>
+                            <select id="chat-recipient-id">
+                                <option value="">Selecione um usuário</option>
+                            </select>
+                        </div>
+                        <header class="chat-active-header">
+                            <div class="chat-active-avatar" id="chat-active-avatar" aria-hidden="true">AG</div>
+                            <div class="chat-active-info">
+                                <h2 id="chat-title">Avisos gerais</h2>
+                                <p id="chat-connection-status" role="status" aria-live="polite">Carregando conversa…</p>
+                            </div>
+                        </header>
+                        <div class="chat-history-row">
+                            <button class="button-secondary" id="chat-load-older" type="button" hidden>Mensagens anteriores</button>
+                        </div>
+                        <div class="chat-messages" id="chat-messages" role="log" aria-live="polite"
+                            aria-label="Mensagens do chat"></div>
+                        <form class="chat-composer" id="chat-form">
                     <details class="chat-person-details">
                         <summary>Vincular pessoa à recomendação (opcional)</summary>
                         <div class="chat-person-picker">
@@ -6278,8 +6712,10 @@
                             </svg>
                         </button>
                     </div>
-                    <p class="hint">Imagens e GIFs: até 2 MB. As mensagens antigas são arquivadas neste dispositivo.</p>
-                </form>
+                            <p class="hint">Imagens e GIFs: até 2 MB. As mensagens antigas são arquivadas neste dispositivo.</p>
+                        </form>
+                    </section>
+                </div>
             </div>
         </section>
     </main>
@@ -6614,10 +7050,12 @@
             let centralServerDiscoveryCache = null;
             let centralServerDiscoveryTime = 0;
             let chatLoadInProgress = false;
+            let chatReloadRequested = false;
             let chatPollTimer = null;
             let chatLoadErrorShown = false;
             const toast = document.getElementById("toast");
             const deleteConfirmOverlay = document.getElementById("delete-confirm-overlay");
+            const deleteConfirmTitle = document.getElementById("delete-confirm-title");
             const deleteConfirmMessage = document.getElementById("delete-confirm-message");
             const deleteConfirmCancel = document.getElementById("delete-confirm-cancel");
             const deleteConfirmSubmit = document.getElementById("delete-confirm-submit");
@@ -6679,6 +7117,7 @@
             let pendingRouteName = "";
             let historyUndoAction = null;
             let pendingDeleteRecordId = null;
+            let pendingDeleteServiceId = null;
             let deleteConfirmTrigger = null;
             let pendingAutocompletePeople = [];
             let autocompleteTrigger = null;
@@ -10122,7 +10561,8 @@
                     getRecordServices(record).map(service => ({ record, service })));
                 document.getElementById("total-count").textContent = String(services.length);
                 const dashboardUsers = users.filter(user =>
-                    user.role !== "reception" && user.role !== "intern" && user.role !== "caseworker");
+                    user.id !== SYSTEM_ADMIN_USER_ID
+                    && user.role !== "reception" && user.role !== "intern" && user.role !== "caseworker");
                 const counts = Object.fromEntries(dashboardUsers.map(user => [user.id, 0]));
                 services.forEach(({ record, service }) => {
                     getCreditedMembers(service, record).forEach(member => {
@@ -10698,16 +11138,28 @@
             }
 
             function getCreditedMembers(service, record) {
+                if (!service.queueTags.includes(QUEUE_TAGS.assistencia)) return [];
                 const assistanceState = service.states?.assistencia;
                 const receptionConfirmedAttendance = assistanceState?.finishedBy?.role === "reception"
                     && Boolean(assistanceState.finishedFollowupAt);
-                const attendedBy = receptionConfirmedAttendance
+                const attendedByValue = receptionConfirmedAttendance
                     ? assistanceState.attendedBy || service.assignments?.assistencia
-                    : service.assignments?.assistencia || service.startedBy;
-                const credited = [attendedBy, ...(Array.isArray(service.collaborators) ? service.collaborators : [])]
+                    : service.assignments?.assistencia
+                        || (isTechnicalUser(service.startedBy) ? service.startedBy : null);
+                const attendedBy = isTechnicalUser(attendedByValue)
+                    ? attendedByValue
+                    : service.assignments?.assistencia;
+                const credited = [
+                    attendedBy,
+                    ...(Array.isArray(service.collaborators)
+                        ? service.collaborators.filter(isTechnicalUser)
+                        : [])
+                ]
                     .filter(member => member && typeof member.name === "string" && member.name);
                 if (!credited.length && service.id.startsWith("legacy-")) {
-                    return Object.values(service.assignments || {}).filter(member => member?.name);
+                    return service.assignments?.assistencia?.name
+                        ? [service.assignments.assistencia]
+                        : [];
                 }
                 return credited.filter((member, index) =>
                     credited.findIndex(other => (other.id && member.id ? other.id === member.id : other.name === member.name)) === index);
@@ -10715,16 +11167,19 @@
 
             function getServiceRows(record) {
                 return getRecordServices(record).map(service => {
+                    const hasTechnicalQueue = service.queueTags.includes(QUEUE_TAGS.assistencia);
                     const creditedMembers = getCreditedMembers(service, record);
-                    const serviceMembers = creditedMembers.length
-                        ? creditedMembers
-                        : Object.values(service.assignments || {}).filter(member => member?.name);
+                    const serviceMembers = hasTechnicalQueue && !creditedMembers.length
+                        && service.assignments?.assistencia?.name
+                        ? [service.assignments.assistencia]
+                        : creditedMembers;
                     const uniqueMembers = serviceMembers.filter((member, index) =>
                         serviceMembers.findIndex(other => (other.id && member.id ? other.id === member.id : other.name === member.name)) === index);
                     return {
                         ...record,
                         encaminhamento: service.route,
-                        assistente: uniqueMembers.map(member => member.name).join(", ") || record.assistente || "",
+                        assistente: uniqueMembers.map(member => member.name).join(", ")
+                            || (hasTechnicalQueue ? record.assistente || "" : ""),
                         cadastradora: service.assignments?.cadastro?.name || record.cadastradora || "",
                         routeServiceId: service.id,
                         routeService: service,
@@ -10736,23 +11191,48 @@
             function closeDeleteConfirmation(restoreFocus = true) {
                 deleteConfirmOverlay.hidden = true;
                 pendingDeleteRecordId = null;
+                pendingDeleteServiceId = null;
+                deleteConfirmTitle.textContent = "Excluir atendimento?";
                 if (restoreFocus && deleteConfirmTrigger?.isConnected) deleteConfirmTrigger.focus();
                 deleteConfirmTrigger = null;
             }
 
             function openDeleteConfirmation(record, trigger) {
                 pendingDeleteRecordId = record.id;
+                pendingDeleteServiceId = null;
                 deleteConfirmTrigger = trigger;
+                deleteConfirmTitle.textContent = "Excluir atendimento?";
                 deleteConfirmMessage.textContent = `Tem certeza de que deseja excluir o atendimento de “${record.nome || "esta pessoa"}”?`;
+                deleteConfirmOverlay.hidden = false;
+                deleteConfirmCancel.focus();
+            }
+
+            function openDeleteServiceConfirmation(record, serviceId, trigger) {
+                const service = getRecordServices(record).find(item => item.id === serviceId);
+                if (!service) {
+                    showToast("Não foi possível localizar esse encaminhamento.");
+                    return;
+                }
+                pendingDeleteRecordId = record.id;
+                pendingDeleteServiceId = serviceId;
+                deleteConfirmTrigger = trigger;
+                deleteConfirmTitle.textContent = "Excluir encaminhamento?";
+                deleteConfirmMessage.textContent =
+                    `Excluir somente “${displayRouteName(service.route)}” do atendimento de “${record.nome || "esta pessoa"}”? Os outros encaminhamentos serão mantidos.`;
                 deleteConfirmOverlay.hidden = false;
                 deleteConfirmCancel.focus();
             }
 
             async function deletePendingAppointment() {
                 const recordId = pendingDeleteRecordId;
+                const serviceId = pendingDeleteServiceId;
                 const targetRecord = appointments.find(record => record.id === recordId);
                 if (!targetRecord) {
                     closeDeleteConfirmation();
+                    return;
+                }
+                if (serviceId) {
+                    await deleteAppointmentService(targetRecord, serviceId);
                     return;
                 }
                 const recordIndex = appointments.findIndex(record => record.id === recordId);
@@ -10765,8 +11245,59 @@
                 renderAll();
             }
 
+            async function deleteAppointmentService(record, serviceId) {
+                const activeServices = getRecordServices(record);
+                if (!activeServices.some(service => service.id === serviceId)) {
+                    closeDeleteConfirmation();
+                    showToast("Esse encaminhamento já foi removido.");
+                    return;
+                }
+                const remainingServices = activeServices.filter(service => service.id !== serviceId);
+                if (!remainingServices.length) {
+                    closeDeleteConfirmation();
+                    showToast("Para remover o último encaminhamento, exclua o atendimento completo.");
+                    return;
+                }
+                const storedServices = Array.isArray(record.routeServices)
+                    ? record.routeServices
+                    : activeServices;
+                const routeServices = storedServices.map(service => service.id === serviceId
+                    ? { ...service, cancelled: true }
+                    : service);
+                const queueTags = [...new Set(remainingServices.flatMap(service => service.queueTags))];
+                const otherTags = (Array.isArray(record.tags) ? record.tags : []).filter(tag =>
+                    typeof tag === "string"
+                    && ![...Object.values(QUEUE_TAGS), QUEUE_TAG_NONE]
+                        .includes(tag.trim().toLocaleLowerCase("pt-BR")));
+                const technicalService = remainingServices.find(service =>
+                    service.queueTags.includes(QUEUE_TAGS.assistencia));
+                const cadastroService = remainingServices.find(service =>
+                    service.queueTags.includes(QUEUE_TAGS.cadastro));
+                const updatedRecord = {
+                    ...record,
+                    routeServices,
+                    encaminhamentos: remainingServices.map(service => service.route),
+                    encaminhamento: remainingServices.map(service => service.route).join(", "),
+                    assistente: technicalService?.assignments?.assistencia?.name
+                        || (technicalService ? record.assistente || "" : ""),
+                    cadastradora: cadastroService?.assignments?.cadastro?.name || "",
+                    tags: [...otherTags, ...queueTags]
+                };
+                const updatedAppointments = appointments.map(item =>
+                    item.id === record.id ? updatedRecord : item);
+                if (!await saveStorage(STORAGE_RECORDS, updatedAppointments)) return;
+                closeDeleteConfirmation(false);
+                setHistoryUndoAction({ type: "edit", record });
+                appointments = updatedAppointments;
+                if (editingAppointmentId === record.id) populateFormWithRecord(updatedRecord);
+                renderAll();
+                showToast("Encaminhamento removido; os demais foram mantidos.");
+            }
+
             function renderHistory() {
                 const records = getFilteredAppointments();
+                const serviceCounts = new Map(appointments.map(record =>
+                    [record.id, getRecordServices(record).length]));
                 const pageCount = Math.max(1, Math.ceil(records.length / HISTORY_PAGE_SIZE));
                 historyPage = Math.min(historyPage, pageCount - 1);
                 const firstRecord = historyPage * HISTORY_PAGE_SIZE;
@@ -10783,7 +11314,10 @@
                     <td data-label="Ações">
                         <div class="history-actions">
                             <button class="button-secondary" type="button" data-action="edit" data-record-id="${escapeHtml(record.id)}">Editar</button>
-                            <button class="button-delete" type="button" data-action="delete" data-record-id="${escapeHtml(record.id)}">Excluir</button>
+                            ${serviceCounts.get(record.id) > 1
+                                ? `<button class="button-delete" type="button" data-action="delete-service" data-record-id="${escapeHtml(record.id)}" data-service-id="${escapeHtml(record.routeServiceId)}">Excluir encaminhamento</button>`
+                                : ""}
+                            <button class="button-delete" type="button" data-action="delete" data-record-id="${escapeHtml(record.id)}">Excluir atendimento</button>
                         </div>
                     </td>
                 </tr>`).join("");
@@ -10794,6 +11328,10 @@
                         if (!targetRecord) return;
                         if (action === "edit") {
                             populateFormWithRecord(targetRecord);
+                            return;
+                        }
+                        if (action === "delete-service") {
+                            openDeleteServiceConfirmation(targetRecord, button.dataset.serviceId, button);
                             return;
                         }
                         openDeleteConfirmation(targetRecord, button);
@@ -10818,8 +11356,10 @@
                     container.innerHTML = "";
                     const empty = document.createElement("p");
                     empty.className = "hint";
-                    empty.textContent = chatConversationRecipientId()
-                        ? "Ainda não há mensagens nesta conversa individual."
+                    empty.textContent = document.getElementById("chat-conversation-type").value === "direct"
+                        ? chatConversationRecipientId()
+                            ? "Ainda não há mensagens nesta conversa individual."
+                            : "Escolha uma conversa na lista para começar."
                         : "Ainda não há avisos gerais.";
                     container.appendChild(empty);
                     return;
@@ -10890,9 +11430,65 @@
                 chatRecipientId = selector.value;
                 selector.hidden = document.getElementById("chat-conversation-type").value !== "direct";
                 selector.disabled = recipients.length === 0;
-                document.getElementById("chat-title").textContent = chatRecipientId
-                    ? `Chat com ${recipients.find(user => user.id === chatRecipientId)?.name || "usuário"}`
+                const directConversation = document.getElementById("chat-conversation-type").value === "direct";
+                const selectedRecipient = recipients.find(user => user.id === chatRecipientId);
+                const title = directConversation
+                    ? selectedRecipient?.name || "Selecione uma conversa"
                     : "Avisos gerais";
+                document.getElementById("chat-title").textContent = title;
+                document.getElementById("chat-active-avatar").textContent = directConversation && selectedRecipient
+                    ? selectedRecipient.name.trim().split(/\s+/).slice(0, 2).map(part => part[0]).join("").toLocaleUpperCase("pt-BR")
+                    : "AG";
+                renderChatConversationList(recipients);
+            }
+
+            function renderChatConversationList(recipients = users
+                .filter(user => user.id !== activeUser?.id)
+                .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"))) {
+                const list = document.getElementById("chat-conversation-list");
+                const search = document.getElementById("chat-conversation-search").value
+                    .trim().toLocaleLowerCase("pt-BR");
+                list.innerHTML = "";
+                const conversations = [
+                    { kind: "general", id: "", name: "Avisos gerais", subtitle: "Toda a equipe", initials: "AG" },
+                    ...recipients.map(user => ({
+                        kind: "direct",
+                        id: user.id,
+                        name: user.name,
+                        subtitle: userRoleLabel(user.role),
+                        initials: user.name.trim().split(/\s+/).slice(0, 2)
+                            .map(part => part[0]).join("").toLocaleUpperCase("pt-BR")
+                    }))
+                ];
+                const selectedKind = document.getElementById("chat-conversation-type").value;
+                conversations
+                    .filter(conversation => !search
+                        || conversation.name.toLocaleLowerCase("pt-BR").includes(search)
+                        || conversation.subtitle.toLocaleLowerCase("pt-BR").includes(search))
+                    .forEach(conversation => {
+                        const button = document.createElement("button");
+                        button.type = "button";
+                        button.className = "chat-conversation-item";
+                        button.setAttribute("aria-current", String(
+                            selectedKind === conversation.kind
+                            && (conversation.kind === "general" || conversation.id === chatRecipientId)
+                        ));
+                        button.dataset.chatKind = conversation.kind;
+                        button.dataset.chatRecipient = conversation.id;
+                        const avatar = document.createElement("span");
+                        avatar.className = "chat-conversation-item-avatar";
+                        avatar.setAttribute("aria-hidden", "true");
+                        avatar.textContent = conversation.initials || "?";
+                        const copy = document.createElement("span");
+                        copy.className = "chat-conversation-item-copy";
+                        const name = document.createElement("strong");
+                        name.textContent = conversation.name;
+                        const subtitle = document.createElement("small");
+                        subtitle.textContent = conversation.subtitle;
+                        copy.append(name, subtitle);
+                        button.append(avatar, copy);
+                        list.appendChild(button);
+                    });
             }
 
             async function readPendingChatMessages() {
@@ -10919,10 +11515,16 @@
             }
 
             async function loadChatMessages(before = "", reset = false) {
-                if (!window.CRASDesktop || chatLoadInProgress) return;
+                if (!window.CRASDesktop) return;
+                if (chatLoadInProgress) {
+                    if (reset) chatReloadRequested = true;
+                    return;
+                }
                 if (!activeUser) return;
                 const recipientId = chatConversationRecipientId();
-                if (document.getElementById("chat-conversation-type").value === "direct" && !recipientId) {
+                const conversationType = document.getElementById("chat-conversation-type").value;
+                const userId = activeUser.id;
+                if (conversationType === "direct" && !recipientId) {
                     chatMessages = [];
                     renderChatMessages();
                     document.getElementById("chat-load-older").hidden = true;
@@ -10936,7 +11538,7 @@
                 try {
                     const query = new URLSearchParams({
                         limit: String(CHAT_PAGE_SIZE),
-                        userId: activeUser.id
+                        userId
                     });
                     if (recipientId) query.set("recipientId", recipientId);
                     if (before) query.set("before", before);
@@ -11018,6 +11620,12 @@
                             }
                         }
                     }
+                    if (activeUser?.id !== userId
+                        || document.getElementById("chat-conversation-type").value !== conversationType
+                        || chatConversationRecipientId() !== recipientId) {
+                        chatReloadRequested = true;
+                        return;
+                    }
                     chatMessages = Array.from(byId.values())
                         .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
                         .slice(-300);
@@ -11026,6 +11634,12 @@
                     document.getElementById("chat-connection-status").textContent = serverStatus;
                     if (server) chatLoadErrorShown = serverStatus.startsWith("Chat local;");
                 } catch (error) {
+                    if (activeUser?.id !== userId
+                        || document.getElementById("chat-conversation-type").value !== conversationType
+                        || chatConversationRecipientId() !== recipientId) {
+                        chatReloadRequested = true;
+                        return;
+                    }
                     document.getElementById("chat-connection-status").textContent =
                         `Não foi possível atualizar o chat: ${error.message}`;
                     if (!chatLoadErrorShown) {
@@ -11034,6 +11648,10 @@
                     }
                 } finally {
                     chatLoadInProgress = false;
+                    if (chatReloadRequested) {
+                        chatReloadRequested = false;
+                        void loadChatMessages("", true);
+                    }
                 }
             }
 
@@ -11237,6 +11855,7 @@
             }
 
             function startChatServices() {
+                renderChatRecipients();
                 if (!window.CRASDesktop) return;
                 void loadChatMessages("", true);
                 if (chatPollTimer !== null) window.clearInterval(chatPollTimer);
@@ -11251,6 +11870,7 @@
                 chatToggle.setAttribute("aria-expanded", String(open));
                 chatToggle.setAttribute("aria-label", open ? "Fechar chat" : "Abrir chat");
                 if (open) {
+                    renderChatRecipients();
                     void loadChatMessages("", true);
                     window.requestAnimationFrame(() => document.getElementById("chat-message-input").focus());
                 } else if (!chatToggle.hidden) {
@@ -12435,8 +13055,6 @@
                 const currentRecord = editingAppointmentId
                     ? appointments.find(record => record.id === editingAppointmentId)
                     : null;
-                const selectedQueueTags = [...new Set(selectedRoutes.flatMap(route =>
-                    getRouteQueueTags(route).filter(tag => tag !== QUEUE_TAG_NONE)))];
                 const currentTags = Array.isArray(currentRecord?.tags) ? currentRecord.tags : [];
                 const otherTags = currentTags.filter(tag => typeof tag === "string"
                     && ![...Object.values(QUEUE_TAGS), QUEUE_TAG_NONE].includes(tag.trim().toLocaleLowerCase("pt-BR")));
@@ -12446,11 +13064,16 @@
                         ? currentRecord.routeServices
                         : getRecordServices(currentRecord)
                     : [];
-                const assistantUser = selectedAssistant
+                const hasTechnicalRoute = selectedRoutes.some(route =>
+                    getRouteQueueTags(route).includes(QUEUE_TAGS.assistencia));
+                const hasCadastroRoute = selectedRoutes.some(route =>
+                    getRouteQueueTags(route).includes(QUEUE_TAGS.cadastro));
+                const assistantUser = selectedAssistant && hasTechnicalRoute
                     ? users.find(user => isTechnicalUser(user) && user.name === selectedAssistant.value)
                     : null;
-                const caseworkerUser = users.find(user => user.role === "caseworker"
-                    && user.id === caseworkerAssignment.value);
+                const caseworkerUser = hasCadastroRoute
+                    ? users.find(user => user.role === "caseworker" && user.id === caseworkerAssignment.value)
+                    : null;
                 const routeServices = existingServices.map(service => {
                     if (!selectedRoutes.includes(service.route)) return { ...service, cancelled: true };
                     const queueTags = getRouteQueueTags(service.route).filter(tag => tag !== QUEUE_TAG_NONE);
@@ -12467,20 +13090,23 @@
                             };
                         }
                     });
+                    const assignments = { ...(service.assignments || {}) };
+                    if (queueTags.includes(QUEUE_TAGS.assistencia)) {
+                        assignments.assistencia = userSnapshot(assistantUser);
+                    } else {
+                        delete assignments.assistencia;
+                    }
+                    if (queueTags.includes(QUEUE_TAGS.cadastro)) {
+                        assignments.cadastro = userSnapshot(caseworkerUser);
+                    } else {
+                        delete assignments.cadastro;
+                    }
                     return {
                         ...service,
                         cancelled: false,
                         queueTags,
                         states,
-                        assignments: {
-                            ...(service.assignments || {}),
-                            ...(queueTags.includes(QUEUE_TAGS.assistencia)
-                                ? { assistencia: userSnapshot(assistantUser) }
-                                : {}),
-                            ...(queueTags.includes(QUEUE_TAGS.cadastro)
-                                ? { cadastro: userSnapshot(caseworkerUser) }
-                                : {})
-                        }
+                        assignments
                     };
                 });
                 selectedRoutes.forEach(route => {
@@ -12497,18 +13123,18 @@
                             finishedAt: ""
                         };
                     });
+                    const assignments = {};
+                    if (queueTags.includes(QUEUE_TAGS.assistencia)) {
+                        assignments.assistencia = userSnapshot(assistantUser);
+                    }
+                    if (queueTags.includes(QUEUE_TAGS.cadastro)) {
+                        assignments.cadastro = userSnapshot(caseworkerUser);
+                    }
                     routeServices.push({
                         id: createUserId(),
                         route,
                         queueTags,
-                        assignments: {
-                            ...(queueTags.includes(QUEUE_TAGS.assistencia)
-                                ? { assistencia: userSnapshot(assistantUser) }
-                                : {}),
-                            ...(queueTags.includes(QUEUE_TAGS.cadastro)
-                                ? { cadastro: userSnapshot(caseworkerUser) }
-                                : {})
-                        },
+                        assignments,
                         startedBy: null,
                         collaborators: [],
                         states
@@ -12524,7 +13150,7 @@
                     endereco: addressInput.value,
                     numero: numberInput.value,
                     nacionalidade: nationalityValue.value,
-                    assistente: selectedAssistant ? selectedAssistant.value : "",
+                    assistente: assistantUser?.name || "",
                     cadastradora: caseworkerUser?.name || "",
                     encaminhamentos: activeServices.map(service => service.route),
                     encaminhamento: activeServices.map(service => service.route).join(", "),
@@ -12709,6 +13335,21 @@
             queuesTab.addEventListener("click", () => selectMainTab("queues"));
             chatToggle.addEventListener("click", () => setChatPopupOpen(chatPanel.hidden));
             document.getElementById("chat-close").addEventListener("click", () => setChatPopupOpen(false));
+            document.getElementById("chat-conversation-list").addEventListener("click", event => {
+                const button = event.target.closest("[data-chat-kind]");
+                if (!button) return;
+                document.getElementById("chat-conversation-type").value = button.dataset.chatKind;
+                document.getElementById("chat-recipient-id").value = button.dataset.chatRecipient;
+                chatRecipientId = button.dataset.chatRecipient;
+                chatMessages = [];
+                renderChatRecipients();
+                renderChatMessages();
+                void loadChatMessages("", true);
+                document.getElementById("chat-message-input").focus();
+            });
+            document.getElementById("chat-conversation-search").addEventListener("input", () => {
+                renderChatRecipients();
+            });
             document.addEventListener("keydown", event => {
                 if (event.key === "Escape" && !chatPanel.hidden) setChatPopupOpen(false);
             });
@@ -12717,12 +13358,16 @@
                 if (document.getElementById("chat-conversation-type").value !== "direct") {
                     chatRecipientId = "";
                 }
+                chatMessages = [];
                 renderChatRecipients();
+                renderChatMessages();
                 void loadChatMessages("", true);
             });
             document.getElementById("chat-recipient-id").addEventListener("change", event => {
                 chatRecipientId = event.currentTarget.value;
+                chatMessages = [];
                 renderChatRecipients();
+                renderChatMessages();
                 void loadChatMessages("", true);
             });
             document.getElementById("chat-message-input").addEventListener("keydown", event => {

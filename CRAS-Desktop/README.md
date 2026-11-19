@@ -94,11 +94,11 @@ valida o certificado, mas não libera a conexão no firewall.
 
 ## Chat e backups
 
-O botão **Chat** abre a equipe. Escolha **Aviso geral** para enviar a todos ou
-**Mensagem individual** para selecionar um usuário. O histórico e os anexos
-individuais ficam visíveis somente aos dois participantes. Enter envia a
-mensagem; Shift+Enter cria uma nova linha. Mensagens, emojis e imagens/GIFs
-(PNG, JPG, GIF ou WebP, até 2 MB) são enviados ao servidor central. Uma
+O botão **Chat** abre a equipe. Na lista lateral, escolha **Avisos gerais** para
+enviar a todos ou selecione uma pessoa para abrir a conversa individual. O
+histórico e os anexos individuais ficam visíveis somente aos dois participantes.
+Enter envia a mensagem; Shift+Enter cria uma nova linha. Mensagens, emojis e
+imagens/GIFs (PNG, JPG, GIF ou WebP, até 2 MB) são enviados ao servidor central. Uma
 recomendação pode ser vinculada a um atendimento existente; o chat mostra o
 nome e somente os dois últimos dígitos do CPF para ajudar a identificar a
 pessoa. A referência não altera a fila. Se o servidor estiver indisponível, a
@@ -116,8 +116,10 @@ o conteúdo é mesclado aos registros locais. As contas incluem hashes de senha
 com salt; proteja os backups adequadamente.
 
 O histórico continua completo e independente do preenchimento automático do
-formulário. A tabela mostra 50 registros por página; filtros e exportação
-continuam consultando o histórico inteiro.
+formulário. Cada encaminhamento é exibido em uma linha própria; **Excluir
+encaminhamento** remove somente aquela fila, enquanto **Excluir atendimento**
+remove o registro inteiro. A tabela mostra 50 registros por página; filtros e
+exportação continuam consultando o histórico inteiro.
 
 No CRAS Desktop, o envio dos registros do PAA ao Google Sheets é configurado
 separadamente: em **Configurações → Sincronização**, informe o URL publicado do

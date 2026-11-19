@@ -778,11 +778,13 @@ class CentralChatSyncTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def request(self, payload, expected_status=200):
+    def request(self, payload, expected_status=200, user_id=None, credential_hash=None):
         salt = b"0123456789abcdef"
-        payload = {**payload, "userId": self.user_id}
-        envelope = encode_envelope(salt, self.credential["hash"], payload)
-        envelope["userId"] = self.user_id
+        user_id = user_id or self.user_id
+        credential_hash = credential_hash or self.credential["hash"]
+        payload = {**payload, "userId": user_id}
+        envelope = encode_envelope(salt, credential_hash, payload)
+        envelope["userId"] = user_id
         body = json.dumps(envelope).encode("utf-8")
         handler = object.__new__(CRASRequestHandler)
         handler.path = "/api/chat/sync"
@@ -798,7 +800,7 @@ class CentralChatSyncTests(unittest.TestCase):
         self.assertEqual(status, expected_status)
         if status != 200:
             return response
-        _, result = decode_envelope(response, self.credential["hash"])
+        _, result = decode_envelope(response, credential_hash)
         return result
 
     def test_server_chat_supports_message_delivery_and_offline_history_fetch(self):
@@ -830,6 +832,44 @@ class CentralChatSyncTests(unittest.TestCase):
             "type": "image/png",
             "data": "iVBORw0KGgo=",
         })
+
+    def test_server_delivers_direct_message_to_authenticated_recipient(self):
+        recipient_id = "user-2"
+        recipient_hash = "b" * 64
+        self.store.register_user_credential(
+            recipient_id,
+            {
+                "salt": base64.b64encode(b"fedcba9876543210").decode("ascii"),
+                "hash": recipient_hash,
+            },
+            "Técnico",
+            "assistant",
+        )
+        message = {
+            "id": "direct-message-1",
+            "createdAt": "2026-01-15T12:00:00Z",
+            "authorId": self.user_id,
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "recipientId": recipient_id,
+            "text": "Mensagem para o destinatário",
+        }
+
+        self.request({"operation": "send", "message": message})
+        history = self.request(
+            {
+                "operation": "list",
+                "limit": 50,
+                "recipientId": self.user_id,
+            },
+            user_id=recipient_id,
+            credential_hash=recipient_hash,
+        )
+
+        self.assertEqual(
+            [item["id"] for item in history["messages"]],
+            ["direct-message-1"],
+        )
 
     def test_server_chat_rejects_requests_outside_private_network(self):
         handler = object.__new__(CRASRequestHandler)
