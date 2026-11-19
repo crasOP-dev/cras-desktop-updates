@@ -7,6 +7,7 @@ from contextlib import closing
 import ctypes
 import hashlib
 import gzip
+import hmac
 import ipaddress
 import json
 import logging
@@ -82,6 +83,8 @@ VALID_USER_ROLES = {"assistant", "caseworker", "reception", "intern", "admin"}
 MOBILE_ACCESS_MIN_LENGTH = 12
 MOBILE_ACCESS_MAX_ATTEMPTS = 5
 MOBILE_ACCESS_WINDOW_SECONDS = 300
+USER_AUTH_MAX_ATTEMPTS = 5
+USER_AUTH_WINDOW_SECONDS = 300
 MISSING = object()
 
 
@@ -516,6 +519,21 @@ def validate_user_credential(user_id: object, credential: object) -> tuple[str, 
     return user_id.strip(), credential["salt"], credential["hash"].lower()
 
 
+def user_authentication_proof(
+    password_hash: str,
+    user_id: str,
+    challenge_id: str,
+    nonce: str,
+) -> str:
+    message = "\n".join((
+        "CRAS-Desktop user authentication v1",
+        user_id,
+        challenge_id,
+        nonce,
+    )).encode("utf-8")
+    return hmac.new(bytes.fromhex(password_hash), message, hashlib.sha256).hexdigest()
+
+
 class _CentralServiceListener(ServiceListener):
     def __init__(self):
         self.services: dict[str, dict] = {}
@@ -734,6 +752,8 @@ class PeerStore:
         self.path = path
         self.lock = threading.RLock()
         self.ready = False
+        self.user_auth_challenges: dict[str, tuple[str, str, float]] = {}
+        self.user_auth_failures: dict[str, list[float]] = {}
         with closing(self.connect()) as db:
             with db:
                 db.execute("CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
@@ -878,6 +898,83 @@ class PeerStore:
                     "(user_id, salt, password_hash, display_name, role) VALUES (?, ?, ?, ?, ?)",
                     (validated_user_id, salt, password_hash, display_name.strip(), role),
                 )
+    def create_user_auth_challenge(self, user_id: object) -> dict | None:
+        if not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 100:
+            raise ValueError("A identificação do usuário está inválida.")
+        with self.lock, closing(self.connect()) as db:
+            row = db.execute(
+                "SELECT salt FROM user_credentials WHERE user_id = ?",
+                (user_id.strip(),),
+            ).fetchone()
+        if not row:
+            return None
+        now = time.monotonic()
+        challenge_id = secrets.token_urlsafe(32)
+        nonce = secrets.token_urlsafe(32)
+        with self.lock:
+            self.user_auth_challenges = {
+                key: value for key, value in self.user_auth_challenges.items()
+                if value[2] > now
+            }
+            if len(self.user_auth_challenges) >= 256:
+                self.user_auth_challenges.pop(next(iter(self.user_auth_challenges)))
+            self.user_auth_challenges[challenge_id] = (
+                user_id.strip(),
+                nonce,
+                now + 120,
+            )
+        return {"salt": str(row[0]), "challengeId": challenge_id, "nonce": nonce}
+    def verify_user_auth_challenge(
+        self,
+        user_id: object,
+        challenge_id: object,
+        proof: object,
+    ) -> bool:
+        if (
+            not isinstance(user_id, str)
+            or not user_id.strip()
+            or not isinstance(challenge_id, str)
+            or not challenge_id
+            or not isinstance(proof, str)
+            or not re.fullmatch(r"[a-f0-9]{64}", proof, re.IGNORECASE)
+        ):
+            return False
+        with self.lock:
+            challenge = self.user_auth_challenges.pop(challenge_id, None)
+            if (
+                not challenge
+                or challenge[0] != user_id.strip()
+                or challenge[2] <= time.monotonic()
+            ):
+                return False
+            password_hash = self.get_user_credential(user_id)
+        if not password_hash:
+            return False
+        expected = user_authentication_proof(
+            password_hash,
+            user_id.strip(),
+            challenge_id,
+            challenge[1],
+        )
+        return hmac.compare_digest(expected, proof.lower())
+    def user_auth_attempt_allowed(self, address: str) -> bool:
+        now = time.monotonic()
+        with self.lock:
+            attempts = [
+                attempt for attempt in self.user_auth_failures.get(address, [])
+                if now - attempt < USER_AUTH_WINDOW_SECONDS
+            ]
+            if attempts:
+                self.user_auth_failures[address] = attempts
+            else:
+                self.user_auth_failures.pop(address, None)
+            return len(attempts) < USER_AUTH_MAX_ATTEMPTS
+    def record_user_auth_attempt(self, address: str, failed: bool) -> None:
+        with self.lock:
+            if failed:
+                self.user_auth_failures.setdefault(address, []).append(time.monotonic())
+            else:
+                self.user_auth_failures.pop(address, None)
     def get_user_credential(self, user_id: object) -> str | None:
         if not isinstance(user_id, str) or not user_id.strip() or len(user_id) > 100:
             return None
@@ -2467,6 +2564,61 @@ document.getElementById('tab-ios').classList.add('active');
             except Exception:
                 logging.exception("Não foi possível cadastrar a credencial individual no servidor.")
                 self.send_json(500, {"error": "Não foi possível cadastrar a senha no servidor."}, origin)
+            return
+        if path in ("/api/user/auth-challenge", "/api/user/authenticate"):
+            if not self.is_private_network_request():
+                self.send_error(403)
+                return
+            origin = self.headers.get("Origin")
+            if origin and not self.is_local_origin(origin):
+                self.send_error(403)
+                return
+            address = self.client_address[0]
+            if not self.store.user_auth_attempt_allowed(address):
+                self.send_json(
+                    429,
+                    {"error": "Muitas tentativas de autenticação. Aguarde cinco minutos e tente novamente."},
+                    origin,
+                )
+                return
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > 4096:
+                    raise ValueError("Tamanho de pedido de autenticação inválido.")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("O pedido de autenticação está inválido.")
+                user_id = payload.get("userId")
+                if path == "/api/user/auth-challenge":
+                    challenge = self.store.create_user_auth_challenge(user_id)
+                    if not challenge:
+                        self.send_json(
+                            404,
+                            {"error": "Não há senha desse usuário cadastrada no servidor central."},
+                            origin,
+                        )
+                        return
+                    self.send_json(200, challenge, origin)
+                    return
+                authenticated = self.store.verify_user_auth_challenge(
+                    user_id,
+                    payload.get("challengeId"),
+                    payload.get("proof"),
+                )
+                self.store.record_user_auth_attempt(address, not authenticated)
+                if not authenticated:
+                    self.send_json(
+                        401,
+                        {"error": "Senha do servidor incorreta ou desafio expirado."},
+                        origin,
+                    )
+                    return
+                self.send_json(200, {"authenticated": True}, origin)
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, origin)
+            except Exception:
+                logging.exception("Não foi possível autenticar a senha já cadastrada no servidor.")
+                self.send_json(500, {"error": "Não foi possível validar a senha no servidor."}, origin)
             return
         if path == "/api/chat/messages":
             if not self.is_local_app_request():

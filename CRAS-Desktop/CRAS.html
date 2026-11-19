@@ -850,6 +850,10 @@
         .queue-panel-content {
             width: 100%;
         }
+        .user-login-card .login-server-password-toggle {
+            width: 100%;
+            margin-top: 10px;
+        }
 
         .queue-panel-content .queue-dashboards {
             grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -5897,6 +5901,8 @@
                     <input class="text-input" id="login-password-confirm" type="password" minlength="8"
                         maxlength="128" autocomplete="new-password">
                 </div>
+                <button class="button-secondary login-server-password-toggle" id="login-server-password-toggle"
+                    type="button" hidden>Já tenho senha no servidor</button>
             </div>
             <label class="remember-user-option" for="remember-user-session">
                 <input id="remember-user-session" type="checkbox">
@@ -7049,6 +7055,7 @@
             let chatRecipientId = "";
             let centralServerDiscoveryCache = null;
             let centralServerDiscoveryTime = 0;
+            let loginServerPasswordMode = false;
             let chatLoadInProgress = false;
             let chatReloadRequested = false;
             let chatPollTimer = null;
@@ -7591,18 +7598,29 @@
                 const passwordInput = document.getElementById("login-password");
                 const confirmInput = document.getElementById("login-password-confirm");
                 const needsPasswordSetup = Boolean(selectedUser && !selectedUser.passwordCredential);
+                const serverPasswordToggle = document.getElementById("login-server-password-toggle");
+                if (!selectedUser) loginServerPasswordMode = false;
+                const useServerPassword = Boolean(selectedUser && loginServerPasswordMode);
                 passwordWrap.hidden = !selectedUser;
-                confirmWrap.hidden = !needsPasswordSetup;
+                confirmWrap.hidden = !needsPasswordSetup || useServerPassword;
                 passwordInput.required = Boolean(selectedUser);
-                confirmInput.required = needsPasswordSetup;
-                passwordInput.autocomplete = needsPasswordSetup ? "new-password" : "current-password";
-                document.getElementById("login-password-label").textContent = needsPasswordSetup
+                confirmInput.required = needsPasswordSetup && !useServerPassword;
+                passwordInput.autocomplete = needsPasswordSetup && !useServerPassword
+                    ? "new-password" : "current-password";
+                document.getElementById("login-password-label").textContent = useServerPassword
+                    ? "Senha cadastrada no servidor"
+                    : needsPasswordSetup
                     ? "Crie sua senha (mínimo 8 caracteres)"
                     : "Senha individual";
+                serverPasswordToggle.hidden = !selectedUser || !window.CRASDesktop;
+                serverPasswordToggle.textContent = useServerPassword
+                    ? "Primeiro acesso? Criar senha neste PC"
+                    : "Já tenho senha no servidor";
             }
 
             function showUserLogin(preferredUserId = rememberedUserId) {
                 activeUser = null;
+                loginServerPasswordMode = false;
                 document.body.removeAttribute("data-user-role");
                 document.getElementById("user-login-status").textContent = "";
                 document.getElementById("login-password").value = "";
@@ -7612,6 +7630,7 @@
                 if (preferredUser) {
                     document.getElementById("login-user").value = preferredUser.name;
                     document.getElementById("login-role").value = preferredUser.role;
+                    loginServerPasswordMode = !preferredUser.passwordCredential && Boolean(window.CRASDesktop);
                 }
                 document.getElementById("user-login").hidden = false;
                 document.getElementById("login-user").focus();
@@ -7669,6 +7688,78 @@
                 else finishActivation();
             }
 
+            async function authenticateUserWithServer(user, password) {
+                if (!window.CRASDesktop) {
+                    throw new Error("A recuperação da senha pelo servidor está disponível no CRAS Desktop.");
+                }
+                const localInfoResponse = await fetchPeer("/api/info", { cache: "no-store" }, 5000);
+                if (!localInfoResponse.ok) {
+                    throw new Error("Não foi possível consultar o estado deste computador.");
+                }
+                const localInfo = await localInfoResponse.json();
+                let endpoint = "";
+                if (localInfo.centralServer !== true) {
+                    await discoverCentralServer(true);
+                    endpoint = centralServerDiscoveryCache
+                        ? getSyncBridgeUrl(centralServerDiscoveryCache.endpoint)
+                        : "";
+                    if (!endpoint) {
+                        throw new Error("Servidor central não encontrado. Verifique a rede local e tente novamente.");
+                    }
+                }
+                const readAuthResponse = async response => {
+                    try {
+                        return await response.json();
+                    } catch {
+                        throw new Error("O servidor respondeu com dados inválidos. Tente novamente.");
+                    }
+                };
+                const challengeResponse = await fetchPeer(`${endpoint}/api/user/auth-challenge`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ userId: user.id })
+                }, 8000);
+                const challenge = await readAuthResponse(challengeResponse);
+                if (!challengeResponse.ok) {
+                    throw new Error(challenge.error || "Não foi possível iniciar a autenticação no servidor.");
+                }
+                if (typeof challenge.salt !== "string"
+                    || typeof challenge.challengeId !== "string"
+                    || typeof challenge.nonce !== "string") {
+                    throw new Error("O desafio de autenticação recebido do servidor está inválido.");
+                }
+                const salt = base64ToBytes(challenge.salt);
+                if (salt.length !== 16) {
+                    throw new Error("O servidor enviou um sal de senha inválido.");
+                }
+                const passwordHash = await hashUserPassword(password, salt);
+                const keyBytes = new Uint8Array(passwordHash.match(/.{2}/g).map(value => parseInt(value, 16)));
+                const key = await crypto.subtle.importKey(
+                    "raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+                const message = new TextEncoder().encode([
+                    "CRAS-Desktop user authentication v1",
+                    user.id,
+                    challenge.challengeId,
+                    challenge.nonce
+                ].join("\n"));
+                const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, message));
+                const proof = Array.from(signature, byte => byte.toString(16).padStart(2, "0")).join("");
+                const authenticationResponse = await fetchPeer(`${endpoint}/api/user/authenticate`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        userId: user.id,
+                        challengeId: challenge.challengeId,
+                        proof
+                    })
+                }, 8000);
+                const authentication = await readAuthResponse(authenticationResponse);
+                if (!authenticationResponse.ok || authentication.authenticated !== true) {
+                    throw new Error(authentication.error || "A senha informada não foi validada pelo servidor.");
+                }
+                return { salt: challenge.salt, hash: passwordHash };
+            }
+
             async function loginSelectedUser(event) {
                 event.preventDefault();
                 const enteredName = document.getElementById("login-user").value.trim();
@@ -7684,12 +7775,31 @@
                 const passwordInput = document.getElementById("login-password");
                 const password = passwordInput.value;
                 let passwordCreated = false;
-                if (selectedUser.passwordCredential) {
+                let credentialRestored = false;
+                if (loginServerPasswordMode) {
+                    let credential;
+                    try {
+                        credential = await authenticateUserWithServer(selectedUser, password);
+                    } catch (error) {
+                        status.textContent = error.message;
+                        passwordInput.select();
+                        return;
+                    }
+                    const updatedUsers = users.map(user => user.id === selectedUser.id
+                        ? { ...user, passwordCredential: credential }
+                        : user);
+                    if (!await saveStorage(STORAGE_USERS, updatedUsers)) {
+                        status.textContent = "Não foi possível salvar a senha do servidor neste dispositivo.";
+                        return;
+                    }
+                    users = updatedUsers;
+                    credentialRestored = true;
+                } else if (selectedUser.passwordCredential) {
                     const calculatedHash = await hashUserPassword(
                         password, base64ToBytes(selectedUser.passwordCredential.salt)
                     );
                     if (calculatedHash !== selectedUser.passwordCredential.hash) {
-                        status.textContent = "Senha incorreta.";
+                        status.textContent = "Senha incorreta. Se já tem senha no servidor, escolha essa opção.";
                         passwordInput.select();
                         return;
                     }
@@ -7716,8 +7826,9 @@
                     users = updatedUsers;
                     passwordCreated = true;
                 }
-                await activateUser(selectedUser, true);
-                if (passwordCreated) schedulePeerSync(selectedUser.role);
+                const authenticatedUser = users.find(user => user.id === selectedUser.id);
+                await activateUser(authenticatedUser, true);
+                if (passwordCreated || credentialRestored) schedulePeerSync(authenticatedUser.role);
             }
 
             async function restoreLocalUser() {
@@ -13314,16 +13425,34 @@
                         "Não foi possível salvar a preferência neste computador.";
                 });
             });
+            document.getElementById("login-server-password-toggle").addEventListener("click", () => {
+                loginServerPasswordMode = !loginServerPasswordMode;
+                document.getElementById("login-password").value = "";
+                document.getElementById("login-password-confirm").value = "";
+                document.getElementById("user-login-status").textContent = "";
+                updateLoginPasswordFields();
+                document.getElementById("login-password").focus();
+            });
             document.getElementById("login-user").addEventListener("input", event => {
                 const enteredName = event.target.value.trim().toLocaleLowerCase("pt-BR");
                 const selectedUser = users.find(user => user.name.toLocaleLowerCase("pt-BR") === enteredName);
                 if (selectedUser) document.getElementById("login-role").value = selectedUser.role;
+                loginServerPasswordMode = Boolean(
+                    selectedUser && !selectedUser.passwordCredential && window.CRASDesktop
+                );
                 updateLoginPasswordFields();
                 if (!document.getElementById("user-login-status").textContent.startsWith("Não foi possível")) {
                     document.getElementById("user-login-status").textContent = "";
                 }
             });
             document.getElementById("login-role").addEventListener("change", () => {
+                const enteredName = document.getElementById("login-user").value.trim().toLocaleLowerCase("pt-BR");
+                const selectedRole = document.getElementById("login-role").value;
+                const selectedUser = users.find(user =>
+                    user.name.toLocaleLowerCase("pt-BR") === enteredName && user.role === selectedRole);
+                loginServerPasswordMode = Boolean(
+                    selectedUser && !selectedUser.passwordCredential && window.CRASDesktop
+                );
                 updateLoginPasswordFields();
             });
             document.getElementById("settings-switch-user").addEventListener("click", () => {

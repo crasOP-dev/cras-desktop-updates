@@ -21,6 +21,13 @@ compartilhado, alguém poderia cadastrar a senha no lugar de outra pessoa.
 Confirme a identidade durante o primeiro acesso.
 O hash individual também autentica as solicitações de sincronização e chat ao
 servidor central; o código compartilhado de pareamento não é mais utilizado.
+Se um PC pedir uma senha que já existe no servidor, informe a senha já
+cadastrada. Se a tela estiver no modo de criação, escolha **Já tenho senha no
+servidor**; só use **Primeiro acesso? Criar senha neste PC** quando o usuário
+ainda não tiver senha no servidor. Se o PC entrar automaticamente, acesse
+**Configurações → Trocar usuário** para abrir a tela de login. A recuperação
+valida a senha no servidor e restaura a credencial local sem alterar a senha
+central.
 
 Na tela de entrada, marque **Lembrar este usuário e pular o login neste
 dispositivo** para abrir automaticamente essa conta nos próximos inícios. Isso

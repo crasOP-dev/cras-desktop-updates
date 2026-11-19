@@ -35,6 +35,7 @@ from main import (
     latest_release,
     verify_update_checksum,
     validate_chat_message,
+    user_authentication_proof,
     version_tuple,
 )
 
@@ -963,6 +964,26 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
 
         return handler.send_json.call_args.args[:2]
 
+    def authentication_request(self, path, payload):
+        body = json.dumps(payload).encode("utf-8")
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = path
+        handler.headers = {
+            "Content-Length": str(len(body)),
+            "Origin": f"http://127.0.0.1:{PORT}",
+        }
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.rfile = io.BytesIO(body)
+        handler.store = self.store
+        handler.send_json = Mock()
+        handler.send_error = Mock()
+
+        handler.do_POST()
+
+        if handler.send_json.called:
+            return handler.send_json.call_args.args[:2]
+        return handler.send_error.call_args.args[0], {}
+
     def test_sync_uses_registered_individual_credential(self):
         status, response = self.request(self.user_id, self.credential["hash"])
 
@@ -975,6 +996,74 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
 
         self.assertEqual(status, 401)
         self.assertIn("senha individual", response["error"].lower())
+
+    def test_existing_server_password_can_restore_a_device_credential(self):
+        status, response = self.authentication_request(
+            "/api/user/auth-challenge",
+            {"userId": "unknown-user"},
+        )
+        self.assertEqual(status, 404)
+        self.assertIn("senha", response["error"].lower())
+
+        status, challenge = self.authentication_request(
+            "/api/user/auth-challenge",
+            {"userId": self.user_id},
+        )
+        self.assertEqual(status, 200)
+        self.assertNotIn("hash", challenge)
+
+        proof = user_authentication_proof(
+            self.credential["hash"],
+            self.user_id,
+            challenge["challengeId"],
+            challenge["nonce"],
+        )
+        status, response = self.authentication_request(
+            "/api/user/authenticate",
+            {
+                "userId": self.user_id,
+                "challengeId": challenge["challengeId"],
+                "proof": proof,
+            },
+        )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(response["authenticated"])
+        self.assertEqual(self.store.get_user_credential(self.user_id), self.credential["hash"])
+
+        status, response = self.authentication_request(
+            "/api/user/authenticate",
+            {
+                "userId": self.user_id,
+                "challengeId": challenge["challengeId"],
+                "proof": proof,
+            },
+        )
+        self.assertEqual(status, 401)
+        self.assertIn("desafio expirado", response["error"])
+
+    def test_server_password_recovery_limits_failed_attempts(self):
+        for _ in range(5):
+            _, challenge = self.authentication_request(
+                "/api/user/auth-challenge",
+                {"userId": self.user_id},
+            )
+            status, _ = self.authentication_request(
+                "/api/user/authenticate",
+                {
+                    "userId": self.user_id,
+                    "challengeId": challenge["challengeId"],
+                    "proof": "0" * 64,
+                },
+            )
+            self.assertEqual(status, 401)
+
+        status, response = self.authentication_request(
+            "/api/user/auth-challenge",
+            {"userId": self.user_id},
+        )
+        self.assertEqual(status, 429)
+        self.assertIn("aguarde cinco minutos", response["error"].lower())
 
     @patch("main.HAVE_ZEROCONF", True)
     @patch("main.lan_addresses", return_value=["192.168.1.25"])
