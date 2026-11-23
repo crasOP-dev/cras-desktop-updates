@@ -6044,23 +6044,24 @@
                                     <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-addresses', 'Endereço HTTPS')">Copiar</button>
                                 </div>
 
-                                <label class="field-label" for="sync-mobile-ca">Portal do Celular / Baixar CA</label>
+                                <label class="field-label" for="sync-mobile-ca">Endereço para baixar o certificado CA</label>
                                 <div class="copy-input-group">
                                     <input class="text-input" id="sync-mobile-ca" type="text" readonly>
-                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-ca', 'Endereço do Certificado')">Copiar</button>
+                                    <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-ca', 'Endereço do Certificado CA')">Copiar</button>
                                 </div>
 
-                                <div class="qr-code-box" id="qr-code-container" hidden>
-                                    <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
-                                        Escaneie para abrir o portal móvel:
-                                    </p>
-                                    <img id="mobile-qr-image" alt="QR Code para Celular" src="" style="width: 140px; height: 140px; margin: 0 auto; display: block;">
-                                </div>
                                 <div class="qr-code-box" id="mobile-ca-qr-container" hidden>
                                     <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
-                                        No celular, escaneie para baixar o certificado:
+                                        1. No celular, escaneie para baixar e instalar o certificado:
                                     </p>
                                     <img id="mobile-ca-qr-image" alt="QR Code para baixar o certificado de segurança" src=""
+                                        style="width: 140px; height: 140px; margin: 0 auto; display: block;">
+                                </div>
+                                <div class="qr-code-box" id="qr-code-container" hidden>
+                                    <p style="font-size: 11px; color: var(--muted); margin-bottom: 6px;">
+                                        2. Depois, escaneie para abrir diretamente o CRAS seguro:
+                                    </p>
+                                    <img id="mobile-qr-image" alt="QR Code para abrir o CRAS Desktop no celular" src=""
                                         style="width: 140px; height: 140px; margin: 0 auto; display: block;">
                                 </div>
 
@@ -6069,7 +6070,7 @@
                                     <input class="text-input" id="sync-mobile-fingerprint" type="text" readonly>
                                     <button class="btn-copy" type="button" onclick="copyFieldValue('sync-mobile-fingerprint', 'Impressão Digital')">Copiar</button>
                                 </div>
-                                <p class="hint">Abra o Portal pelo celular para baixar o certificado CA e liberar a criptografia HTTPS segura na porta 8766.</p>
+                                <p class="hint">Instale e confie no certificado CA primeiro. Depois, abra diretamente o endereço HTTPS seguro no Safari (iPhone) ou no navegador Android.</p>
                             </div>
 
                             <!-- Card 2: Servidor central e sincronização offline -->
@@ -6113,6 +6114,7 @@
                                     <p class="hint">O endereço fica salvo nas configurações. O token é validado, usado apenas enquanto o aplicativo estiver aberto e nunca é salvo.</p>
                                     <button class="button-secondary" id="paa-google-connect" type="button"
                                         style="width: 100%;">Conectar ao Google Sheets</button>
+                                    <p class="form-status" id="paa-google-status" role="status" aria-live="polite"></p>
                                 </div>
                             </div>
 
@@ -6120,7 +6122,7 @@
                             <div class="settings-section-card">
                                 <div class="settings-card-header">
                                     <span class="settings-card-title">🔄 Atualizações</span>
-                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.6</span>
+                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.14</span>
                                 </div>
                                 <button class="button-secondary" id="check-updates-btn" type="button" style="width: 100%;">
                                     🔍 Verificar Atualizações
@@ -7440,6 +7442,7 @@
             let offlineMode = false;
             let desktopNodeInfo = null;
             let mobileAccessKey = null;
+            let mobileServerVersion = "";
             let mobileOfflineMode = false;
             let mobilePendingSync = false;
             let mobileOfflineCredentials = { info: null, proof: null };
@@ -8148,6 +8151,7 @@
                                 const response = await fetchPeer("/api/mobile-info", { cache: "no-store" }, 5000);
                                 if (!response.ok) throw new Error("Não foi possível consultar o servidor CRAS.");
                                 info = await response.json();
+                                mobileServerVersion = typeof info.appVersion === "string" ? info.appVersion : "";
                             } catch (error) {
                                 console.error("Servidor móvel indisponível; verificando a cópia offline.", error);
                             }
@@ -8218,8 +8222,11 @@
                         const serviceHost = desktopNodeInfo.hostname || "";
                         const qrContainer = document.getElementById("qr-code-container");
                         const qrImg = document.getElementById("mobile-qr-image");
-                        if (qrContainer && qrImg && serviceHost && desktopNodeInfo.centralServer) {
-                            qrImg.src = `/api/qr?text=${encodeURIComponent(`http://${serviceHost}:${desktopNodeInfo.port}/`)}`;
+                        if (qrContainer && qrImg && serviceHost
+                            && desktopNodeInfo.centralServer && desktopNodeInfo.mobileHttpsReady) {
+                            qrImg.src = `/api/qr?text=${encodeURIComponent(
+                                `https://${serviceHost}:${desktopNodeInfo.mobilePort || 8766}/`
+                            )}`;
                             qrContainer.hidden = false;
                         } else if (qrContainer) {
                             qrContainer.hidden = true;
@@ -8366,7 +8373,10 @@
 
             async function mobileRequest(payload) {
                 if (!mobileAccessKey) throw new Error("O acesso móvel expirou. Digite o código novamente.");
-                const envelope = await encryptMobilePayload(payload, mobileAccessKey);
+                const requestPayload = mobileServerVersion
+                    ? { ...payload, clientVersion: mobileServerVersion }
+                    : payload;
+                const envelope = await encryptMobilePayload(requestPayload, mobileAccessKey);
                 const response = await fetchPeer("/api/mobile-snapshot", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -8384,7 +8394,11 @@
                     mobileAccessKey,
                     base64ToBytes(result.ciphertext)
                 );
-                return JSON.parse(new TextDecoder().decode(plaintext));
+                const resultPayload = JSON.parse(new TextDecoder().decode(plaintext));
+                if (typeof resultPayload.appVersion === "string") {
+                    mobileServerVersion = resultPayload.appVersion;
+                }
+                return resultPayload;
             }
 
             async function saveMobileOfflineCredentials(info, key) {
@@ -8683,6 +8697,7 @@
                         const payload = {
                             requestId: crypto.randomUUID(),
                             peerId: desktopNodeInfo.nodeId,
+                            clientVersion: desktopNodeInfo.appVersion,
                             localSnapshot: args[1],
                             resolutions: args[2],
                             actorRole: args[3],
@@ -9302,6 +9317,13 @@
             async function syncWithDesktopPeer(peer, actorRole) {
                 const endpoint = getSyncBridgeUrl(peer.endpoint);
                 const peerInfo = await fetchPeerInfo(endpoint);
+                const localVersion = desktopNodeInfo?.appVersion;
+                if (!localVersion || !peerInfo.appVersion
+                    || localVersion.replace(/^v/, "") !== peerInfo.appVersion.replace(/^v/, "")) {
+                    throw new Error(
+                        `Versões incompatíveis para sincronização (${localVersion || "desconhecida"} e ${peerInfo.appVersion || "desconhecida"}). Atualize todos os dispositivos para a mesma versão.`
+                    );
+                }
                 activePeerId = peerInfo.nodeId;
                 syncBaseSnapshot = peerSyncBaseSnapshots[activePeerId] || null;
                 const localSnapshot = createSyncSnapshot();
@@ -9362,17 +9384,30 @@
                     if (manual) showSyncStatus("Sem conexão com a rede. Os dados continuam salvos neste dispositivo.");
                     return;
                 }
+                if (window.CRASDesktop && !desktopNodeInfo?.centralServer && activeUser) {
+                    const syncingUser = users.find(user => user.id === activeUser.id);
+                    if (!syncingUser?.passwordCredential) {
+                        const message = "Este usuário ainda não tem uma senha individual sincronizada. Troque de usuário e crie ou valide a senha do servidor central.";
+                        document.getElementById("central-server-discovery-status").textContent = message;
+                        showSyncStatus(message, 10000);
+                        return;
+                    }
+                }
                 let desktopPeers = [];
                 if (window.CRASDesktop) {
                     try {
                         desktopPeers = await discoverCentralServer();
                     } catch (error) {
-                        if (manual) showSyncStatus(`Não foi possível localizar o servidor central: ${error.message}`, 0);
+                        const message = `Não foi possível localizar o servidor central: ${error.message}`;
+                        document.getElementById("central-server-discovery-status").textContent = message;
+                        showSyncStatus(message, manual ? 0 : 10000);
                         return;
                     }
                 }
                 if (window.CRASDesktop && !desktopPeers.length) {
-                    if (manual) showSyncStatus("Servidor central não encontrado. Os dados continuam salvos neste computador.");
+                    const message = "Servidor central não encontrado. Os dados continuam salvos neste computador; confira se ele está ativo na mesma rede local.";
+                    document.getElementById("central-server-discovery-status").textContent = message;
+                    showSyncStatus(message, manual ? 0 : 10000);
                     return;
                 }
                 if (!window.CRASDesktop && !window.google?.script?.run && !getSyncBridgeUrl()) {
@@ -9473,34 +9508,48 @@
                 if (window.CRASDesktop) {
                     document.getElementById("paa-google-connect").addEventListener("click", async event => {
                         const button = event.currentTarget;
+                        const connectionStatus = document.getElementById("paa-google-status");
                         const endpointInput = document.getElementById("paa-google-sheet-url");
                         const tokenInput = document.getElementById("paa-google-access-token");
                         const endpoint = endpointInput.value.trim();
                         const token = tokenInput.value.trim();
                         if (!getGoogleAppsScriptBridgeUrl(endpoint)) {
-                            showSyncStatus("Informe o URL publicado do Apps Script, terminado em /exec.");
+                            connectionStatus.textContent = "Informe o URL publicado do Apps Script, terminado em /exec.";
+                            showSyncStatus(connectionStatus.textContent);
                             endpointInput.focus();
                             return;
                         }
                         if (!token) {
-                            showSyncStatus("Informe o token de acesso para conectar à planilha PAA.");
+                            connectionStatus.textContent = "Informe o token de acesso para conectar à planilha PAA.";
+                            showSyncStatus(connectionStatus.textContent);
                             tokenInput.focus();
                             return;
                         }
 
                         button.disabled = true;
+                        connectionStatus.textContent = "Conectando ao Google Sheets e validando o token…";
+                        showSyncStatus(connectionStatus.textContent, 0);
                         try {
-                            if (!await updatePreferences({ googleSheetEndpoint: endpoint })) return;
+                            if (!await updatePreferences({ googleSheetEndpoint: endpoint })) {
+                                throw new Error("Não foi possível salvar o endereço do Apps Script.");
+                            }
                             accessToken = token;
                             configureSyncBridge();
                             if (await callSyncBackend("validateStartupToken") !== true) {
                                 throw new Error("Token incorreto. Confira o token de acesso e tente novamente.");
                             }
-                            showSyncStatus("Conexão com o Google Sheets validada. Agora envie os pendentes pela aba PAA.");
+                            const pendingCount = paaRecords.filter(record =>
+                                !record.googleSyncedAt && !record.googleSheetUnlinked
+                            ).length;
+                            connectionStatus.textContent = pendingCount
+                                ? `Conexão validada. ${pendingCount} registro(s) aguardam envio; abra a aba PAA e toque em “Enviar pendentes ao Google”.`
+                                : "Conexão validada. Não há registros pendentes para enviar.";
+                            showSyncStatus(connectionStatus.textContent);
                         } catch (error) {
                             accessToken = "";
                             configureSyncBridge();
-                            showSyncStatus(`Não foi possível conectar ao Google Sheets: ${error.message}`, 0);
+                            connectionStatus.textContent = `Não foi possível conectar ao Google Sheets: ${error.message}`;
+                            showSyncStatus(connectionStatus.textContent, 0);
                         } finally {
                             tokenInput.value = "";
                             button.disabled = false;
@@ -12476,25 +12525,35 @@
                     return;
                 }
                 button.disabled = true;
-                paaSyncStatus.textContent = "Enviando registros pendentes para a planilha…";
                 let syncedCount = 0;
+                const updateProgress = () => {
+                    button.textContent = `Enviando ${syncedCount}/${pendingRecords.length}…`;
+                    paaSyncStatus.textContent =
+                        `Enviando ${syncedCount} de ${pendingRecords.length} registros pendentes para a planilha…`;
+                    showSyncStatus(paaSyncStatus.textContent, 0);
+                };
+                updateProgress();
                 for (const record of pendingRecords) {
                     try {
                         await syncPaaRecord(record);
                         if (!await markPaaRecordSynced(record.id)) {
                             paaSyncStatus.textContent = "A planilha recebeu o registro, mas não foi possível salvar a confirmação neste dispositivo. Tente sincronizar novamente.";
+                            showSyncStatus(paaSyncStatus.textContent, 0);
                             renderPaaHistory();
                             return;
                         }
                         syncedCount += 1;
+                        updateProgress();
                     } catch (error) {
                         console.error("Falha ao sincronizar um registro do PAA com o Google Sheets.", error);
                         paaSyncStatus.textContent = `${syncedCount} registro(s) enviado(s). Não foi possível enviar o registro de ${record.nome}: ${error.message}`;
+                        showSyncStatus(paaSyncStatus.textContent, 0);
                         renderPaaHistory();
                         return;
                     }
                 }
                 paaSyncStatus.textContent = `${syncedCount} ${syncedCount === 1 ? "registro enviado" : "registros enviados"} para a planilha Google.`;
+                showSyncStatus(paaSyncStatus.textContent);
                 renderPaaHistory();
             }
 

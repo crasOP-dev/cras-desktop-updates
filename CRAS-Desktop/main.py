@@ -7,6 +7,7 @@ from contextlib import closing
 import ctypes
 import hashlib
 import gzip
+from html import escape as html_escape
 import hmac
 import ipaddress
 import json
@@ -124,6 +125,23 @@ def version_tuple(version: str) -> tuple[int, int, int]:
     if not match:
         raise ValueError(f"Versão inválida: {version}")
     return int(match.group(1)), int(match.group(2)), int(match.group(3))
+
+
+def require_compatible_sync_version(client_version: object) -> None:
+    current_version = app_version()
+    try:
+        compatible = (
+            isinstance(client_version, str)
+            and version_tuple(client_version) == version_tuple(current_version)
+        )
+    except ValueError:
+        compatible = False
+    if not compatible:
+        reported_version = client_version if isinstance(client_version, str) else "desconhecida"
+        raise ValueError(
+            f"Versões incompatíveis para sincronização ({reported_version} e {current_version}). "
+            f"Atualize todos os dispositivos para a versão {current_version}."
+        )
 
 
 def latest_release() -> dict | None:
@@ -2024,252 +2042,173 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
     def is_secure_mobile_request(self) -> bool:
         return isinstance(self.connection, ssl.SSLSocket)
     def serve_mobile_portal(self) -> None:
-        host = self.headers.get("Host", "").split(":")[0] or self.client_address[0]
-        https_url = f"https://{host}:{MOBILE_PORT}/"
-        ca_url = f"http://{host}:{PORT}/api/mobile-ca"
-        fingerprint = self.mobile_ca_fingerprint or "Não configurada"
-        html = f"""
-
-
-
-
-CRAS Desktop · Conectar Celular
-
-:root {{
---primary: #1976d2;
---primary-dark: #115293;
---success: #2e7d32;
---bg: #f4f6f8;
---card-bg: #ffffff;
---text: #1e293b;
---text-muted: #64748b;
---border: #e2e8f0;
-}}
-* {{ box-sizing: border-box; margin: 0; padding: 0; }}
-body {{
-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-background: var(--bg);
-color: var(--text);
-line-height: 1.5;
-padding: 16px;
-}}
-.container {{
-max-width: 540px;
-margin: 0 auto;
-}}
-.header {{
-text-align: center;
-padding: 24px 0 16px;
-}}
-.logo-badge {{
-display: inline-block;
-background: #e3f2fd;
-color: var(--primary);
-font-weight: 700;
-padding: 6px 14px;
-border-radius: 20px;
-font-size: 14px;
-margin-bottom: 8px;
-}}
-h1 {{
-font-size: 24px;
-font-weight: 700;
-color: #0f172a;
-margin-bottom: 6px;
-}}
-p.subtitle {{
-color: var(--text-muted);
-font-size: 15px;
-}}
-.card {{
-background: var(--card-bg);
-border-radius: 16px;
-padding: 20px;
-margin-bottom: 16px;
-box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-border: 1px solid var(--border);
-}}
-.card-title {{
-font-size: 17px;
-font-weight: 700;
-margin-bottom: 12px;
-display: flex;
-align-items: center;
-gap: 8px;
-}}
-.step-number {{
-background: var(--primary);
-color: #fff;
-width: 24px;
-height: 24px;
-border-radius: 50%;
-display: inline-flex;
-align-items: center;
-justify-content: center;
-font-size: 13px;
-font-weight: bold;
-}}
-.btn {{
-display: block;
-width: 100%;
-text-align: center;
-padding: 14px 20px;
-border-radius: 12px;
-font-weight: 600;
-font-size: 16px;
-text-decoration: none;
-transition: all 0.2s ease;
-cursor: pointer;
-border: none;
-}}
-.btn-download {{
-background: #e0f2fe;
-color: #0369a1;
-border: 1px solid #bae6fd;
-margin-bottom: 14px;
-}}
-.btn-download:hover, .btn-download:active {{
-background: #bae6fd;
-}}
-.btn-open {{
-background: var(--success);
-color: #ffffff;
-box-shadow: 0 4px 12px rgba(46,125,50,0.25);
-}}
-.btn-open:hover, .btn-open:active {{
-background: #1b5e20;
-}}
-.tabs {{
-display: flex;
-gap: 6px;
-margin-bottom: 12px;
-background: #f1f5f9;
-padding: 4px;
-border-radius: 10px;
-}}
-.tab-btn {{
-flex: 1;
-padding: 8px 12px;
-border: none;
-background: transparent;
-font-weight: 600;
-font-size: 14px;
-border-radius: 8px;
-cursor: pointer;
-color: var(--text-muted);
-}}
-.tab-btn.active {{
-background: #ffffff;
-color: var(--primary);
-box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}}
-.tab-content {{
-display: none;
-font-size: 14px;
-color: #334155;
-}}
-.tab-content.active {{
-display: block;
-}}
-ol {{
-padding-left: 20px;
-margin-top: 8px;
-}}
-li {{
-margin-bottom: 8px;
-}}
-li strong {{
-color: #0f172a;
-}}
-.fingerprint-box {{
-background: #f8fafc;
-border: 1px dashed #cbd5e1;
-border-radius: 8px;
-padding: 8px 12px;
-font-family: monospace;
-font-size: 12px;
-word-break: break-all;
-color: #475569;
-margin-top: 8px;
-}}
-.badge-status {{
-display: inline-flex;
-align-items: center;
-gap: 6px;
-font-size: 13px;
-font-weight: 600;
-color: #166534;
-background: #dcfce7;
-padding: 4px 10px;
-border-radius: 12px;
-margin-bottom: 12px;
-}}
-.status-dot {{
-width: 8px;
-height: 8px;
-background: #22c55e;
-border-radius: 50%;
-}}
-
-
-
-
-
-CRAS Desktop · Rede Local
-Conectar pelo Celular
-Acesse a fila e os atendimentos com rapidez e segurança
-1
-Instalar o Certificado de Segurança
-
-
-O certificado raiz autoriza a criptografia segura HTTPS no celular.
-
-
-<a class="btn btn-download" href="{ca_url}">📥 Baixar Certificado CA (.crt)</a>
-🤖 Android
-🍏 iPhone (iOS)
-Toque no botão Baixar Certificado CA acima.
-Abra as Configurações do Android.
-Vá em Segurança e privacidade (ou Biometria e segurança).
-Toque em Mais configurações de segurança (ou Credenciais) → Instalar certificado.
-Escolha Certificado CA, toque em Instalar mesmo assim e selecione o arquivo baixado.
-
-Abra esta página no Safari e toque em Baixar Certificado CA.
-Autorize o download. Abra os Ajustes e toque em Perfil Baixado → Instalar.
-Em seguida, vá em Ajustes → Geral → Sobre → Ajustes de Confiança do Certificado.
-Ative a chave de Confiança Total para o CRAS Desktop Mobile CA.
-
-Impressão digital SHA-256 do certificado:
-
-{fingerprint}
-2
-Acessar o CRAS Desktop
-
-
-
-Servidor Seguro Ativo na porta {MOBILE_PORT}
-
-
-Após instalar o certificado no celular, toque no botão abaixo:
-
-
-<a class="btn btn-open" href="{https_url}">🚀 Abrir CRAS Desktop Seguro (HTTPS)</a>
-
-
-function selectTab(os) {{
-document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-if (os === 'android') {{
-document.querySelectorAll('.tab-btn')[0].classList.add('active');
-document.getElementById('tab-android').classList.add('active');
-}} else {{
-document.querySelectorAll('.tab-btn')[1].classList.add('active');
-document.getElementById('tab-ios').classList.add('active');
-}}
-}}
-
-
-        """
+        try:
+            host_header = self.headers.get("Host", "")
+            parsed_host = urlsplit(f"//{host_header}")
+            host = parsed_host.hostname
+            port = parsed_host.port
+        except ValueError:
+            self.send_error(400, "O endereço local do celular é inválido.")
+            return
+        if (
+            not host
+            or parsed_host.username
+            or parsed_host.password
+            or port not in (None, PORT)
+            or not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host)
+            or host.startswith(".")
+            or host.endswith(".")
+            or ".." in host
+        ):
+            self.send_error(400, "O endereço local do celular é inválido.")
+            return
+        https_url = html_escape(f"https://{host}:{MOBILE_PORT}/", quote=True)
+        ca_url = html_escape(f"http://{host}:{PORT}/api/mobile-ca", quote=True)
+        fingerprint = html_escape(self.mobile_ca_fingerprint or "Não configurada")
+        if self.mobile_https_ready:
+            access_section = f"""
+                <p class="status">Servidor seguro ativo na porta {MOBILE_PORT}.</p>
+                <a class="button button-open" href="{https_url}">Abrir CRAS Desktop</a>
+                <p class="hint">Depois de confiar no certificado, use o botão acima. No iPhone, abra no Safari.</p>
+            """
+        else:
+            access_section = """
+                <p class="status status-error">O acesso HTTPS pelo celular não está ativo neste computador.</p>
+                <p class="hint">No CRAS Desktop, confira o status do acesso móvel nas Configurações.</p>
+            """
+        html = f"""<!doctype html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f1f6fa">
+    <title>Conectar celular · CRAS Desktop</title>
+    <style>
+        :root {{
+            color-scheme: light;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: #182b3a;
+            background: #f1f6fa;
+        }}
+        * {{ box-sizing: border-box; }}
+        body {{ margin: 0; padding: 20px 14px; line-height: 1.5; }}
+        main {{ width: min(100%, 560px); margin: 0 auto; }}
+        header {{ padding: 16px 4px 20px; text-align: center; }}
+        header p, .hint {{ color: #526678; }}
+        .card {{
+            margin: 0 0 14px;
+            padding: 18px;
+            border: 1px solid #d7e1e9;
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(24, 43, 58, .07);
+        }}
+        h1 {{ margin: 0 0 6px; font-size: 1.55rem; }}
+        h2 {{ margin: 0 0 10px; font-size: 1.1rem; }}
+        p {{ margin: 8px 0; }}
+        .button {{
+            display: block;
+            width: 100%;
+            min-height: 48px;
+            margin: 12px 0;
+            padding: 12px 16px;
+            border-radius: 10px;
+            text-align: center;
+            text-decoration: none;
+            font-weight: 700;
+        }}
+        .button-download {{ border: 1px solid #9ccbe0; color: #075985; background: #e0f2fe; }}
+        .button-open {{ color: #fff; background: #176b4d; }}
+        .status {{ color: #166534; font-weight: 700; }}
+        .status-error {{ color: #a3212d; }}
+        .fingerprint {{
+            overflow-wrap: anywhere;
+            padding: 10px;
+            border: 1px dashed #bdcbd5;
+            border-radius: 8px;
+            color: #334155;
+            font-family: ui-monospace, monospace;
+            font-size: .85rem;
+        }}
+        .tabs {{ display: flex; gap: 8px; margin: 12px 0; }}
+        .tab-button {{
+            flex: 1;
+            min-height: 44px;
+            border: 1px solid #cbd5e1;
+            border-radius: 9px;
+            background: #f8fafc;
+            color: #334155;
+            font: inherit;
+        }}
+        .tab-button[aria-selected="true"] {{ border-color: #176b4d; background: #e4f4ed; }}
+        ol {{ padding-left: 22px; }}
+        li {{ margin: 0 0 9px; }}
+        [hidden] {{ display: none !important; }}
+        @media (prefers-reduced-motion: reduce) {{ *, *::before, *::after {{ scroll-behavior: auto !important; }} }}
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <p><strong>CRAS Desktop · Rede local</strong></p>
+            <h1>Acessar pelo celular</h1>
+            <p>Instale o certificado uma vez e abra o aplicativo seguro.</p>
+        </header>
+        <section class="card" aria-labelledby="certificate-title">
+            <h2 id="certificate-title">1. Instalar o certificado de segurança</h2>
+            <p>O certificado permite abrir o CRAS por uma conexão HTTPS confiável.</p>
+            <a class="button button-download" href="{ca_url}">Baixar certificado CA</a>
+            <p><strong>Impressão digital SHA-256:</strong></p>
+            <p class="fingerprint">{fingerprint}</p>
+            <div class="tabs" role="tablist" aria-label="Instruções para o celular">
+                <button class="tab-button" id="android-tab" type="button" role="tab"
+                    aria-controls="android-help" aria-selected="true">Android</button>
+                <button class="tab-button" id="ios-tab" type="button" role="tab"
+                    aria-controls="ios-help" aria-selected="false">iPhone (iOS)</button>
+            </div>
+            <div id="android-help" role="tabpanel" aria-labelledby="android-tab">
+                <ol>
+                    <li>Baixe o certificado pelo botão acima.</li>
+                    <li>Abra as Configurações do Android e procure <strong>Instalar certificado</strong>.</li>
+                    <li>Escolha <strong>Certificado CA</strong> e selecione o arquivo baixado.</li>
+                </ol>
+            </div>
+            <div id="ios-help" role="tabpanel" aria-labelledby="ios-tab" hidden>
+                <ol>
+                    <li>Abra esta página no <strong>Safari</strong> e baixe o certificado acima.</li>
+                    <li>Abra Ajustes, toque em <strong>Perfil Baixado</strong> e instale o perfil.</li>
+                    <li>Em Ajustes → Geral → Sobre → <strong>Ajustes de Confiança do Certificado</strong>,
+                        ative a confiança total para “CRAS Desktop Mobile CA”.</li>
+                    <li>Volte ao Safari e abra o CRAS. Se solicitado, permita o acesso à rede local.</li>
+                    <li>Para criar um atalho, use Compartilhar → <strong>Adicionar à Tela de Início</strong>.</li>
+                </ol>
+            </div>
+        </section>
+        <section class="card" aria-labelledby="access-title">
+            <h2 id="access-title">2. Abrir o CRAS Desktop</h2>
+            {access_section}
+        </section>
+    </main>
+    <script>
+        const tabs = [
+            [document.getElementById("android-tab"), document.getElementById("android-help")],
+            [document.getElementById("ios-tab"), document.getElementById("ios-help")]
+        ];
+        function selectMobileInstructions(index) {{
+            tabs.forEach(([button, panel], tabIndex) => {{
+                const active = tabIndex === index;
+                button.setAttribute("aria-selected", String(active));
+                panel.hidden = !active;
+            }});
+        }}
+        tabs.forEach(([button], index) =>
+            button.addEventListener("click", () => selectMobileInstructions(index)));
+        const isAppleMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+            || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+        if (isAppleMobile) selectMobileInstructions(1);
+    </script>
+</body>
+</html>"""
         body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -2327,6 +2266,7 @@ document.getElementById('tab-ios').classList.add('active');
                 return
             info = self.store.mobile_access_info()
             info["ready"] = self.store.ready
+            info["appVersion"] = app_version()
             self.send_json(200, info)
             return
         if path == "/api/mobile-snapshot":
@@ -2363,6 +2303,7 @@ document.getElementById('tab-ios').classList.add('active');
             info = {
                 "nodeId": self.store.node_id,
                 "hostname": central_hostname(self.store.node_id),
+                "appVersion": app_version(),
                 "port": PORT,
                 "addresses": addresses,
                 "revision": self.store.get_revision(),
@@ -2778,11 +2719,13 @@ document.getElementById('tab-ios').classList.add('active');
                         "snapshot": state["snapshot"],
                         "revision": state["revision"],
                         "actorRole": state["actorRole"],
+                        "appVersion": app_version(),
                     }
                     self.send_json(200, encode_mobile_payload(key, result))
                     return
                 if operation != "write":
                     raise ValueError("Operação móvel inválida.")
+                require_compatible_sync_version(payload.get("clientVersion"))
                 revision = self.store.save_local_snapshot(
                     payload.get("snapshot"),
                     payload.get("expectedRevision"),
@@ -2886,6 +2829,7 @@ document.getElementById('tab-ios').classList.add('active');
             salt, payload = decode_envelope(envelope, credential)
             if payload.get("userId") != user_id:
                 raise ValueError("A identidade do usuário não corresponde à solicitação.")
+            require_compatible_sync_version(payload.get("clientVersion"))
             result = self.store.sync(
                 payload.get("peerId"),
                 payload.get("requestId"),

@@ -12,6 +12,14 @@ servidor central, sem pedir para escolher entre a cópia local e a do servidor.
 Alterações em campos diferentes são combinadas; se o mesmo campo divergir,
 prevalece Admin, seguido da Recepção/Estagiário em atendimentos e PAA, do
 Técnico no Atendimento Técnico ou da Cadastradora na fila do Cadastro Único.
+Para evitar perda de campos que uma versão antiga desconhece, todos os
+dispositivos precisam estar na mesma versão; clientes sem versão compatível
+são recusados com uma mensagem para atualizar.
+Se a sincronização automática não localizar o servidor central ou faltar a
+credencial individual do usuário, o aplicativo agora informa o motivo no
+status de sincronização e em **Configurações → Servidor central**. Confirme
+também que os computadores estão na mesma rede local e que o servidor central
+está ativo.
 
 Cada usuário cria uma senha individual no primeiro acesso (mínimo de 8
 caracteres); o sistema guarda apenas um hash com salt e sincroniza a credencial
@@ -84,13 +92,16 @@ os arquivos em
 
 Um Admin configura um código móvel de pelo menos 12 caracteres em
 **Usuários → Acesso pelo celular**. Na primeira conexão, acesse um dos endereços
-HTTPS `.local` exibidos quando o servidor central está ativo, baixe o
-certificado CA, confira a impressão digital e instale-o como confiável no
-celular. Abra o endereço HTTPS e adicione o CRAS à tela
-inicial pelo navegador (PWA). Após carregar e autenticar uma vez, a aplicação e
-os dados ficam disponíveis offline naquele dispositivo; alterações feitas
-offline são sincronizadas quando o servidor volta. No iOS, use **Adicionar à
-Tela de Início** no Safari.
+HTTPS `.local` exibidos quando o servidor central está ativo. Primeiro, escaneie
+o QR do certificado CA, confira a impressão digital e instale-o como confiável.
+Depois, escaneie o QR do CRAS para abrir diretamente o aplicativo HTTPS. No
+iPhone, faça os dois passos no Safari; após instalar o perfil em Ajustes, ative
+a confiança total em Ajustes → Geral → Sobre → Ajustes de Confiança do
+Certificado. Permita o acesso à rede local se o iOS solicitar. Para instalar o
+atalho, use Compartilhar → **Adicionar à Tela de Início**. Após carregar e
+autenticar uma vez, a aplicação e os dados ficam disponíveis offline naquele
+dispositivo; alterações feitas offline são sincronizadas quando o servidor
+volta.
 
 Celulares precisam de Wi‑Fi ou outra conexão para a primeira instalação e para
 sincronizar; sem qualquer rede, só podem usar a cópia offline previamente

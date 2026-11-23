@@ -33,6 +33,7 @@ from main import (
     launch_update_helper,
     lan_addresses,
     latest_release,
+    require_compatible_sync_version,
     verify_update_checksum,
     validate_chat_message,
     user_authentication_proof,
@@ -48,6 +49,15 @@ class VersionTests(unittest.TestCase):
     def test_rejects_non_semver_release_tags(self):
         with self.assertRaises(ValueError):
             version_tuple("latest")
+
+    def test_sync_versions_must_match_exactly(self):
+        with patch("main.app_version", return_value="2.0.14"):
+            require_compatible_sync_version("v2.0.14")
+            for client_version in (None, "2.0.13", "latest"):
+                with self.subTest(client_version=client_version), self.assertRaisesRegex(
+                    ValueError, "Atualize todos os dispositivos"
+                ):
+                    require_compatible_sync_version(client_version)
 
     def test_verifies_update_checksum(self):
         executable = b"release binary"
@@ -941,7 +951,7 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
-    def request(self, user_id, key):
+    def request(self, user_id, key, client_version=None, include_client_version=True):
         payload = {
             "peerId": "workstation-1",
             "requestId": "sync-request-1",
@@ -949,6 +959,8 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
             "resolutions": {},
             "userId": user_id,
         }
+        if include_client_version:
+            payload["clientVersion"] = client_version or main.app_version()
         envelope = encode_envelope(b"0123456789abcdef", key, payload)
         envelope["userId"] = user_id
         body = json.dumps(envelope).encode("utf-8")
@@ -996,6 +1008,24 @@ class CentralSyncAuthenticationTests(unittest.TestCase):
 
         self.assertEqual(status, 401)
         self.assertIn("senha individual", response["error"].lower())
+
+    def test_sync_rejects_a_different_or_missing_client_version_without_writing(self):
+        initial_revision = self.store.get_revision()
+        for client_version, include_client_version in (
+            ("2.0.13", True),
+            (None, False),
+        ):
+            with self.subTest(client_version=client_version):
+                with patch("main.logging.exception"):
+                    status, response = self.request(
+                        self.user_id,
+                        self.credential["hash"],
+                        client_version,
+                        include_client_version,
+                    )
+                self.assertEqual(status, 400)
+                self.assertIn("versões incompatíveis", response["error"].lower())
+                self.assertEqual(self.store.get_revision(), initial_revision)
 
     def test_existing_server_password_can_restore_a_device_credential(self):
         status, response = self.authentication_request(
@@ -1240,6 +1270,55 @@ class LocalAppRequestTests(unittest.TestCase):
         self.assertIn(b"cras-mobile-shell-v1", handler.wfile.getvalue())
         handler.send_header.assert_any_call("Content-Type", "application/javascript; charset=utf-8")
         handler.send_header.assert_any_call("Service-Worker-Allowed", "/")
+
+    def test_mobile_portal_serves_structured_html_and_direct_https_link(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.headers = {"Host": "cras-123456789abc.local:8765"}
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.mobile_ca_fingerprint = "ab:cd"
+        handler.mobile_https_ready = True
+        handler.wfile = io.BytesIO()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        handler.serve_mobile_portal()
+
+        page = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("<!doctype html>", page.lower())
+        self.assertIn("<style>", page)
+        self.assertIn('href="http://cras-123456789abc.local:8765/api/mobile-ca"', page)
+        self.assertIn('href="https://cras-123456789abc.local:8766/"', page)
+        self.assertIn("Ajustes de Confiança do Certificado", page)
+        self.assertIn("Adicionar à Tela de Início", page)
+        self.assertNotIn(":root {", page.split("<body>", 1)[1])
+
+    def test_mobile_portal_does_not_offer_inactive_secure_server(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.headers = {"Host": "cras-123456789abc.local:8765"}
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.mobile_ca_fingerprint = ""
+        handler.mobile_https_ready = False
+        handler.wfile = io.BytesIO()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        handler.serve_mobile_portal()
+
+        page = handler.wfile.getvalue().decode("utf-8")
+        self.assertIn("O acesso HTTPS pelo celular não está ativo", page)
+        self.assertNotIn('href="https://cras-123456789abc.local:8766/"', page)
+
+    def test_mobile_portal_rejects_malformed_host_header(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.headers = {"Host": 'evil.local"><script>'}
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.send_error = Mock()
+
+        handler.serve_mobile_portal()
+
+        handler.send_error.assert_called_once_with(400, "O endereço local do celular é inválido.")
 
 
 if __name__ == "__main__":
