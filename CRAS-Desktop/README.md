@@ -119,9 +119,11 @@ volta.
 Celulares precisam de Wi‑Fi ou outra conexão para a primeira instalação e para
 sincronizar; sem qualquer rede, só podem usar a cópia offline previamente
 carregada. Não use Wi‑Fi público nem exponha as portas 8765 e 8766 à Internet.
-Se o endereço não abrir, conecte os dispositivos à mesma rede privada e permita
-o CRAS Desktop nas regras de rede privada do Firewall do Windows. Instalar a CA
-valida o certificado, mas não libera a conexão no firewall.
+Se aparecer “servidor indisponível” antes de enviar o código, ele ainda não foi
+validado: confirme que o CRAS Desktop está aberto, conecte os dispositivos à
+mesma rede privada, leia o QR atualizado e permita o CRAS Desktop nas regras de
+rede privada do Firewall do Windows. Instalar a CA valida o certificado, mas
+não libera a conexão no firewall.
 
 ## Chat e backups
 
