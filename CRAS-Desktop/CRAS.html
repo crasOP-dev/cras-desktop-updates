@@ -1215,6 +1215,26 @@
             display: none !important;
         }
 
+        html.mobile-client body.mobile-chat-open {
+            overflow: hidden;
+        }
+
+        html.mobile-client .chat-popup {
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            height: 100dvh;
+            max-height: 100dvh;
+            border: 0;
+            border-radius: 0;
+            z-index: 2000;
+            padding-bottom: env(safe-area-inset-bottom, 0px);
+        }
+
+        html.mobile-client .chat-popup-header {
+            padding-top: max(12px, env(safe-area-inset-top, 0px));
+        }
+
         .chat-popup-header {
             display: flex;
             flex: 0 0 auto;
@@ -5863,7 +5883,7 @@
         <form class="access-gate-card mobile-access-card" id="mobile-access-form">
             <p class="eyebrow">Acesso pela rede local</p>
             <h1>CRAS Ouro Preto</h1>
-            <p>Digite o código móvel configurado pelo Admin. No Android ou iPhone, use o menu do navegador para adicionar o CRAS à tela inicial; depois do primeiro acesso, será possível abrir a cópia local sem conexão.</p>
+            <p>Digite o código móvel uma vez neste celular. O acesso será lembrado neste navegador; mantenha o aparelho bloqueado e não compartilhe este perfil do navegador.</p>
             <label class="field-label" for="mobile-access-pin">Código de acesso móvel</label>
             <input class="text-input" id="mobile-access-pin" type="password" minlength="12" maxlength="128"
                 autocomplete="current-password" required>
@@ -6122,7 +6142,7 @@
                             <div class="settings-section-card">
                                 <div class="settings-card-header">
                                     <span class="settings-card-title">🔄 Atualizações</span>
-                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.14</span>
+                                    <span id="current-app-version-badge" style="font-size: 12px; font-weight: 600; color: var(--muted);">v2.0.15</span>
                                 </div>
                                 <button class="button-secondary" id="check-updates-btn" type="button" style="width: 100%;">
                                     🔍 Verificar Atualizações
@@ -6963,6 +6983,7 @@
             const STORAGE_REMEMBER_USER_SESSION = "cras-ouro-preto-lembrar-sessao-v1";
             const STORAGE_MOBILE_ACCESS_INFO = "cras-mobile-access-info-v1";
             const STORAGE_MOBILE_ACCESS_PROOF = "cras-mobile-access-proof-v1";
+            const STORAGE_MOBILE_ACCESS_KEY = "cras-mobile-access-key-v1";
             const STORAGE_MOBILE_NODE_REVISION = "cras-mobile-node-revision-v1";
             const STORAGE_MOBILE_NODE_BASE_SNAPSHOT = "cras-mobile-node-base-snapshot-v1";
             const STORAGE_PENDING_CHAT_MESSAGES = "cras-pending-central-chat-messages-v1";
@@ -7445,7 +7466,7 @@
             let mobileServerVersion = "";
             let mobileOfflineMode = false;
             let mobilePendingSync = false;
-            let mobileOfflineCredentials = { info: null, proof: null };
+            let mobileOfflineCredentials = { info: null, proof: null, key: null };
             let mobileNodeRevision = 0;
             let mobileNodeBaseSnapshot = null;
             let mobileRefreshInProgress = false;
@@ -7481,7 +7502,7 @@
                 if (syncKeyInput) syncKeyInput.value = preferences.syncToken || "";
                 document.getElementById("paa-google-sheet-url").value = preferences.googleSheetEndpoint || "";
                 paaTab.hidden = !preferences.paaEnabled;
-                chatToggle.hidden = mobileClient || hostedAppsScript;
+                chatToggle.hidden = hostedAppsScript;
                 if (chatToggle.hidden) setChatPopupOpen(false);
                 if (!preferences.paaEnabled && !paaPanel.hidden) selectMainTab(hostedAppsScript ? "queues" : "attendance");
                 applyActiveUserLayout();
@@ -7976,7 +7997,9 @@
                 if (!peer?.userId || !peer.credential?.salt || !peer.credential?.hash) {
                     throw new Error("O usuário precisa cadastrar uma senha individual antes de sincronizar.");
                 }
-                const endpoint = getSyncBridgeUrl(peer.endpoint);
+                const endpoint = mobileClient
+                    ? location.origin
+                    : getSyncBridgeUrl(peer.endpoint);
                 const response = await fetchPeer(`${endpoint}/api/user/register`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -8055,18 +8078,30 @@
                         mobileForm.addEventListener("submit", async event => {
                             event.preventDefault();
                             const canUseServer = info?.enabled && info.ready;
-                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof)
+                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled
+                                && (mobileOfflineCredentials.proof || mobileOfflineCredentials.key))
                                 && info?.enabled !== false;
                             if (!canUseServer && !canUseOffline) return;
                             mobileSubmit.disabled = true;
-                            mobileStatus.textContent = "Validando o código móvel…";
+                            mobileStatus.textContent = mobileOfflineCredentials.key
+                                ? "Validando o acesso salvo neste celular…"
+                                : "Validando o código móvel…";
                             try {
                                 let state = null;
                                 if (canUseServer) {
-                                    mobileAccessKey = await deriveMobileAccessKey(pinInput.value, info);
+                                    mobileAccessKey = mobileOfflineCredentials.key
+                                        || await deriveMobileAccessKey(pinInput.value, info);
                                     try {
                                         state = await mobileRequest({ operation: "read" });
                                     } catch (error) {
+                                        if ((error.status === 401 || error.status === 403)
+                                            && mobileOfflineCredentials.key) {
+                                            await clearMobileOfflineCredentials();
+                                            mobileAccessKey = null;
+                                            mobileStatus.textContent =
+                                                "O código móvel mudou ou foi desativado. Informe o código atual para este celular.";
+                                            throw error;
+                                        }
                                         if (error.status === 401 || error.status === 403 || !canUseOffline) throw error;
                                         mobileStatus.textContent = "Servidor indisponível. Abrindo a cópia offline…";
                                     }
@@ -8094,20 +8129,21 @@
                                     await rememberMobileServerState(state.snapshot, state.revision);
                                     mobileOfflineMode = false;
                                     try {
-                                        const proof = await saveMobileOfflineCredentials(info, mobileAccessKey);
-                                        mobileOfflineCredentials = { info, proof };
+                                        mobileOfflineCredentials = await saveMobileOfflineCredentials(info, mobileAccessKey);
                                     } catch (error) {
                                         console.error("Não foi possível preparar o acesso offline neste celular.", error);
                                         void clearMobileOfflineCredentials();
-                                        offlineCredentialError = error.message;
+                                        offlineCredentialError =
+                                            "Não foi possível salvar o acesso neste navegador. O código será solicitado novamente na próxima abertura.";
                                     }
                                     mobilePendingSync = !syncValuesEqual(mergedSnapshot, state.snapshot);
                                 } else {
-                                    mobileAccessKey = await verifyMobileOfflineCredentials(
-                                        pinInput.value,
-                                        mobileOfflineCredentials.info,
-                                        mobileOfflineCredentials.proof
-                                    );
+                                    mobileAccessKey = mobileOfflineCredentials.key
+                                        || await verifyMobileOfflineCredentials(
+                                            pinInput.value,
+                                            mobileOfflineCredentials.info,
+                                            mobileOfflineCredentials.proof
+                                        );
                                     mobileOfflineMode = true;
                                     const localSnapshot = createSyncSnapshot();
                                     if (!Array.isArray(localSnapshot.appointments)
@@ -8133,7 +8169,8 @@
                                 mobileStatus.textContent = error.message || "Não foi possível abrir o sistema.";
                             } finally {
                                 mobileSubmit.disabled = !(info?.enabled && info.ready)
-                                    && !(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof
+                                    && !(mobileOfflineCredentials.info?.enabled
+                                        && (mobileOfflineCredentials.proof || mobileOfflineCredentials.key)
                                         && info?.enabled !== false);
                                 pinInput.value = "";
                                 if (!gate.hidden) pinInput.focus();
@@ -8158,7 +8195,8 @@
                             if (info?.enabled === false) {
                                 await clearMobileOfflineCredentials();
                             }
-                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled && mobileOfflineCredentials.proof)
+                            const canUseOffline = Boolean(mobileOfflineCredentials.info?.enabled
+                                && (mobileOfflineCredentials.proof || mobileOfflineCredentials.key))
                                 && info?.enabled !== false;
                             mobileSubmit.disabled = !(info?.enabled && info.ready) && !canUseOffline;
                             mobileStatus.textContent = info?.enabled === false
@@ -8171,7 +8209,12 @@
                             if (window.CRASServiceWorkerError) {
                                 mobileStatus.textContent += " O cache offline do aplicativo não foi instalado.";
                             }
-                            pinInput.focus();
+                            if (mobileOfflineCredentials.key) {
+                                mobileStatus.textContent = "Acesso reconhecido neste celular; conectando…";
+                                mobileForm.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+                            } else {
+                                pinInput.focus();
+                            }
                         }).catch(error => {
                             mobileStatus.textContent = `Não foi possível carregar o acesso móvel: ${error.message}`;
                         });
@@ -8408,19 +8451,22 @@
                 );
                 await database.settings.bulkPut([
                     { key: STORAGE_MOBILE_ACCESS_INFO, value: info },
-                    { key: STORAGE_MOBILE_ACCESS_PROOF, value: proof }
+                    { key: STORAGE_MOBILE_ACCESS_PROOF, value: proof },
+                    { key: STORAGE_MOBILE_ACCESS_KEY, value: key }
                 ]);
-                return proof;
+                return { info, proof, key };
             }
 
             async function readMobileOfflineCredentials() {
-                const [infoEntry, proofEntry] = await Promise.all([
+                const [infoEntry, proofEntry, keyEntry] = await Promise.all([
                     database.settings.get(STORAGE_MOBILE_ACCESS_INFO),
-                    database.settings.get(STORAGE_MOBILE_ACCESS_PROOF)
+                    database.settings.get(STORAGE_MOBILE_ACCESS_PROOF),
+                    database.settings.get(STORAGE_MOBILE_ACCESS_KEY)
                 ]);
                 return {
                     info: infoEntry?.value || null,
-                    proof: proofEntry?.value || null
+                    proof: proofEntry?.value || null,
+                    key: keyEntry?.value || null
                 };
             }
 
@@ -8459,9 +8505,10 @@
                 try {
                     await database.settings.bulkDelete([
                         STORAGE_MOBILE_ACCESS_INFO,
-                        STORAGE_MOBILE_ACCESS_PROOF
+                        STORAGE_MOBILE_ACCESS_PROOF,
+                        STORAGE_MOBILE_ACCESS_KEY
                     ]);
-                    mobileOfflineCredentials = { info: null, proof: null };
+                    mobileOfflineCredentials = { info: null, proof: null, key: null };
                 } catch (error) {
                     console.error("Não foi possível remover as credenciais móveis locais.", error);
                     showSyncStatus("Não foi possível remover as credenciais móveis deste dispositivo.", 0);
@@ -8899,7 +8946,12 @@
                 mobileRefreshInProgress = true;
                 try {
                     const state = await mobileRequest({ operation: "read" });
-                    if (!Number.isSafeInteger(state.revision) || state.revision <= mobileNodeRevision) return;
+                    if (!Number.isSafeInteger(state.revision)) {
+                        throw new Error("O servidor retornou uma revisão móvel inválida.");
+                    }
+                    const snapshotChanged = !mobileNodeBaseSnapshot
+                        || !syncValuesEqual(state.snapshot, mobileNodeBaseSnapshot);
+                    if (state.revision <= mobileNodeRevision && !snapshotChanged) return;
                     const currentSnapshot = createSyncSnapshot();
                     const merged = mergePeerSnapshots(
                         mobileNodeBaseSnapshot,
@@ -8908,6 +8960,14 @@
                         activeUser?.role,
                         state.actorRole
                     );
+                    const remoteUsers = state.snapshot.settings?.[STORAGE_USERS];
+                    const baseUsers = mobileNodeBaseSnapshot?.settings?.[STORAGE_USERS];
+                    if (Array.isArray(remoteUsers)
+                        && (!Array.isArray(baseUsers)
+                            || syncValuesEqual(currentSnapshot.settings[STORAGE_USERS], baseUsers)
+                                && !syncValuesEqual(remoteUsers, baseUsers))) {
+                        merged.settings[STORAGE_USERS] = remoteUsers;
+                    }
                     await applySyncedSnapshot(
                         merged,
                         { appointments: [], paaRecords: [], settings: {} },
@@ -11510,6 +11570,28 @@
                     `${records.length} ${records.length === 1 ? "atendimento" : "atendimentos"}${records.length !== totalServices ? ` de ${totalServices}` : ""}`;
             }
 
+            async function loadMobileChatAttachment(image, message) {
+                try {
+                    const result = await syncChatRequest(mobileChatPeer(), {
+                        operation: "attachment",
+                        messageId: message.id,
+                        recipientId: chatConversationRecipientId() || null
+                    });
+                    if (!result.attachment
+                        || !CHAT_ATTACHMENT_TYPES.has(result.attachment.type)
+                        || typeof result.attachment.data !== "string") {
+                        throw new Error("O servidor retornou uma imagem inválida.");
+                    }
+                    if (image.isConnected) {
+                        image.src = `data:${result.attachment.type};base64,${result.attachment.data}`;
+                    }
+                } catch (error) {
+                    if (image.isConnected) {
+                        image.alt = `Não foi possível carregar ${message.attachment.name || "a imagem"}: ${error.message}`;
+                    }
+                }
+            }
+
             function renderChatMessages(scrollToBottom = false) {
                 const container = chatMessagesElement;
                 if (!chatMessages.length) {
@@ -11559,7 +11641,11 @@
                             userId: activeUser?.id || ""
                         });
                         if (chatConversationRecipientId()) query.set("recipientId", chatConversationRecipientId());
-                        image.src = `/api/chat/attachment?${query.toString()}`;
+                        if (mobileClient) {
+                            void loadMobileChatAttachment(image, message);
+                        } else {
+                            image.src = `/api/chat/attachment?${query.toString()}`;
+                        }
                         article.appendChild(image);
                     }
                     container.appendChild(article);
@@ -11675,7 +11761,7 @@
             }
 
             async function loadChatMessages(before = "", reset = false) {
-                if (!window.CRASDesktop) return;
+                if (!window.CRASDesktop && !mobileClient) return;
                 if (chatLoadInProgress) {
                     if (reset) chatReloadRequested = true;
                     return;
@@ -11696,35 +11782,48 @@
                 const wasNearBottom = chatMessagesElement.scrollHeight
                     - chatMessagesElement.scrollTop - chatMessagesElement.clientHeight < 60;
                 try {
-                    const query = new URLSearchParams({
-                        limit: String(CHAT_PAGE_SIZE),
-                        userId
-                    });
-                    if (recipientId) query.set("recipientId", recipientId);
-                    if (before) query.set("before", before);
-                    const response = await fetchPeer(
-                        `/api/chat/messages?${query.toString()}`,
-                        { cache: "no-store" },
-                        5000
-                    );
-                    const result = await response.json();
-                    if (!response.ok || !Array.isArray(result.messages)) {
-                        throw new Error(result.error || "O servidor retornou mensagens inválidas.");
+                    let result;
+                    if (mobileClient) {
+                        result = await syncChatRequest(mobileChatPeer(), {
+                            operation: "list",
+                            limit: CHAT_PAGE_SIZE,
+                            before,
+                            recipientId: recipientId || null
+                        });
+                    } else {
+                        const query = new URLSearchParams({
+                            limit: String(CHAT_PAGE_SIZE),
+                            userId
+                        });
+                        if (recipientId) query.set("recipientId", recipientId);
+                        if (before) query.set("before", before);
+                        const response = await fetchPeer(
+                            `/api/chat/messages?${query.toString()}`,
+                            { cache: "no-store" },
+                            5000
+                        );
+                        result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.error || "Não foi possível carregar as mensagens.");
+                        }
+                    }
+                    if (!Array.isArray(result.messages)) {
+                        throw new Error("O servidor retornou mensagens inválidas.");
                     }
                     const byId = new Map((reset ? [] : chatMessages).map(message => [message.id, message]));
                     result.messages.forEach(message => byId.set(message.id, message));
                     let server = null;
-                    let serverStatus = desktopNodeInfo?.centralServer
+                    let serverStatus = mobileClient || desktopNodeInfo?.centralServer
                         ? "Chat conectado ao servidor central."
                         : "Mensagens locais; procurando o servidor central automaticamente.";
-                    if (!desktopNodeInfo?.centralServer) {
+                    if (window.CRASDesktop && !desktopNodeInfo?.centralServer) {
                         try {
                             server = (await discoverCentralServer())[0] || null;
                         } catch (error) {
                             serverStatus = `Chat local; descoberta indisponível: ${error.message}`;
                         }
                     }
-                    if (server) {
+                    if (window.CRASDesktop && server) {
                         try {
                             const pendingMessages = await readPendingChatMessages();
                             for (const message of pendingMessages.filter(item => item.authorId === activeUser.id)) {
@@ -11876,7 +11975,9 @@
             }
 
             async function syncChatRequest(peer, payload) {
-                const endpoint = getSyncBridgeUrl(peer.endpoint);
+                const endpoint = mobileClient
+                    ? location.origin
+                    : getSyncBridgeUrl(peer.endpoint);
                 if (!endpoint || !peer.userId || !peer.credential?.hash) {
                     throw new Error("A conversa não possui uma credencial individual válida.");
                 }
@@ -11910,6 +12011,20 @@
                     base64ToBytes(resultEnvelope.ciphertext)
                 );
                 return JSON.parse(new TextDecoder().decode(result));
+            }
+
+            function mobileChatPeer() {
+                const user = users.find(item => item.id === activeUser?.id);
+                if (!user?.passwordCredential?.salt || !user.passwordCredential.hash) {
+                    throw new Error("Entre com sua senha individual para acessar o chat.");
+                }
+                return {
+                    endpoint: location.origin,
+                    userId: user.id,
+                    name: user.name,
+                    role: user.role,
+                    credential: user.passwordCredential
+                };
             }
 
             async function syncChatMessageWithServer(server, message) {
@@ -11958,52 +12073,81 @@
                     ...(chatAttachment ? { attachment: chatAttachment } : {})
                 };
                 try {
-                    const response = await fetchPeer("/api/chat/messages", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify(message)
-                    });
-                    const result = await response.json();
-                    if (!response.ok || !result.message) {
-                        throw new Error(result.error || "Não foi possível salvar a mensagem neste computador.");
+                    let storedMessage;
+                    if (mobileClient) {
+                        const result = await syncChatRequest(mobileChatPeer(), {
+                            operation: "send",
+                            message
+                        });
+                        if (result.messageId !== message.id) {
+                            throw new Error("O servidor central não confirmou esta mensagem.");
+                        }
+                        storedMessage = { ...message };
+                        if (storedMessage.attachment) {
+                            storedMessage.attachment = {
+                                name: storedMessage.attachment.name,
+                                type: storedMessage.attachment.type
+                            };
+                        }
+                    } else {
+                        const response = await fetchPeer("/api/chat/messages", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(message)
+                        });
+                        const result = await response.json();
+                        if (!response.ok) {
+                            throw new Error(result.error || "Não foi possível salvar a mensagem neste computador.");
+                        }
+                        storedMessage = result.message;
                     }
-                    chatMessages.push(result.message);
+                    if (!storedMessage) {
+                        throw new Error("O servidor não confirmou o envio da mensagem.");
+                    }
+                    chatMessages.push(storedMessage);
                     chatMessages = chatMessages.slice(-300);
                     renderChatMessages(true);
                     textInput.value = "";
                     clearChatPerson();
                     clearChatAttachment();
 
-                    let server = null;
-                    if (!desktopNodeInfo?.centralServer) {
-                        try {
-                            server = (await discoverCentralServer())[0] || null;
-                        } catch (error) {
-                            console.warn("Não foi possível localizar o servidor central para o chat.", error);
-                        }
-                    }
-                    const results = await Promise.allSettled(
-                        server ? [syncChatMessageWithServer(server, result.message)] : []
-                    );
-                    const failures = results.filter(item => item.status === "rejected");
-                    if (desktopNodeInfo?.centralServer) {
+                    if (mobileClient) {
                         document.getElementById("chat-connection-status").textContent =
-                            "Mensagem salva no servidor central.";
-                    } else if (failures.length || !server) {
-                        try {
-                            await savePendingChatMessage(result.message);
-                            document.getElementById("chat-connection-status").textContent = server
-                                ? "Mensagem salva neste PC; envio ao servidor central pendente."
-                                : "Mensagem salva neste PC; será enviada quando o servidor central for encontrado.";
-                        } catch (error) {
-                            console.error("Não foi possível registrar a mensagem na fila de reenvio.", error);
-                            document.getElementById("chat-connection-status").textContent =
-                                `Mensagem salva neste PC, mas não foi possível preparar o reenvio: ${error.message}`;
-                        }
+                            "Mensagem enviada ao servidor central.";
                     } else {
-                        document.getElementById("chat-connection-status").textContent = "Mensagem enviada ao servidor central.";
+                        let server = null;
+                        if (!desktopNodeInfo?.centralServer) {
+                            try {
+                                server = (await discoverCentralServer())[0] || null;
+                            } catch (error) {
+                                console.warn("Não foi possível localizar o servidor central para o chat.", error);
+                            }
+                        }
+                        const results = await Promise.allSettled(
+                            server ? [syncChatMessageWithServer(server, storedMessage)] : []
+                        );
+                        const failures = results.filter(item => item.status === "rejected");
+                        if (desktopNodeInfo?.centralServer) {
+                            document.getElementById("chat-connection-status").textContent =
+                                "Mensagem salva no servidor central.";
+                        } else if (failures.length || !server) {
+                            try {
+                                await savePendingChatMessage(storedMessage);
+                                document.getElementById("chat-connection-status").textContent = server
+                                    ? "Mensagem salva neste PC; envio ao servidor central pendente."
+                                    : "Mensagem salva neste PC; será enviada quando o servidor central for encontrado.";
+                            } catch (error) {
+                                console.error("Não foi possível registrar a mensagem na fila de reenvio.", error);
+                                document.getElementById("chat-connection-status").textContent =
+                                    `Mensagem salva neste PC, mas não foi possível preparar o reenvio: ${error.message}`;
+                            }
+                        } else {
+                            document.getElementById("chat-connection-status").textContent =
+                                "Mensagem enviada ao servidor central.";
+                        }
+                        failures.forEach(failure =>
+                            console.error("Falha ao enviar mensagem ao servidor central.", failure.reason));
                     }
-                    failures.forEach(failure => console.error("Falha ao enviar mensagem ao servidor central.", failure.reason));
                 } catch (error) {
                     console.error("Falha ao salvar a mensagem do chat.", error);
                     document.getElementById("chat-connection-status").textContent =
@@ -12016,7 +12160,7 @@
 
             function startChatServices() {
                 renderChatRecipients();
-                if (!window.CRASDesktop) return;
+                if (!window.CRASDesktop && !mobileClient) return;
                 void loadChatMessages("", true);
                 if (chatPollTimer !== null) window.clearInterval(chatPollTimer);
                 chatPollTimer = window.setInterval(() => {
@@ -12027,6 +12171,7 @@
             function setChatPopupOpen(isOpen) {
                 const open = Boolean(isOpen) && !chatToggle.hidden;
                 chatPanel.hidden = !open;
+                document.body.classList.toggle("mobile-chat-open", open && mobileClient);
                 chatToggle.setAttribute("aria-expanded", String(open));
                 chatToggle.setAttribute("aria-label", open ? "Fechar chat" : "Abrir chat");
                 if (open) {

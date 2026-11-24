@@ -57,6 +57,16 @@ a fila do Atendimento Técnico. O Estagiário pode adquirir uma pasta sem inicia
 o atendimento; a fila mostra quem a retirou e quando. Ele pode devolver a
 própria pasta à fila.
 
+O chat também está disponível no celular em tela cheia, com avisos gerais,
+conversas individuais, histórico paginado, emojis, imagens/GIFs e vínculo de
+pessoa à recomendação. As mensagens são consultadas e enviadas pelo servidor
+central usando a conexão móvel HTTPS.
+Após a primeira validação, o código móvel não é salvo: uma chave criptográfica
+não exportável é guardada no armazenamento local do navegador para reconhecer
+aquele celular nas próximas aberturas. Bloqueie o aparelho e não compartilhe o
+perfil do navegador. Limpar os dados do navegador ou trocar/desativar o código
+exigirá uma nova validação; o login individual do usuário continua separado.
+
 ## Servidor central e operação offline
 
 Execute o CRAS Desktop no notebook que será o servidor central, entre como

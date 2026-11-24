@@ -773,6 +773,79 @@ class MobileAccessTests(unittest.TestCase):
             self.assertTrue(server_ski.digest)
 
 
+class MobileChatOriginTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = PeerStore(Path(self.temp_dir.name) / "mobile-chat-origin.sqlite3")
+        self.user = {
+            "id": "mobile-user",
+            "name": "Técnica",
+            "color": "#123456",
+            "role": "assistant",
+        }
+        self.store.save_local_snapshot(
+            {
+                "appointments": [],
+                "paaRecords": [],
+                "settings": {"cras-ouro-preto-usuarios-v1": [self.user]},
+            },
+            0,
+            "admin",
+        )
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def register_request(self, host, origin):
+        body = json.dumps({
+            "userId": self.user["id"],
+            "name": self.user["name"],
+            "role": self.user["role"],
+            "credential": {
+                "salt": base64.b64encode(b"0123456789abcdef").decode("ascii"),
+                "hash": "a" * 64,
+            },
+        }).encode("utf-8")
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/user/register"
+        handler.headers = {
+            "Content-Length": str(len(body)),
+            "Host": host,
+            "Origin": origin,
+        }
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.rfile = io.BytesIO(body)
+        handler.store = self.store
+        handler.is_secure_mobile_request = Mock(return_value=True)
+        handler.send_json = Mock()
+        handler.send_error = Mock()
+
+        handler.do_POST()
+
+        if handler.send_json.called:
+            return handler.send_json.call_args.args[:2]
+        return handler.send_error.call_args.args[0], {}
+
+    def test_mobile_same_origin_can_register_user_credential_for_chat(self):
+        status, result = self.register_request(
+            "cras-central.local:8766",
+            "https://cras-central.local:8766",
+        )
+
+        self.assertEqual(status, 200)
+        self.assertEqual(result["registered"], True)
+        self.assertEqual(self.store.get_user_credential(self.user["id"]), "a" * 64)
+
+    def test_mobile_user_registration_rejects_an_origin_other_than_request_host(self):
+        status, _ = self.register_request(
+            "cras-central.local:8766",
+            "https://attacker.local:8766",
+        )
+
+        self.assertEqual(status, 403)
+        self.assertIsNone(self.store.get_user_credential(self.user["id"]))
+
+
 class CentralChatSyncTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()

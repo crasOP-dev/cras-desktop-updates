@@ -2004,7 +2004,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
     def add_cors_headers(self, origin: str | None) -> None:
-        if origin and self.is_local_origin(origin):
+        if origin and self.is_allowed_local_origin(origin):
             self.send_header("Access-Control-Allow-Origin", origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
@@ -2016,18 +2016,40 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
             f"http://127.0.0.1:{PORT}",
             f"http://localhost:{PORT}",
         }
+
+    def is_allowed_local_origin(self, origin: str) -> bool:
+        if self.is_local_origin(origin):
+            return True
+        try:
+            parsed_origin = urlsplit(origin)
+            parsed_host = urlsplit(f"//{self.headers.get('Host', '')}")
+            return (
+                parsed_origin.scheme == "https"
+                and parsed_origin.hostname is not None
+                and parsed_origin.hostname == parsed_host.hostname
+                and parsed_origin.port == MOBILE_PORT
+                and parsed_host.port in (None, MOBILE_PORT)
+                and parsed_origin.path in ("", "/")
+                and not parsed_origin.username
+                and not parsed_origin.password
+                and not parsed_origin.query
+                and not parsed_origin.fragment
+                and self.is_secure_mobile_request()
+            )
+        except ValueError:
+            return False
     def is_local_app_request(self) -> bool:
         origin = self.headers.get("Origin")
         return (
             self.is_local_loopback_request()
             and bool(origin)
-            and self.is_local_origin(origin)
+            and self.is_allowed_local_origin(origin)
         )
     def is_local_app_read_request(self) -> bool:
         origin = self.headers.get("Origin")
         return (
             self.is_local_loopback_request()
-            and (not origin or self.is_local_origin(origin))
+            and (not origin or self.is_allowed_local_origin(origin))
         )
     def is_local_loopback_request(self) -> bool:
         return self.client_address[0] in ("127.0.0.1", "::1")
@@ -2235,7 +2257,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 self.mobile_failures.pop(address, None)
     def do_OPTIONS(self) -> None:
         origin = self.headers.get("Origin")
-        if not origin or not self.is_local_origin(origin):
+        if not origin or not self.is_allowed_local_origin(origin):
             self.send_error(403)
             return
         self.send_response(204)
@@ -2483,7 +2505,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 self.send_error(403)
                 return
             origin = self.headers.get("Origin")
-            if origin and not self.is_local_origin(origin):
+            if origin and not self.is_allowed_local_origin(origin):
                 self.send_error(403)
                 return
             try:
@@ -2511,7 +2533,7 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
                 self.send_error(403)
                 return
             origin = self.headers.get("Origin")
-            if origin and not self.is_local_origin(origin):
+            if origin and not self.is_allowed_local_origin(origin):
                 self.send_error(403)
                 return
             address = self.client_address[0]
