@@ -102,9 +102,12 @@ os arquivos em
 
 Um Admin configura um código móvel de pelo menos 12 caracteres em
 **Usuários → Acesso pelo celular**. Na primeira conexão, acesse um dos endereços
-HTTPS `.local` exibidos quando o servidor central está ativo. Primeiro, escaneie
-o QR do certificado CA, confira a impressão digital e instale-o como confiável.
-Depois, escaneie o QR do CRAS para abrir diretamente o aplicativo HTTPS. No
+HTTPS exibidos quando o servidor central está ativo. Os QR codes usam o endereço
+IPv4 local atual do servidor para evitar falhas de resolução do nome `.local`
+em alguns celulares; se a rede do computador mudar, leia o QR atualizado.
+Primeiro, escaneie o QR do certificado CA, confira a impressão digital e
+instale-o como confiável. Depois, escaneie o QR do CRAS para abrir diretamente
+o aplicativo HTTPS. No
 iPhone, faça os dois passos no Safari; após instalar o perfil em Ajustes, ative
 a confiança total em Ajustes → Geral → Sobre → Ajustes de Confiança do
 Certificado. Permita o acesso à rede local se o iOS solicitar. Para instalar o

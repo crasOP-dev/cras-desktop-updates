@@ -8205,7 +8205,9 @@
                                     ? "Conecte-se ao servidor ou use a cópia offline deste dispositivo."
                                     : canUseOffline
                                         ? "Servidor indisponível. Entre com o código móvel para abrir a cópia offline."
-                                        : "Conecte-se ao servidor para preparar o acesso offline neste dispositivo.";
+                                        : !info
+                                            ? "Não foi possível alcançar o servidor. Confirme que o CRAS está aberto e que o celular está na mesma rede; depois, escaneie o QR atualizado."
+                                            : "O servidor ainda está inicializando. Tente novamente em instantes.";
                             if (window.CRASServiceWorkerError) {
                                 mobileStatus.textContent += " O cache offline do aplicativo não foi instalado.";
                             }
@@ -8241,12 +8243,15 @@
                             desktopNodeInfo.centralServer
                                 ? "Este computador está configurado como servidor central."
                                 : "Localizando automaticamente o servidor central na rede.";
+                        const serviceHost = desktopNodeInfo.mobileAddresses?.[0]
+                            || desktopNodeInfo.hostname
+                            || "";
                         document.getElementById("sync-mobile-addresses").value =
                             desktopNodeInfo.centralServer && desktopNodeInfo.mobileHttpsReady
-                                ? `https://${desktopNodeInfo.hostname}:${desktopNodeInfo.mobilePort}`
+                                ? `https://${serviceHost}:${desktopNodeInfo.mobilePort || 8766}`
                                 : "Ative o servidor central neste notebook para habilitar o acesso móvel automático";
                         document.getElementById("sync-mobile-ca").value = desktopNodeInfo.centralServer
-                            ? `http://${desktopNodeInfo.hostname}:${desktopNodeInfo.port}/api/mobile-ca`
+                            ? `http://${serviceHost}:${desktopNodeInfo.port}/api/mobile-ca`
                             : "Disponível após ativar o servidor central";
                         document.getElementById("sync-mobile-fingerprint").value =
                             desktopNodeInfo.mobileCaFingerprint || "Certificado HTTPS não configurado";
@@ -8262,7 +8267,6 @@
                             }
                         }
 
-                        const serviceHost = desktopNodeInfo.hostname || "";
                         const qrContainer = document.getElementById("qr-code-container");
                         const qrImg = document.getElementById("mobile-qr-image");
                         if (qrContainer && qrImg && serviceHost
