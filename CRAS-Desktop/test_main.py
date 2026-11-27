@@ -182,6 +182,419 @@ class PeerStoreTests(unittest.TestCase):
     def tearDown(self):
         self.temp_dir.cleanup()
 
+    @staticmethod
+    def technical_e2ee_snapshot(ciphertext=None):
+        sealed = ciphertext or {
+            "version": 1,
+            "nonce": base64.b64encode(b"\x00" * 12).decode("ascii"),
+            "ciphertext": base64.b64encode(b"\x01" * 16).decode("ascii"),
+        }
+        return {
+            "appointments": [{
+                "id": "appointment-1",
+                "annotations": {"assistencia": [], "cadastro": []},
+                "technicalAnnotationsCiphertext": sealed,
+            }],
+            "people": [],
+            "paaRecords": [],
+            "settings": {
+                main.TECHNICAL_E2EE_SETTING: {
+                    "version": 1,
+                    "keyCheck": sealed,
+                }
+            },
+        }
+
+    def test_technical_e2ee_snapshot_rejects_plaintext_annotations(self):
+        snapshot = self.technical_e2ee_snapshot()
+        snapshot["appointments"][0]["annotations"]["assistencia"] = [{
+            "id": "note-1",
+            "text": "Dado sensível",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "attendanceDate": "2026-01-02T10:00:00Z",
+            "createdAt": "2026-01-02T10:05:00Z",
+        }]
+
+        with self.assertRaisesRegex(ValueError, "sem criptografia ponta a ponta"):
+            main.validate_snapshot(snapshot)
+
+    def test_technical_e2ee_snapshot_is_stored_without_plaintext_notes(self):
+        snapshot = self.technical_e2ee_snapshot()
+        snapshot["appointments"][0]["annotations"]["cadastro"] = []
+
+        self.store.save_local_snapshot(snapshot, self.store.get_revision(), "assistant")
+
+        stored = json.dumps(self.store.get_local_state()["snapshot"], ensure_ascii=False)
+        self.assertNotIn("Dado sensível", stored)
+        self.assertIn("technicalAnnotationsCiphertext", stored)
+
+    def test_technical_e2ee_rejects_legacy_peer_sync_after_activation(self):
+        self.store.save_local_snapshot(
+            self.technical_e2ee_snapshot(),
+            self.store.get_revision(),
+            "assistant",
+        )
+        legacy_snapshot = {
+            "appointments": [],
+            "people": [],
+            "paaRecords": [],
+            "settings": {},
+        }
+
+        with self.assertRaisesRegex(ValueError, "ainda não usa a criptografia técnica"):
+            self.store.sync("old-peer", "legacy-request", legacy_snapshot, {}, "assistant")
+
+    def test_technical_e2ee_migration_replaces_plaintext_server_and_peer_bases(self):
+        technical_entry = {
+            "id": "note-1",
+            "text": "Conteúdo técnico que não pode permanecer legível",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "attendanceDate": "2026-01-02T10:00:00Z",
+            "createdAt": "2026-01-02T10:05:00Z",
+        }
+        legacy = {
+            "appointments": [{
+                "id": "appointment-1",
+                "annotations": {"assistencia": [technical_entry], "cadastro": []},
+            }],
+            "people": [],
+            "paaRecords": [],
+            "settings": {},
+        }
+        self.store.sync("peer-1", "legacy", legacy, {}, "assistant")
+        encrypted = self.technical_e2ee_snapshot()
+
+        self.store.sync("peer-1", "enable-e2ee", encrypted, {}, "assistant")
+
+        with closing(self.store.connect()) as db:
+            snapshot_payload = db.execute(
+                "SELECT payload FROM current_snapshot WHERE id = 1"
+            ).fetchone()[0]
+            peer_payloads = [
+                row[0] for row in db.execute("SELECT payload FROM peer_bases").fetchall()
+            ]
+        self.assertNotIn(technical_entry["text"], snapshot_payload)
+        self.assertTrue(peer_payloads)
+        self.assertTrue(all(technical_entry["text"] not in payload for payload in peer_payloads))
+
+    def test_nontechnical_peer_cannot_replace_encrypted_annotations(self):
+        initial = self.technical_e2ee_snapshot()
+        self.store.save_local_snapshot(initial, self.store.get_revision(), "assistant")
+        self.store.sync("peer-tech", "initial", initial, {}, "assistant")
+        updated = self.technical_e2ee_snapshot({
+            "version": 1,
+            "nonce": base64.b64encode(b"\x02" * 12).decode("ascii"),
+            "ciphertext": base64.b64encode(b"\x03" * 16).decode("ascii"),
+        })
+        updated["settings"][main.TECHNICAL_E2EE_SETTING]["keyCheck"] = (
+            initial["settings"][main.TECHNICAL_E2EE_SETTING]["keyCheck"]
+        )
+
+        result = self.store.sync("peer-tech", "unauthorized-update", updated, {}, "caseworker")
+
+        self.assertEqual(
+            result["snapshot"]["appointments"][0]["technicalAnnotationsCiphertext"],
+            initial["appointments"][0]["technicalAnnotationsCiphertext"],
+        )
+
+    def test_nontechnical_peer_cannot_delete_appointment_with_encrypted_annotations(self):
+        initial = self.technical_e2ee_snapshot()
+        self.store.save_local_snapshot(initial, self.store.get_revision(), "assistant")
+        self.store.sync("peer-tech", "initial", initial, {}, "assistant")
+        updated = {
+            "appointments": [],
+            "people": [],
+            "paaRecords": [],
+            "settings": initial["settings"],
+        }
+
+        result = self.store.sync("peer-tech", "unauthorized-delete", updated, {}, "caseworker")
+
+        self.assertEqual(len(result["snapshot"]["appointments"]), 1)
+        self.assertEqual(
+            result["snapshot"]["appointments"][0]["technicalAnnotationsCiphertext"],
+            initial["appointments"][0]["technicalAnnotationsCiphertext"],
+        )
+
+    def test_nontechnical_peer_cannot_add_encrypted_annotations(self):
+        initial = self.technical_e2ee_snapshot()
+        initial["appointments"] = []
+        self.store.save_local_snapshot(initial, self.store.get_revision(), "assistant")
+        self.store.sync("peer-tech", "initial", initial, {}, "assistant")
+        updated = self.technical_e2ee_snapshot()
+        updated["settings"] = initial["settings"]
+
+        result = self.store.sync("peer-tech", "unauthorized-add", updated, {}, "caseworker")
+
+        self.assertNotIn(
+            "technicalAnnotationsCiphertext",
+            result["snapshot"]["appointments"][0],
+        )
+
+    def test_technical_e2ee_rejects_a_different_group_key(self):
+        initial = self.technical_e2ee_snapshot()
+        self.store.save_local_snapshot(initial, self.store.get_revision(), "assistant")
+        different_key = self.technical_e2ee_snapshot({
+            "version": 1,
+            "nonce": base64.b64encode(b"\x04" * 12).decode("ascii"),
+            "ciphertext": base64.b64encode(b"\x05" * 16).decode("ascii"),
+        })
+
+        with self.assertRaisesRegex(ValueError, "não corresponde ao servidor"):
+            self.store.sync("different-key-peer", "wrong-key", different_key, {}, "assistant")
+
+    def test_server_assigns_stable_sequential_person_ids(self):
+        self.store.set_central_server(True)
+        first_snapshot = {
+            "appointments": [{
+                "id": "appointment-1",
+                "createdAt": "2026-01-02T10:00:00Z",
+                "nome": "Pessoa Um",
+                "cpf": "",
+                "personKey": "person-1",
+            }],
+            "people": [{
+                "key": "person-1",
+                "id": None,
+                "name": "Pessoa Um",
+                "cpf": "",
+                "createdAt": "2026-01-02T10:00:00Z",
+            }],
+            "paaRecords": [],
+            "settings": {},
+        }
+        self.store.save_local_snapshot(first_snapshot, self.store.get_revision())
+        first_state = self.store.get_local_state()["snapshot"]
+        self.assertEqual(first_state["people"][0]["id"], 1)
+        self.assertEqual(first_state["appointments"][0]["personId"], 1)
+
+        next_snapshot = {
+            "appointments": [{
+                "id": "appointment-2",
+                "createdAt": "2026-01-03T10:00:00Z",
+                "nome": "Pessoa Dois",
+                "cpf": "",
+                "personKey": "person-2",
+            }],
+            "people": [{
+                "key": "person-2",
+                "id": None,
+                "name": "Pessoa Dois",
+                "cpf": "",
+                "createdAt": "2026-01-03T10:00:00Z",
+            }],
+            "paaRecords": [],
+            "settings": {},
+        }
+        self.store.save_local_snapshot(next_snapshot, self.store.get_revision())
+        next_state = self.store.get_local_state()["snapshot"]
+        self.assertEqual(next_state["people"][0]["id"], 2)
+
+    def test_old_appointments_group_only_on_matching_cpf_and_name(self):
+        self.store.set_central_server(True)
+        snapshot = {
+            "appointments": [
+                {"id": "same-1", "createdAt": "2026-01-01T10:00:00Z", "nome": "Ana Silva", "cpf": "12345678901"},
+                {"id": "same-2", "createdAt": "2026-01-02T10:00:00Z", "nome": " Ana   Silva ", "cpf": "123.456.789-01"},
+                {"id": "different-name", "createdAt": "2026-01-03T10:00:00Z", "nome": "Ana Souza", "cpf": "12345678901"},
+                {"id": "no-cpf-1", "createdAt": "2026-01-04T10:00:00Z", "nome": "Pessoa Sem CPF", "cpf": ""},
+                {"id": "no-cpf-2", "createdAt": "2026-01-05T10:00:00Z", "nome": "Pessoa Sem CPF", "cpf": ""},
+            ],
+            "people": [],
+            "paaRecords": [],
+            "settings": {},
+        }
+
+        self.store.save_local_snapshot(snapshot, self.store.get_revision())
+
+        state = self.store.get_local_state()["snapshot"]
+        people_by_appointment = {
+            record["id"]: record["personKey"] for record in state["appointments"]
+        }
+        self.assertEqual(people_by_appointment["same-1"], people_by_appointment["same-2"])
+        self.assertEqual(len(set(people_by_appointment.values())), 4)
+        self.assertNotEqual(people_by_appointment["different-name"], people_by_appointment["same-1"])
+        self.assertNotEqual(people_by_appointment["no-cpf-1"], people_by_appointment["no-cpf-2"])
+
+    def test_concurrent_professional_annotations_merge_by_category(self):
+        base = {
+            "appointments": [{
+                "id": "appointment-1",
+                "annotations": {"assistencia": [], "cadastro": []},
+            }],
+            "paaRecords": [],
+            "settings": {},
+        }
+        technical_entry = {
+            "id": "note-technical",
+            "text": "Anotação técnica",
+            "authorName": "Técnica",
+            "authorRole": "assistant",
+            "attendanceDate": "2026-01-02T10:00:00Z",
+            "createdAt": "2026-01-02T10:05:00Z",
+        }
+        registration_entry = {
+            "id": "note-registration",
+            "text": "Anotação cadastral",
+            "authorName": "Cadastradora",
+            "authorRole": "caseworker",
+            "attendanceDate": "2026-01-02T10:00:00Z",
+            "createdAt": "2026-01-02T10:06:00Z",
+        }
+        local = {
+            **base,
+            "appointments": [{
+                **base["appointments"][0],
+                "annotations": {"assistencia": [technical_entry], "cadastro": []},
+                "_syncMeta": {"last": {"role": "assistant", "updatedAt": "2026-01-02T10:05:00Z"}},
+            }],
+        }
+        remote = {
+            **base,
+            "appointments": [{
+                **base["appointments"][0],
+                "annotations": {"assistencia": [], "cadastro": [registration_entry]},
+                "_syncMeta": {"last": {"role": "caseworker", "updatedAt": "2026-01-02T10:06:00Z"}},
+            }],
+        }
+
+        merged = PeerStore.merge_collection(
+            "appointments", base, local, remote, "assistant", "caseworker"
+        )
+
+        self.assertEqual(merged[0]["annotations"]["assistencia"], [technical_entry])
+        self.assertEqual(merged[0]["annotations"]["cadastro"], [registration_entry])
+
+    def test_snapshot_rejects_annotations_saved_under_the_wrong_professional_category(self):
+        snapshot = {
+            "appointments": [{
+                "id": "appointment-1",
+                "annotations": {
+                    "cadastro": [{
+                        "id": "note-1",
+                        "text": "Anotação",
+                        "authorName": "Técnica",
+                        "authorRole": "assistant",
+                        "attendanceDate": "2026-01-02T10:00:00Z",
+                        "createdAt": "2026-01-02T10:05:00Z",
+                    }]
+                },
+            }],
+            "people": [],
+            "paaRecords": [],
+            "settings": {},
+        }
+
+        with self.assertRaisesRegex(ValueError, "categoria"):
+            main.validate_snapshot(snapshot)
+
+    def test_transfer_package_restores_complete_server_on_new_machine(self):
+        self.store.set_central_server(True)
+        snapshot = {
+            "appointments": [{
+                "id": "appointment-1",
+                "createdAt": "2026-01-02T10:00:00Z",
+                "nome": "Pessoa Um",
+                "cpf": "",
+                "personKey": "person-1",
+                "annotations": {"assistencia": [], "cadastro": []},
+            }],
+            "people": [{
+                "key": "person-1",
+                "id": None,
+                "name": "Pessoa Um",
+                "cpf": "",
+                "createdAt": "2026-01-02T10:00:00Z",
+            }],
+            "paaRecords": [],
+            "settings": {},
+        }
+        self.store.save_local_snapshot(snapshot, self.store.get_revision())
+        self.store.register_user_credential(
+            "user-1",
+            {"salt": base64.b64encode(b"0123456789abcdef").decode("ascii"), "hash": "a" * 64},
+            "Admin",
+            "admin",
+        )
+        with closing(self.store.connect()) as db:
+            with db:
+                db.execute(
+                    "INSERT INTO chat_messages (id, created_at, month, payload, author_id, recipient_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    ("message-1", "2026-01-02T10:00:00Z", "2026-01", "{}", "user-1", None),
+                )
+
+        package = self.store.create_transfer_package()
+        destination = PeerStore(Path(self.temp_dir.name) / "replacement.sqlite3")
+        destination_node_id = destination.node_id
+
+        revision = destination.restore_transfer_package(package)
+
+        self.assertTrue(destination.is_central_server())
+        self.assertTrue(destination.ready)
+        self.assertEqual(destination.node_id, destination_node_id)
+        restored = destination.get_local_state()["snapshot"]
+        self.assertEqual(restored["appointments"][0]["personId"], 1)
+        self.assertEqual(restored["people"][0]["id"], 1)
+        self.assertEqual(destination.get_user_profile("user-1"), {"name": "Admin", "role": "admin"})
+        with closing(destination.connect()) as db:
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0], 1)
+        self.assertEqual(revision, destination.get_revision())
+        package.unlink()
+
+    def test_central_server_exports_machine_readable_records_without_settings(self):
+        self.assertFalse(self.store.machine_export_path.exists())
+        self.store.set_central_server(True)
+        snapshot = {
+            "appointments": [{
+                "id": "appointment-1",
+                "nome": "Pessoa atendida",
+                "_syncMeta": {"role": "admin"},
+                "service": {"_syncMeta": {"role": "assistant"}, "route": "Cadastro Único"},
+            }],
+            "paaRecords": [{"id": "paa-1", "nome": "Pessoa do PAA"}],
+            "settings": {
+                "cras-ouro-preto-usuarios-v1": [{
+                    "id": "user-1",
+                    "passwordCredential": {"hash": "secret-hash"},
+                }],
+                "syncToken": "secret-token",
+            },
+        }
+
+        self.store.save_local_snapshot(snapshot, self.store.get_revision())
+
+        exported = json.loads(self.store.machine_export_path.read_text(encoding="utf-8"))
+        self.assertEqual(exported["format"], main.MACHINE_EXPORT_FORMAT)
+        self.assertEqual(exported["version"], main.MACHINE_EXPORT_VERSION)
+        self.assertEqual(exported["appointments"][0]["service"], {"route": "Cadastro Único"})
+        self.assertEqual(exported["paaRecords"], snapshot["paaRecords"])
+        self.assertEqual(exported["people"][0]["id"], 1)
+        self.assertEqual(exported["people"][0]["name"], "Pessoa atendida")
+        self.assertNotIn("key", exported["people"][0])
+        self.assertNotIn("settings", exported)
+        self.assertNotIn("secret-hash", self.store.machine_export_path.read_text(encoding="utf-8"))
+        self.assertNotIn("secret-token", self.store.machine_export_path.read_text(encoding="utf-8"))
+        self.assertEqual(self.store.machine_export_status()["revision"], self.store.get_revision())
+
+    def test_machine_export_tracks_central_peer_sync(self):
+        self.store.set_central_server(True)
+        local_snapshot = {
+            "appointments": [{"id": "appointment-1", "nome": "Pessoa atendida"}],
+            "paaRecords": [],
+            "settings": {},
+        }
+
+        result = self.store.sync("peer-1", "request-1", local_snapshot, {}, "reception")
+
+        exported = json.loads(self.store.machine_export_path.read_text(encoding="utf-8"))
+        self.assertEqual(exported["appointments"][0]["id"], "appointment-1")
+        self.assertNotIn("personKey", exported["appointments"][0])
+        self.assertEqual(exported["appointments"][0]["personId"], 1)
+        self.assertEqual(exported["revision"], result["revision"])
+
     def test_reception_wins_concurrent_attendance_edits_without_prompt(self):
         base = {
             "appointments": [{"id": "appointment-1", "nome": "Base"}],
@@ -490,7 +903,30 @@ class PeerStoreTests(unittest.TestCase):
 
     def test_principal_backup_is_compressed_and_contains_restorable_history(self):
         snapshot = {
-            "appointments": [{"id": "appointment-1", "nome": "Histórico preservado"}],
+            "appointments": [{
+                "id": "appointment-1",
+                "nome": "Histórico preservado",
+                "personKey": "person-1",
+                "personId": None,
+                "annotations": {
+                    "assistencia": [{
+                        "id": "note-1",
+                        "text": "Anotação preservada",
+                        "authorName": "Técnica",
+                        "authorRole": "assistant",
+                        "attendanceDate": "2026-01-02T10:00:00Z",
+                        "createdAt": "2026-01-02T10:05:00Z",
+                    }],
+                    "cadastro": [],
+                },
+            }],
+            "people": [{
+                "key": "person-1",
+                "id": None,
+                "name": "Histórico preservado",
+                "cpf": "",
+                "createdAt": "2026-01-02T10:00:00Z",
+            }],
             "paaRecords": [],
             "settings": {"cras-ouro-preto-encaminhamentos-v1": ["Cadastro Único"]},
         }
@@ -504,8 +940,27 @@ class PeerStoreTests(unittest.TestCase):
         self.assertTrue(self.store.is_principal())
         self.assertEqual(backup["format"], "cras-ouro-preto-backup")
         self.assertEqual(backup["appointments"], snapshot["appointments"])
+        self.assertEqual(backup["people"], snapshot["people"])
         self.assertEqual(backup["routes"], ["Cadastro Único"])
         self.assertEqual(backup_path.parent.name, "backups")
+
+    def test_auto_backup_status_reports_latest_backup_and_enabled_state(self):
+        self.store.save_local_snapshot(
+            {"appointments": [], "paaRecords": [], "settings": {}},
+            self.store.get_revision(),
+        )
+        self.assertEqual(
+            self.store.auto_backup_status(),
+            {"enabled": False, "backup": "", "createdAt": ""},
+        )
+
+        self.store.set_principal(True)
+        backup_path = self.store.create_auto_backup()
+        status = self.store.auto_backup_status()
+
+        self.assertTrue(status["enabled"])
+        self.assertEqual(status["backup"], backup_path.name)
+        self.assertTrue(status["createdAt"])
 
     def test_principal_backup_keeps_at_most_thirty_copies(self):
         self.store.save_local_snapshot(
@@ -1327,6 +1782,96 @@ class LocalAppRequestTests(unittest.TestCase):
         handler.send_error.assert_not_called()
         handler.send_json.assert_called_once_with(200, {"servers": []}, None)
 
+    def test_backup_status_is_available_only_to_local_app_reads(self):
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/api/backup-status"
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        handler.store = Mock()
+        handler.store.auto_backup_status.return_value = {
+            "enabled": True,
+            "backup": "cras-system-backup-2026-11-25.json.gz",
+            "createdAt": "2026-11-25T10:00:00-03:00",
+        }
+        handler.send_error = Mock()
+        handler.send_json = Mock()
+
+        handler.do_GET()
+
+        handler.send_error.assert_not_called()
+        handler.send_json.assert_called_once_with(
+            200,
+            handler.store.auto_backup_status.return_value,
+            None,
+        )
+
+        handler.client_address = ("192.168.1.25", 12345)
+        handler.send_json.reset_mock()
+        handler.do_GET()
+        handler.send_error.assert_called_once_with(403)
+        handler.send_json.assert_not_called()
+
+    def test_server_transfer_export_streams_package_only_to_local_app(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            package_path = Path(temporary_directory) / "transfer.sqlite3"
+            package_path.write_bytes(b"sqlite-transfer")
+            handler = object.__new__(CRASRequestHandler)
+            handler.path = "/api/server-transfer/export"
+            handler.client_address = ("127.0.0.1", 12345)
+            handler.headers = {"Origin": f"http://127.0.0.1:{PORT}"}
+            handler.store = Mock()
+            handler.store.create_transfer_package.return_value = package_path
+            handler.wfile = io.BytesIO()
+            handler.send_response = Mock()
+            handler.send_header = Mock()
+            handler.add_cors_headers = Mock()
+            handler.end_headers = Mock()
+
+            handler.do_GET()
+
+            handler.send_response.assert_called_once_with(200)
+            handler.send_header.assert_any_call("Content-Type", "application/vnd.sqlite3")
+            self.assertEqual(handler.wfile.getvalue(), b"sqlite-transfer")
+            self.assertFalse(package_path.exists())
+
+            handler.client_address = ("192.168.1.25", 12345)
+            handler.send_error = Mock()
+            handler.send_response.reset_mock()
+            handler.do_GET()
+            handler.send_error.assert_called_once_with(403)
+            handler.send_response.assert_not_called()
+
+    def test_server_transfer_import_restores_local_upload_and_enables_discovery(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            handler = object.__new__(CRASRequestHandler)
+            handler.path = "/api/server-transfer/import"
+            handler.client_address = ("127.0.0.1", 12345)
+            handler.headers = {
+                "Origin": f"http://127.0.0.1:{PORT}",
+                "Content-Length": "15",
+            }
+            handler.store = Mock()
+            handler.store.path = Path(temporary_directory) / "replacement.sqlite3"
+            handler.store.restore_transfer_package.side_effect = (
+                lambda path: self.assertEqual(path.read_bytes(), b"sqlite-transfer") or 8
+            )
+            handler.central_advertiser = Mock()
+            handler.rfile = io.BytesIO(b"sqlite-transfer")
+            handler.send_json = Mock()
+
+            handler.do_POST()
+
+            handler.central_advertiser.set_enabled.assert_called_once_with(True)
+            handler.send_json.assert_called_once_with(
+                200,
+                {"success": True, "revision": 8, "nodeId": handler.store.node_id},
+                handler.headers["Origin"],
+            )
+            self.assertEqual(
+                list(Path(temporary_directory).glob(".cras-transfer-upload-*.sqlite3")),
+                [],
+            )
+
     def test_pwa_resources_are_served_with_service_worker_scope(self):
         handler = object.__new__(CRASRequestHandler)
         handler.path = "/sw.js"
@@ -1340,9 +1885,48 @@ class LocalAppRequestTests(unittest.TestCase):
 
         handler.do_GET()
 
-        self.assertIn(b"cras-mobile-shell-v1", handler.wfile.getvalue())
+        self.assertIn(b"cras-mobile-shell-v5", handler.wfile.getvalue())
+        self.assertIn(b'"/CRAS.css"', handler.wfile.getvalue())
+        self.assertIn(b'"/CRAS.js"', handler.wfile.getvalue())
         handler.send_header.assert_any_call("Content-Type", "application/javascript; charset=utf-8")
         handler.send_header.assert_any_call("Service-Worker-Allowed", "/")
+
+    def test_frontend_assets_are_served_as_static_resources(self):
+        for path, content_type in (
+            ("/CRAS.css", "text/css; charset=utf-8"),
+            ("/CRAS.js", "application/javascript; charset=utf-8"),
+        ):
+            with self.subTest(path=path):
+                handler = object.__new__(CRASRequestHandler)
+                handler.path = path
+                handler.ui_root = Path(__file__).parent
+                handler.client_address = ("127.0.0.1", 12345)
+                handler.headers = {}
+                handler.wfile = io.BytesIO()
+                handler.send_response = Mock()
+                handler.send_header = Mock()
+                handler.end_headers = Mock()
+
+                handler.do_GET()
+
+                self.assertTrue(handler.wfile.getvalue())
+                handler.send_header.assert_any_call("Content-Type", content_type)
+
+        handler = object.__new__(CRASRequestHandler)
+        handler.path = "/CRAS.html"
+        handler.ui_root = Path(__file__).parent
+        handler.client_address = ("127.0.0.1", 12345)
+        handler.headers = {}
+        handler.wfile = io.BytesIO()
+        handler.send_response = Mock()
+        handler.send_header = Mock()
+        handler.end_headers = Mock()
+
+        handler.do_GET()
+
+        document = handler.wfile.getvalue()
+        self.assertIn(b'href="./CRAS.css"', document)
+        self.assertIn(b'src="./CRAS.js"', document)
 
     def test_mobile_portal_serves_structured_html_and_direct_https_link(self):
         handler = object.__new__(CRASRequestHandler)

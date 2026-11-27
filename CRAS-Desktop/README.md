@@ -67,6 +67,46 @@ aquele celular nas próximas aberturas. Bloqueie o aparelho e não compartilhe o
 perfil do navegador. Limpar os dados do navegador ou trocar/desativar o código
 exigirá uma nova validação; o login individual do usuário continua separado.
 
+### Pessoas, atendimentos manuais e anotações
+
+Cada pessoa recebe um ID numérico sequencial do servidor central, independente
+do CPF. Enquanto um registro ainda não chegou ao servidor, o sistema mostra o
+ID como pendente. Registros antigos são associados automaticamente somente
+quando CPF e nome normalizados coincidem; sem CPF ou com dados conflitantes,
+eles permanecem separados.
+
+Técnicas e Cadastradoras podem registrar manualmente atendimentos concluídos.
+Esses registros são gravados primeiro no dispositivo da profissional e
+sincronizados com o servidor quando houver conexão; não entram nas filas do dia.
+O histórico profissional mostra apenas atendimentos atribuídos àquela conta.
+As anotações cadastrais continuam separadas das técnicas. As anotações técnicas
+usam criptografia ponta a ponta AES-GCM no cliente antes de serem salvas ou
+sincronizadas; o servidor central, o Admin e os perfis não técnicos recebem
+somente texto cifrado. Somente uma conta de Técnica com a chave do grupo pode
+abrir ou editar esse conteúdo.
+
+Atualize todos os postos e sincronize os dados pendentes antes da migração. A
+configuração inicial deve ser feita por uma Técnica no CRAS Desktop do notebook
+servidor central. Na primeira entrada após a atualização, ela deve gerar uma
+chave aleatória, anotá-la ou guardá-la em mídia offline protegida e confirmar a
+custódia. A chave não é armazenada no aplicativo nem no servidor. Todas as
+Técnicas autorizadas precisam receber a chave por um canal presencial
+protegido; ela será solicitada novamente em cada sessão. Se todas as cópias
+offline forem perdidas, as anotações técnicas não poderão ser recuperadas.
+Qualquer pessoa que obtenha a chave poderá ler os registros cifrados; a versão
+atual não faz rotação nem revogação automática da chave.
+
+Atualize todos os computadores e celulares antes de ativar a criptografia.
+Depois que a primeira Técnica sincronizar a migração, o servidor rejeitará
+clientes antigos que tentem enviar anotações técnicas em texto legível. Não
+reconecte versões antigas. A migração protege os dados ativos e os novos
+backups/exportações de anotações técnicas, mas não apaga cópias legadas: JSONs,
+backups, transferências e mídias externas criados antes da migração ainda podem
+conter texto legível. Proteja-os separadamente e use BitLocker nos dispositivos.
+Os demais dados pessoais do sistema continuam exigindo proteção de acesso e de
+dispositivo; a criptografia ponta a ponta descrita aqui cobre somente anotações
+técnicas.
+
 ## Servidor central e operação offline
 
 Execute o CRAS Desktop no notebook que será o servidor central, entre como
@@ -87,6 +127,17 @@ de prioridade por perfil já existentes. Os outros postos podem aguardar o
 servidor. Para localizar o servidor, os dispositivos devem estar na mesma rede
 local; políticas de rede podem bloquear mDNS e a descoberta automática.
 
+No computador configurado como servidor central, o sistema também atualiza
+automaticamente `%LOCALAPPDATA%\CRAS-Desktop\exports\cras-machine-data-v1.json`
+após cada gravação ou sincronização. O JSON tem `format`, `version`,
+`exportedAt`, `revision`, `appointments` e `paaRecords`; não inclui preferências,
+credenciais nem metadados internos de conflito. Também inclui a coleção
+`people` com os IDs numéricos, sem a chave interna de associação. A gravação é substituída de
+forma atômica para que um leitor não encontre um arquivo pela metade. O arquivo
+contém dados pessoais e deve ser acessado somente por programas autorizados
+neste computador; não compartilhe a pasta na rede sem controles de acesso.
+O Admin pode conferir o caminho e o estado da exportação em Configurações.
+
 ### Primeira migração do computador Principal
 
 Atualize o CRAS Desktop em todos os computadores e ative o servidor central no
@@ -97,6 +148,24 @@ apaga os dados locais. Cada usuário deve entrar e criar ou validar sua senha
 individual em cada posto. Ative o backup diário no notebook servidor e confira
 os arquivos em
 `%LOCALAPPDATA%\CRAS-Desktop\backups`.
+
+### Trocar ou recuperar o servidor central
+
+Com o servidor antigo funcionando, entre como Admin e use **Configurações →
+Resumo operacional → Exportar pacote para trocar o servidor**. Copie o arquivo
+`.sqlite3` para uma mídia externa protegida. Esse pacote contém o banco completo,
+incluindo dados pessoais, credenciais e conversas, e não é criptografado pelo
+aplicativo. Antes de exportar, sincronize todos os outros postos para incluir
+suas alterações. Em uma troca planejada, desative o servidor antigo depois de
+exportar o pacote.
+
+No computador substituto, instale e abra o CRAS Desktop, entre como Admin e use
+**Restaurar pacote neste computador** antes de ativar outro servidor. A
+restauração substitui o armazenamento local desse computador e ativa o servidor
+central após validar o pacote; o aplicativo reinicia para carregar os dados.
+Não restaure por cima de dados locais que ainda não foram sincronizados. Se o
+servidor antigo falhar, somente será possível recuperar os dados incluídos na
+cópia exportada mais recente; mantenha cópias em mídia externa atualizadas.
 
 ### Celulares Android e iOS
 
@@ -145,8 +214,11 @@ diário)** nas Configurações. O CRAS cria backups compactados diários do
 histórico, encaminhamentos, usuários e dados do PAA em
 `%LOCALAPPDATA%\CRAS-Desktop\backups`, mantendo os 30 mais recentes. O arquivo
 `.json.gz` pode ser selecionado diretamente em **Exportação → Importar backup**;
-o conteúdo é mesclado aos registros locais. As contas incluem hashes de senha
-com salt; proteja os backups adequadamente.
+antes de confirmar, o aplicativo apresenta a quantidade de atendimentos, itens
+do PAA, encaminhamentos e usuários que serão mesclados aos registros locais.
+Os backups JSON e automáticos também preservam pessoas, IDs numéricos e
+anotações por categoria profissional. As contas incluem hashes de senha com
+salt; proteja os backups adequadamente.
 
 O histórico continua completo e independente do preenchimento automático do
 formulário. Cada encaminhamento é exibido em uma linha própria; **Excluir
@@ -166,6 +238,39 @@ também são enviados automaticamente enquanto houver conexão ativa.
 No histórico, monte uma tabela personalizada informando o período, o técnico
 e as colunas desejadas. A tabela pode ser recolhida pelo próprio título do
 painel e exportada em `.ods`, formato compatível com LibreOffice Calc e Excel.
+
+## Recursos de qualidade de vida
+
+O indicador no topo informa se os dados estão locais, sincronizando, pendentes
+ou offline. Em **Configurações**, desative **Mostrar mensagens de
+sincronização** para ocultar os avisos temporários; isso não interrompe a
+sincronização nem remove o indicador.
+
+Um atendimento ainda não registrado é salvo como rascunho local, separado por
+usuário e dispositivo. Ao entrar novamente com o mesmo usuário, escolha
+**Restaurar rascunho** ou **Descartar**. O rascunho não é enviado ao servidor.
+No histórico, filtros recorrentes podem ser salvos neste dispositivo (até 20).
+Use **Alt+Shift+F** para pesquisar no histórico, **Alt+Shift+N** para iniciar
+um atendimento e **Alt+Shift+Q** para abrir as filas quando disponíveis. A
+pesquisa rápida também localiza por nome, CPF, telefone, endereço, técnico ou
+encaminhamento. Os botões de ação rápida no painel de atendimentos oferecem
+acesso às filas e ao formulário.
+
+O botão **Personalizar painel** permite escolher quais ações, indicadores e
+filas aparecem e alterar sua ordem. A configuração é salva localmente por
+usuário e dispositivo, sem sincronização com o servidor; **Restaurar padrão**
+reaplica todos os itens. A disponibilidade de cada fila ainda respeita as
+permissões do perfil.
+
+As filas destacam o tempo aguardado ou em atendimento, priorizam os registros
+mais antigos e mostram quando o tempo de aviso foi ultrapassado. O resumo do
+dia separa itens concluídos, em atendimento e aguardando. Em **Configurações**,
+o Admin também pode conferir a data da última cópia automática; uma cópia com
+mais de 36 horas é sinalizada para verificação, além de ver o último horário de
+sincronização e a contagem local de atendimentos e registros do PAA. O botão
+**Sincronizar agora** tenta novamente sem aguardar o ciclo automático. Quando
+um app volta ao primeiro plano ou detecta a virada do dia, ele atualiza filas e
+solicita uma sincronização imediata com o servidor central.
 
 ## Atualizações
 

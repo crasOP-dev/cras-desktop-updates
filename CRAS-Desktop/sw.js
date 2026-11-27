@@ -1,7 +1,9 @@
-const CACHE_NAME = "cras-mobile-shell-v1";
+const CACHE_NAME = "cras-mobile-shell-v5";
 const APP_SHELL = [
     "/",
     "/CRAS.html",
+    "/CRAS.css",
+    "/CRAS.js",
     "/dexie.min.js",
     "/manifest.webmanifest",
     "/app-icon.svg"

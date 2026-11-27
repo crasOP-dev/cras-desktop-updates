@@ -69,17 +69,21 @@ LOCAL_IPV4_NETWORKS = tuple(
 )
 MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024
+MAX_SERVER_TRANSFER_BYTES = 256 * 1024 * 1024
 AUTO_BACKUP_RETENTION = 30
 MAX_CHAT_TEXT_LENGTH = 4000
 MAX_CHAT_ATTACHMENT_BYTES = 2 * 1024 * 1024
 MAX_CHAT_MESSAGE_BYTES = 3 * 1024 * 1024
 CHAT_ATTACHMENT_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 CENTRAL_SERVICE_TYPE = "_cras-central._tcp.local."
+MACHINE_EXPORT_FORMAT = "cras-ouro-preto-machine-export"
+MACHINE_EXPORT_VERSION = 1
+TECHNICAL_E2EE_SETTING = "cras-ouro-preto-technical-e2ee-v1"
 
 PBKDF2_ITERATIONS = 200_000
 MOBILE_ACCESS_ITERATIONS = 600_000
 
-EMPTY_SNAPSHOT = {"appointments": [], "paaRecords": [], "settings": {}}
+EMPTY_SNAPSHOT = {"appointments": [], "people": [], "paaRecords": [], "settings": {}}
 VALID_USER_ROLES = {"assistant", "caseworker", "reception", "intern", "admin"}
 MOBILE_ACCESS_MIN_LENGTH = 12
 MOBILE_ACCESS_MAX_ATTEMPTS = 5
@@ -367,11 +371,103 @@ def check_for_update() -> bool:
         return False
 def canonical(value: object) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def validate_annotations(annotations: object) -> None:
+    if not isinstance(annotations, dict):
+        raise ValueError("As anotações do atendimento estão inválidas.")
+    if set(annotations) - {"assistencia", "cadastro"}:
+        raise ValueError("O atendimento contém uma categoria de anotação desconhecida.")
+    for category in ("assistencia", "cadastro"):
+        entries = annotations.get(category, [])
+        if not isinstance(entries, list):
+            raise ValueError("A lista de anotações do atendimento está inválida.")
+        seen_ids: set[str] = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise ValueError("Há uma anotação inválida no atendimento.")
+            entry_id = entry.get("id")
+            text = entry.get("text")
+            author_name = entry.get("authorName")
+            author_role = entry.get("authorRole")
+            expected_role = "assistant" if category == "assistencia" else "caseworker"
+            if (
+                not isinstance(entry_id, str)
+                or not entry_id.strip()
+                or entry_id in seen_ids
+                or not isinstance(text, str)
+                or not text.strip()
+                or len(text) > 6000
+                or not isinstance(author_name, str)
+                or not author_name.strip()
+                or len(author_name) > 60
+                or not isinstance(author_role, str)
+                or author_role not in {expected_role, "admin"}
+            ):
+                raise ValueError("Há uma anotação incompleta ou incompatível com sua categoria.")
+            seen_ids.add(entry_id)
+            for field in ("attendanceDate", "createdAt", "updatedAt"):
+                value = entry.get(field)
+                if value is None and field == "updatedAt":
+                    continue
+                if not isinstance(value, str):
+                    raise ValueError("A data de uma anotação está inválida.")
+                try:
+                    datetime.fromisoformat(value.replace("Z", "+00:00"))
+                except ValueError as error:
+                    raise ValueError("A data de uma anotação está inválida.") from error
+            if "updatedBy" in entry and (
+                not isinstance(entry["updatedBy"], str) or len(entry["updatedBy"]) > 60
+            ):
+                raise ValueError("O autor da última edição está inválido.")
+
+
+def validate_technical_ciphertext(value: object) -> None:
+    if not isinstance(value, dict) or value.get("version") != 1:
+        raise ValueError("O pacote de anotações técnicas criptografadas está inválido.")
+    try:
+        nonce = base64.b64decode(value.get("nonce", ""), validate=True)
+        ciphertext = base64.b64decode(value.get("ciphertext", ""), validate=True)
+    except (ValueError, TypeError) as error:
+        raise ValueError("O pacote de anotações técnicas criptografadas está inválido.") from error
+    if len(nonce) != 12 or len(ciphertext) < 16 or len(ciphertext) > 40_000:
+        raise ValueError("O pacote de anotações técnicas criptografadas está inválido.")
+
+
+def technical_e2ee_enabled(snapshot: dict) -> bool:
+    config = snapshot.get("settings", {}).get(TECHNICAL_E2EE_SETTING)
+    if config is None:
+        return False
+    if not isinstance(config, dict) or config.get("version") != 1:
+        raise ValueError("A configuração de criptografia técnica está inválida.")
+    validate_technical_ciphertext(config.get("keyCheck"))
+    return True
+
+
+def validate_technical_e2ee_snapshot(snapshot: dict) -> bool:
+    enabled = technical_e2ee_enabled(snapshot)
+    if not enabled:
+        return False
+    for record in snapshot["appointments"]:
+        annotations = record.get("annotations", {})
+        if annotations.get("assistencia", []):
+            raise ValueError(
+                "A sincronização foi bloqueada: há anotações técnicas sem criptografia ponta a ponta."
+            )
+        if "technicalAnnotationsCiphertext" in record:
+            validate_technical_ciphertext(record["technicalAnnotationsCiphertext"])
+    return True
+
+
 def validate_snapshot(snapshot: object) -> dict:
     if not isinstance(snapshot, dict):
         raise ValueError("O pacote de sincronização está inválido.")
     if not isinstance(snapshot.get("appointments"), list) or not isinstance(snapshot.get("paaRecords"), list):
         raise ValueError("As coleções de atendimentos ou PAA estão inválidas.")
+    if "people" not in snapshot:
+        snapshot["people"] = []
+    if not isinstance(snapshot.get("people"), list):
+        raise ValueError("A coleção de pessoas está inválida.")
     if not isinstance(snapshot.get("settings"), dict):
         raise ValueError("As configurações sincronizadas estão inválidas.")
     if len(canonical(snapshot).encode("utf-8")) > MAX_SNAPSHOT_BYTES:
@@ -385,8 +481,40 @@ def validate_snapshot(snapshot: object) -> dict:
                 raise ValueError(f"Há um identificador duplicado na coleção {collection}.")
             if len(canonical(item).encode("utf-8")) > 45_000:
                 raise ValueError(f"Um registro da coleção {collection} excedeu o limite permitido.")
+            if collection == "appointments" and "annotations" in item:
+                validate_annotations(item["annotations"])
+            if collection == "appointments" and "technicalAnnotationsCiphertext" in item:
+                validate_technical_ciphertext(item["technicalAnnotationsCiphertext"])
             seen.add(item["id"])
+    seen_people: set[str] = set()
+    for person in snapshot["people"]:
+        if not isinstance(person, dict) or not isinstance(person.get("key"), str) or not person["key"].strip():
+            raise ValueError("Há um cadastro de pessoa inválido.")
+        if person["key"] in seen_people:
+            raise ValueError("Há identificadores de pessoa duplicados.")
+        if person.get("id") is not None and (
+            isinstance(person.get("id"), bool)
+            or not isinstance(person.get("id"), int)
+            or person["id"] < 1
+        ):
+            raise ValueError("Há um número de pessoa inválido.")
+        if len(canonical(person).encode("utf-8")) > 45_000:
+            raise ValueError("Um cadastro de pessoa excedeu o limite permitido.")
+        seen_people.add(person["key"])
+    validate_technical_e2ee_snapshot(snapshot)
     return snapshot
+
+
+def machine_export_value(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            key: machine_export_value(item)
+            for key, item in value.items()
+            if key not in {"_syncMeta", "personKey"}
+        }
+    if isinstance(value, list):
+        return [machine_export_value(item) for item in value]
+    return value
 
 
 def is_valid_local_ipv4(address: ipaddress.IPv4Address) -> bool:
@@ -770,6 +898,9 @@ class PeerStore:
         self.path = path
         self.lock = threading.RLock()
         self.ready = False
+        self.machine_export_revision = 0
+        self.machine_exported_at = ""
+        self.machine_export_error = ""
         self.user_auth_challenges: dict[str, tuple[str, str, float]] = {}
         self.user_auth_failures: dict[str, list[float]] = {}
         with closing(self.connect()) as db:
@@ -816,6 +947,7 @@ class PeerStore:
                 self.active_role = self.get_or_create(db, "active_role", "")
                 self.get_or_create(db, "is_principal", "false")
                 self.get_or_create(db, "is_central_server", "false")
+                self.get_or_create(db, "next_person_id", "1")
                 db.execute(
                     "DELETE FROM metadata WHERE key IN "
                     "('pairing_key', 'peer_directory', 'manual_addresses')"
@@ -833,6 +965,137 @@ class PeerStore:
             return str(row[0])
         db.execute("INSERT INTO metadata (key, value) VALUES (?, ?)", (key, value))
         return value
+
+    @staticmethod
+    def person_signature(cpf: object, name: object) -> tuple[str, str] | None:
+        normalized_cpf = re.sub(r"\D", "", cpf) if isinstance(cpf, str) else ""
+        normalized_name = " ".join(name.split()).casefold() if isinstance(name, str) else ""
+        return (normalized_cpf, normalized_name) if len(normalized_cpf) == 11 and normalized_name else None
+
+    @staticmethod
+    def preserve_person_fields(snapshot: dict, previous: dict) -> None:
+        previous_by_id = {
+            record["id"]: record
+            for record in previous.get("appointments", [])
+            if isinstance(record, dict) and isinstance(record.get("id"), str)
+        }
+        for record in snapshot.get("appointments", []):
+            previous_record = previous_by_id.get(record.get("id"))
+            if not previous_record:
+                continue
+            for field in ("personKey", "personId", "annotations"):
+                if field not in record and field in previous_record:
+                    record[field] = previous_record[field]
+
+    def ensure_people_snapshot(
+        self, db: sqlite3.Connection, snapshot: dict, assign_numbers: bool
+    ) -> None:
+        people_by_key: dict[str, dict] = {}
+        signature_keys: dict[tuple[str, str], str] = {}
+        aliases: dict[str, str] = {}
+        sorted_people = sorted(
+            snapshot.get("people", []),
+            key=lambda person: (
+                person.get("id") if isinstance(person.get("id"), int) else 2**63,
+                person["key"],
+            ),
+        )
+        for source in sorted_people:
+            person = dict(source)
+            person_key = person["key"]
+            signature = self.person_signature(person.get("cpf"), person.get("name"))
+            canonical_key = signature_keys.get(signature) if signature else None
+            if canonical_key:
+                aliases[person_key] = canonical_key
+                continue
+            person["cpf"] = re.sub(r"\D", "", person.get("cpf", "")) if isinstance(person.get("cpf"), str) else ""
+            people_by_key[person_key] = person
+            if signature:
+                signature_keys[signature] = person_key
+
+        people_by_id = {
+            person["id"]: person["key"]
+            for person in people_by_key.values()
+            if isinstance(person.get("id"), int) and not isinstance(person.get("id"), bool)
+        }
+        appointments = sorted(
+            snapshot["appointments"],
+            key=lambda record: (str(record.get("createdAt", "")), record["id"]),
+        )
+        for record in appointments:
+            person_key = aliases.get(record.get("personKey"), record.get("personKey"))
+            if not isinstance(person_key, str) or person_key not in people_by_key:
+                person_key = people_by_id.get(record.get("personId"))
+            signature = self.person_signature(record.get("cpf"), record.get("nome"))
+            if not isinstance(person_key, str) or person_key not in people_by_key:
+                person_key = signature_keys.get(signature) if signature else None
+            if not isinstance(person_key, str) or person_key not in people_by_key:
+                person_key = str(uuid.uuid4())
+                person = {
+                    "key": person_key,
+                    "id": None,
+                    "name": record.get("nome", ""),
+                    "cpf": re.sub(r"\D", "", record.get("cpf", "")) if isinstance(record.get("cpf"), str) else "",
+                    "createdAt": str(record.get("createdAt", "")),
+                }
+                people_by_key[person_key] = person
+                if signature:
+                    signature_keys[signature] = person_key
+            person = people_by_key[person_key]
+            person.setdefault("name", record.get("nome", ""))
+            person.setdefault(
+                "cpf",
+                re.sub(r"\D", "", record.get("cpf", "")) if isinstance(record.get("cpf"), str) else "",
+            )
+            person.setdefault("createdAt", str(record.get("createdAt", "")))
+            record["personKey"] = person_key
+            record["personId"] = person.get("id")
+
+        used_numbers: set[int] = set()
+        for person in sorted(
+            people_by_key.values(),
+            key=lambda item: (
+                item.get("id") if isinstance(item.get("id"), int) else 2**63,
+                item["key"],
+            ),
+        ):
+            person_id = person.get("id")
+            if not isinstance(person_id, int) or isinstance(person_id, bool) or person_id < 1 or person_id in used_numbers:
+                person["id"] = None
+            else:
+                used_numbers.add(person_id)
+
+        if assign_numbers:
+            row = db.execute(
+                "SELECT value FROM metadata WHERE key = 'next_person_id'"
+            ).fetchone()
+            try:
+                next_person_id = max(int(row[0]) if row else 1, max(used_numbers, default=0) + 1)
+            except (TypeError, ValueError):
+                next_person_id = max(used_numbers, default=0) + 1
+            unnumbered_people = sorted(
+                (person for person in people_by_key.values() if person["id"] is None),
+                key=lambda item: (str(item.get("createdAt", "")), item["key"]),
+            )
+            for person in unnumbered_people:
+                person["id"] = next_person_id
+                used_numbers.add(next_person_id)
+                next_person_id += 1
+            db.execute(
+                "INSERT INTO metadata (key, value) VALUES ('next_person_id', ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (str(next_person_id),),
+            )
+
+        for record in snapshot["appointments"]:
+            person = people_by_key.get(record.get("personKey"))
+            if person:
+                record["personId"] = person.get("id")
+        snapshot["people"] = sorted(
+            people_by_key.values(),
+            key=lambda item: (item.get("id") is None, item.get("id") or 0, item["key"]),
+        )
+
     def set_central_server(self, enabled: bool) -> None:
         if not isinstance(enabled, bool):
             raise ValueError("A configuração do servidor central é inválida.")
@@ -842,12 +1105,87 @@ class PeerStore:
                     "UPDATE metadata SET value = ? WHERE key = 'is_central_server'",
                     ("true" if enabled else "false",),
                 )
+                row = db.execute("SELECT payload FROM current_snapshot WHERE id = 1").fetchone()
+                snapshot = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
+                previous = canonical(snapshot)
+                self.ensure_people_snapshot(db, snapshot, enabled)
+                if canonical(snapshot) != previous:
+                    db.execute(
+                        "UPDATE current_snapshot SET payload = ?, revision = revision + 1 WHERE id = 1",
+                        (canonical(snapshot),),
+                    )
+        if enabled:
+            self.refresh_machine_export()
     def is_central_server(self) -> bool:
         with self.lock, closing(self.connect()) as db:
             row = db.execute(
                 "SELECT value FROM metadata WHERE key = 'is_central_server'"
             ).fetchone()
             return bool(row and row[0] == "true")
+    @property
+    def machine_export_path(self) -> Path:
+        return self.path.parent / "exports" / "cras-machine-data-v1.json"
+    def machine_export_status(self) -> dict:
+        enabled = self.is_central_server()
+        return {
+            "enabled": enabled,
+            "ready": self.ready,
+            "path": str(self.machine_export_path) if enabled else "",
+            "revision": self.machine_export_revision,
+            "exportedAt": self.machine_exported_at,
+            "error": self.machine_export_error,
+        }
+    def refresh_machine_export(self) -> None:
+        try:
+            with self.lock:
+                if not self.is_central_server() or not self.ready:
+                    return
+                with closing(self.connect()) as db:
+                    row = db.execute(
+                        "SELECT payload, revision FROM current_snapshot WHERE id = 1"
+                    ).fetchone()
+                snapshot = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
+                revision = int(row[1]) if row else 0
+                exported_at = datetime.now(timezone.utc).isoformat()
+                export = {
+                    "format": MACHINE_EXPORT_FORMAT,
+                    "version": MACHINE_EXPORT_VERSION,
+                    "exportedAt": exported_at,
+                    "revision": revision,
+                    "appointments": machine_export_value(snapshot["appointments"]),
+                    "people": [
+                        {
+                            key: machine_export_value(value)
+                            for key, value in person.items()
+                            if key not in {"key", "_syncMeta"}
+                        }
+                        for person in snapshot["people"]
+                    ],
+                    "paaRecords": machine_export_value(snapshot["paaRecords"]),
+                }
+                export_path = self.machine_export_path
+                export_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary_path = export_path.with_name(
+                    f".{export_path.name}.{uuid.uuid4().hex}.tmp"
+                )
+                try:
+                    with temporary_path.open("w", encoding="utf-8", newline="\n") as destination:
+                        json.dump(export, destination, ensure_ascii=False, indent=2)
+                        destination.write("\n")
+                        destination.flush()
+                        os.fsync(destination.fileno())
+                    os.replace(temporary_path, export_path)
+                finally:
+                    try:
+                        temporary_path.unlink()
+                    except FileNotFoundError:
+                        pass
+                self.machine_export_revision = revision
+                self.machine_exported_at = exported_at
+                self.machine_export_error = ""
+        except Exception as error:
+            self.machine_export_error = str(error)
+            logging.exception("Não foi possível atualizar o arquivo JSON externo do CRAS.")
     def register_user_credential(
         self,
         user_id: object,
@@ -1028,6 +1366,106 @@ class PeerStore:
                 "SELECT value FROM metadata WHERE key = 'is_principal'"
             ).fetchone()
             return bool(row and row[0] == "true")
+    def auto_backup_status(self) -> dict:
+        directory = self.path.parent / "backups"
+        backups = []
+        if directory.exists():
+            for path in directory.glob("cras-system-backup-*.json.gz"):
+                try:
+                    backups.append((path.stat().st_mtime, path))
+                except FileNotFoundError:
+                    continue
+        backups.sort(key=lambda item: item[0], reverse=True)
+        latest_backup = backups[0] if backups else None
+        return {
+            "enabled": self.is_principal(),
+            "backup": latest_backup[1].name if latest_backup else "",
+            "createdAt": (
+                datetime.fromtimestamp(latest_backup[0])
+                .astimezone()
+                .isoformat()
+                if latest_backup
+                else ""
+            ),
+        }
+    def create_transfer_package(self) -> Path:
+        if not self.ready or not self.is_central_server():
+            raise ValueError("Ative o servidor central antes de exportar o pacote de transferência.")
+        directory = self.path.parent / "exports"
+        directory.mkdir(parents=True, exist_ok=True)
+        package_path = directory / f".cras-server-transfer-{uuid.uuid4().hex}.sqlite3"
+        try:
+            with self.lock, closing(self.connect()) as source, closing(
+                sqlite3.connect(package_path)
+            ) as destination:
+                source.backup(destination)
+            if package_path.stat().st_size > MAX_SERVER_TRANSFER_BYTES:
+                raise ValueError("O pacote de transferência excede o limite de 256 MB.")
+            return package_path
+        except Exception:
+            package_path.unlink(missing_ok=True)
+            raise
+    def restore_transfer_package(self, package_path: Path) -> int:
+        with self.lock:
+            if self.is_central_server():
+                raise ValueError("Desative o servidor central atual antes de restaurar um pacote.")
+            current_node_id = self.node_id
+            staging_path = self.path.parent / f".cras-transfer-stage-{uuid.uuid4().hex}.sqlite3"
+            try:
+                with closing(sqlite3.connect(package_path)) as package:
+                    integrity = package.execute("PRAGMA integrity_check").fetchone()
+                    if not integrity or integrity[0] != "ok":
+                        raise ValueError("O pacote de transferência está danificado.")
+                    tables = {
+                        row[0] for row in package.execute(
+                            "SELECT name FROM sqlite_master WHERE type = 'table'"
+                        ).fetchall()
+                    }
+                    required_tables = {
+                        "metadata", "current_snapshot", "peer_bases",
+                        "seen_requests", "chat_messages", "user_credentials"
+                    }
+                    if not required_tables.issubset(tables):
+                        raise ValueError("O arquivo não contém um pacote completo de servidor CRAS.")
+                    snapshot_row = package.execute(
+                        "SELECT payload FROM current_snapshot WHERE id = 1"
+                    ).fetchone()
+                    metadata = dict(package.execute("SELECT key, value FROM metadata"))
+                    if not snapshot_row or metadata.get("is_central_server") != "true":
+                        raise ValueError("O pacote não foi exportado de um servidor central ativo.")
+                    validate_snapshot(json.loads(snapshot_row[0]))
+                    with closing(sqlite3.connect(staging_path)) as staged:
+                        package.backup(staged)
+                with closing(sqlite3.connect(staging_path)) as staged:
+                    staged.execute(
+                        "UPDATE metadata SET value = ? WHERE key = 'node_id'",
+                        (current_node_id,),
+                    )
+                    staged.execute(
+                        "UPDATE metadata SET value = 'true' WHERE key = 'is_central_server'"
+                    )
+                    staged.commit()
+                with closing(sqlite3.connect(staging_path)) as source, closing(
+                    self.connect()
+                ) as destination:
+                    source.backup(destination)
+                with closing(self.connect()) as db:
+                    revision_row = db.execute(
+                        "SELECT revision FROM current_snapshot WHERE id = 1"
+                    ).fetchone()
+                    role_row = db.execute(
+                        "SELECT value FROM metadata WHERE key = 'active_role'"
+                    ).fetchone()
+                self.node_id = current_node_id
+                self.active_role = str(role_row[0]) if role_row else ""
+                self.ready = True
+                self.refresh_machine_export()
+                return int(revision_row[0]) if revision_row else 0
+            finally:
+                try:
+                    staging_path.unlink()
+                except FileNotFoundError:
+                    pass
     def create_auto_backup(self) -> Path | None:
         if not self.ready:
             return None
@@ -1046,6 +1484,7 @@ class PeerStore:
             "version": 1,
             "exportedAt": datetime.now(timezone.utc).isoformat(),
             "appointments": snapshot["appointments"],
+            "people": snapshot["people"],
             "routes": settings.get("cras-ouro-preto-encaminhamentos-v1", []),
             "routeQueueTags": settings.get("cras-ouro-preto-encaminhamento-filas-v1", {}),
             "nationalities": settings.get("cras-ouro-preto-nacionalidades-v1", []),
@@ -1296,6 +1735,7 @@ class PeerStore:
     def save_local_snapshot(
         self, snapshot: object, expected_revision: object, actor_role: object = None
     ) -> int:
+        people_supplied = isinstance(snapshot, dict) and "people" in snapshot
         valid_snapshot = validate_snapshot(snapshot)
         if actor_role is not None and (
             not isinstance(actor_role, str) or actor_role not in VALID_USER_ROLES
@@ -1303,14 +1743,37 @@ class PeerStore:
             raise ValueError("O perfil do usuário local é inválido.")
         with self.lock, closing(self.connect()) as db:
             with db:
-                row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
-                current_revision = int(row[0]) if row else 0
+                row = db.execute("SELECT payload, revision FROM current_snapshot WHERE id = 1").fetchone()
+                current_snapshot = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
+                current_e2ee = technical_e2ee_enabled(current_snapshot)
+                incoming_e2ee = technical_e2ee_enabled(valid_snapshot)
+                if current_e2ee and not incoming_e2ee:
+                    raise ValueError(
+                        "Este computador ainda não usa a criptografia técnica. Atualize o CRAS Desktop e sincronize novamente."
+                    )
+                if current_e2ee and (
+                    current_snapshot["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                    != valid_snapshot["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                ):
+                    raise ValueError("A chave de criptografia técnica deste computador não corresponde ao servidor.")
+                current_revision = int(row[1]) if row else 0
                 if expected_revision != current_revision:
                     raise RevisionConflict(current_revision)
+                if not people_supplied:
+                    valid_snapshot["people"] = current_snapshot["people"]
+                self.preserve_person_fields(valid_snapshot, current_snapshot)
+                central_row = db.execute(
+                    "SELECT value FROM metadata WHERE key = 'is_central_server'"
+                ).fetchone()
+                self.ensure_people_snapshot(
+                    db, valid_snapshot, bool(central_row and central_row[0] == "true")
+                )
                 db.execute(
                     "UPDATE current_snapshot SET payload = ?, revision = revision + 1 WHERE id = 1",
                     (canonical(valid_snapshot),),
                 )
+                if incoming_e2ee and not current_e2ee:
+                    db.execute("UPDATE peer_bases SET payload = ?", (canonical(valid_snapshot),))
                 if actor_role is not None:
                     db.execute(
                         "UPDATE metadata SET value = ? WHERE key = 'active_role'",
@@ -1319,7 +1782,9 @@ class PeerStore:
                     self.active_role = actor_role
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
-                return int(row[0])
+                revision = int(row[0])
+        self.refresh_machine_export()
+        return revision
     def accept_synced_snapshot(
         self,
         peer_id: str,
@@ -1330,6 +1795,7 @@ class PeerStore:
     ) -> int:
         if not isinstance(peer_id, str) or not peer_id.strip() or len(peer_id) > 100:
             raise ValueError("Identificação do computador remoto inválida.")
+        people_supplied = isinstance(snapshot, dict) and "people" in snapshot
         valid_snapshot = validate_snapshot(snapshot)
         valid_peer_base = validate_snapshot(peer_base)
         if actor_role is not None and (
@@ -1339,14 +1805,40 @@ class PeerStore:
         payload = canonical(valid_snapshot)
         with self.lock, closing(self.connect()) as db:
             with db:
-                row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
-                current_revision = int(row[0]) if row else 0
+                row = db.execute("SELECT payload, revision FROM current_snapshot WHERE id = 1").fetchone()
+                current_snapshot = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
+                current_e2ee = technical_e2ee_enabled(current_snapshot)
+                incoming_e2ee = technical_e2ee_enabled(valid_snapshot)
+                if current_e2ee and not incoming_e2ee:
+                    raise ValueError(
+                        "Este computador ainda não usa a criptografia técnica. Atualize o CRAS Desktop e sincronize novamente."
+                    )
+                if current_e2ee and (
+                    current_snapshot["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                    != valid_snapshot["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                ):
+                    raise ValueError("A chave de criptografia técnica deste computador não corresponde ao servidor.")
+                current_revision = int(row[1]) if row else 0
                 if expected_revision != current_revision:
                     raise RevisionConflict(current_revision)
+                if not people_supplied:
+                    valid_snapshot["people"] = current_snapshot["people"]
+                self.preserve_person_fields(valid_snapshot, current_snapshot)
+                central_row = db.execute(
+                    "SELECT value FROM metadata WHERE key = 'is_central_server'"
+                ).fetchone()
+                self.ensure_people_snapshot(
+                    db, valid_snapshot, bool(central_row and central_row[0] == "true")
+                )
+                payload = canonical(valid_snapshot)
                 db.execute(
                     "UPDATE current_snapshot SET payload = ?, revision = revision + 1 WHERE id = 1",
                     (payload,),
                 )
+                if incoming_e2ee and not current_e2ee:
+                    db.execute("UPDATE peer_bases SET payload = ?", (payload,))
+                if incoming_e2ee:
+                    valid_peer_base = valid_snapshot
                 db.execute(
                     "INSERT INTO peer_bases (peer_id, payload) VALUES (?, ?) "
                     "ON CONFLICT(peer_id) DO UPDATE SET payload = excluded.payload",
@@ -1360,7 +1852,9 @@ class PeerStore:
                     self.active_role = actor_role
                 row = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()
                 self.ready = True
-                return int(row[0])
+                revision = int(row[0])
+        self.refresh_machine_export()
+        return revision
     def sync(
         self,
         peer_id: str,
@@ -1375,6 +1869,7 @@ class PeerStore:
             raise ValueError("Identificação do computador remoto inválida.")
         if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
             raise ValueError("Identificação da solicitação inválida.")
+        people_supplied = isinstance(local_snapshot, dict) and "people" in local_snapshot
         local = validate_snapshot(local_snapshot)
         if not isinstance(resolutions, dict):
             raise ValueError("As resoluções de conflito estão inválidas.")
@@ -1391,12 +1886,37 @@ class PeerStore:
                     raise ValueError("Solicitação de sincronização repetida; inicie uma nova sincronização.")
                 row = db.execute("SELECT payload FROM current_snapshot WHERE id = 1").fetchone()
                 remote = validate_snapshot(json.loads(row[0])) if row else dict(EMPTY_SNAPSHOT)
+                remote_e2ee = technical_e2ee_enabled(remote)
+                local_e2ee = technical_e2ee_enabled(local)
+                if remote_e2ee and not local_e2ee:
+                    raise ValueError(
+                        "Este computador ainda não usa a criptografia técnica. Atualize o CRAS Desktop e sincronize novamente."
+                    )
+                if remote_e2ee and (
+                    remote["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                    != local["settings"][TECHNICAL_E2EE_SETTING]["keyCheck"]
+                ):
+                    raise ValueError("A chave de criptografia técnica deste posto não corresponde ao servidor.")
                 base_row = db.execute("SELECT payload FROM peer_bases WHERE peer_id = ?", (peer_id,)).fetchone()
                 base = validate_snapshot(json.loads(base_row[0])) if base_row else dict(EMPTY_SNAPSHOT)
+                if local_e2ee and not remote_e2ee:
+                    if peer_role != "assistant":
+                        raise ValueError(
+                            "Somente uma conta de Técnica pode ativar a criptografia das anotações técnicas."
+                        )
+                    remote_ids = {item["id"] for item in remote["appointments"]}
+                    local_ids = {item["id"] for item in local["appointments"]}
+                    if not remote_ids.issubset(local_ids):
+                        raise ValueError(
+                            "Sincronize este posto com os dados atuais antes de ativar a criptografia técnica."
+                        )
                 merged = {
                     "appointments": self.merge_collection(
                         "appointments", base, local, remote, peer_role, self.active_role
                     ),
+                    "people": self.merge_collection(
+                        "people", base, local, remote, peer_role, self.active_role
+                    ) if people_supplied else remote["people"],
                     "paaRecords": self.merge_collection(
                         "paaRecords", base, local, remote, peer_role, self.active_role
                     ),
@@ -1404,6 +1924,51 @@ class PeerStore:
                         base, local, remote, peer_role, self.active_role
                     ),
                 }
+                if local_e2ee and not remote_e2ee:
+                    encrypted_by_id = {
+                        item["id"]: item["technicalAnnotationsCiphertext"]
+                        for item in local["appointments"]
+                        if "technicalAnnotationsCiphertext" in item
+                    }
+                    for record in merged["appointments"]:
+                        if record["id"] in encrypted_by_id:
+                            record["technicalAnnotationsCiphertext"] = encrypted_by_id[record["id"]]
+                        else:
+                            record.pop("technicalAnnotationsCiphertext", None)
+                        annotations = record.get("annotations", {})
+                        record["annotations"] = {
+                            **annotations,
+                            "assistencia": [],
+                        }
+                if remote_e2ee and peer_role != "assistant":
+                    remote_by_id = {item["id"]: item for item in remote["appointments"]}
+                    merged_by_id = {item["id"]: item for item in merged["appointments"]}
+                    for record_id, merged_record in merged_by_id.items():
+                        remote_record = remote_by_id.get(record_id)
+                        ciphertext = (
+                            remote_record.get("technicalAnnotationsCiphertext")
+                            if remote_record
+                            else None
+                        )
+                        if not ciphertext:
+                            merged_record.pop("technicalAnnotationsCiphertext", None)
+                            continue
+                        merged_record["technicalAnnotationsCiphertext"] = ciphertext
+                        annotations = merged_record.get("annotations", {})
+                        merged_record["annotations"] = {**annotations, "assistencia": []}
+                    for record_id, remote_record in remote_by_id.items():
+                        if (
+                            remote_record.get("technicalAnnotationsCiphertext")
+                            and record_id not in merged_by_id
+                        ):
+                            merged["appointments"].append(remote_record)
+                self.preserve_person_fields(merged, remote)
+                central_row = db.execute(
+                    "SELECT value FROM metadata WHERE key = 'is_central_server'"
+                ).fetchone()
+                self.ensure_people_snapshot(
+                    db, merged, bool(central_row and central_row[0] == "true")
+                )
                 central_users = merged["settings"].get("cras-ouro-preto-usuarios-v1", [])
                 if isinstance(central_users, list):
                     profiles = {
@@ -1426,6 +1991,8 @@ class PeerStore:
                     "UPDATE current_snapshot SET payload = ?, revision = revision + 1 WHERE id = 1",
                     (payload,),
                 )
+                if local_e2ee and not remote_e2ee:
+                    db.execute("UPDATE peer_bases SET payload = ?", (payload,))
                 db.execute(
                     "INSERT INTO peer_bases (peer_id, payload) VALUES (?, ?) "
                     "ON CONFLICT(peer_id) DO UPDATE SET payload = excluded.payload",
@@ -1436,7 +2003,7 @@ class PeerStore:
                     (peer_id, request_id),
                 )
                 revision = db.execute("SELECT revision FROM current_snapshot WHERE id = 1").fetchone()[0]
-                return {
+                result = {
                     "status": "ok",
                     "snapshot": merged,
                     "revision": revision,
@@ -1444,6 +2011,8 @@ class PeerStore:
                     "actorRole": self.active_role if self.active_role in VALID_USER_ROLES else None,
                     "unlinkedPaaIds": [],
                 }
+        self.refresh_machine_export()
+        return result
     @staticmethod
     def merge_collection(
         name: str,
@@ -1453,9 +2022,10 @@ class PeerStore:
         local_role: object = None,
         remote_role: object = None,
     ) -> list[dict]:
-        base_items = {item["id"]: item for item in base.get(name, [])}
-        local_items = {item["id"]: item for item in local[name]}
-        remote_items = {item["id"]: item for item in remote[name]}
+        identity_field = "key" if name == "people" else "id"
+        base_items = {item[identity_field]: item for item in base.get(name, [])}
+        local_items = {item[identity_field]: item for item in local[name]}
+        remote_items = {item[identity_field]: item for item in remote[name]}
         merged: list[dict] = []
         for item_id in sorted(base_items.keys() | local_items.keys() | remote_items.keys()):
             base_value = base_items.get(item_id, MISSING)
@@ -1600,7 +2170,7 @@ class PeerStore:
             if not isinstance(metadata, dict):
                 return fallback
             if collection == "appointments":
-                queue = next(
+                queue = "assistencia" if "technicalAnnotationsCiphertext" in path else next(
                     (name for name in ("assistencia", "cadastro") if f".{name}" in f".{path}"),
                     None,
                 )
@@ -2266,6 +2836,79 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
     def do_GET(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/backup-status":
+            if not self.is_local_app_read_request():
+                self.send_error(403)
+                return
+            try:
+                self.send_json(
+                    200,
+                    self.store.auto_backup_status(),
+                    self.headers.get("Origin"),
+                )
+            except Exception:
+                logging.exception("Não foi possível consultar o estado do backup automático.")
+                self.send_json(
+                    500,
+                    {"error": "Não foi possível consultar o estado do backup automático."},
+                    self.headers.get("Origin"),
+                )
+            return
+        if path == "/api/machine-export-status":
+            if not self.is_local_app_read_request():
+                self.send_error(403)
+                return
+            try:
+                self.send_json(
+                    200,
+                    self.store.machine_export_status(),
+                    self.headers.get("Origin"),
+                )
+            except Exception:
+                logging.exception("Não foi possível consultar o estado da exportação JSON.")
+                self.send_json(
+                    500,
+                    {"error": "Não foi possível consultar o estado da exportação JSON."},
+                    self.headers.get("Origin"),
+                )
+            return
+        if path == "/api/server-transfer/export":
+            if not self.is_local_app_read_request():
+                self.send_error(403)
+                return
+            package_path = None
+            response_started = False
+            try:
+                package_path = self.store.create_transfer_package()
+                self.send_response(200)
+                response_started = True
+                self.add_cors_headers(self.headers.get("Origin"))
+                self.send_header("Content-Type", "application/vnd.sqlite3")
+                self.send_header(
+                    "Content-Disposition",
+                    f'attachment; filename="cras-server-transfer-{datetime.now():%Y-%m-%d}.sqlite3"',
+                )
+                self.send_header("Content-Length", str(package_path.stat().st_size))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                with package_path.open("rb") as source:
+                    while chunk := source.read(1024 * 1024):
+                        self.wfile.write(chunk)
+            except Exception:
+                logging.exception("Não foi possível exportar o pacote de transferência do servidor.")
+                if not response_started:
+                    self.send_json(
+                        500,
+                        {"error": "Não foi possível exportar o pacote do servidor."},
+                        self.headers.get("Origin"),
+                    )
+            finally:
+                if package_path:
+                    try:
+                        package_path.unlink()
+                    except FileNotFoundError:
+                        pass
+            return
         if path == "/api/central-servers":
             if not self.is_local_app_read_request():
                 self.send_error(403)
@@ -2451,6 +3094,8 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         file_name = "CRAS.html" if path in ("/", "/CRAS.html") else path.lstrip("/")
         content_types = {
             "CRAS.html": "text/html; charset=utf-8",
+            "CRAS.css": "text/css; charset=utf-8",
+            "CRAS.js": "application/javascript; charset=utf-8",
             "dexie.min.js": "application/javascript; charset=utf-8",
             "manifest.webmanifest": "application/manifest+json; charset=utf-8",
             "sw.js": "application/javascript; charset=utf-8",
@@ -2476,6 +3121,49 @@ class CRASRequestHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
     def do_POST(self) -> None:
         path = urlsplit(self.path).path
+        if path == "/api/server-transfer/import":
+            if not self.is_local_app_request():
+                self.send_error(403)
+                return
+            temporary_path = self.store.path.parent / f".cras-transfer-upload-{uuid.uuid4().hex}.sqlite3"
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if length <= 0 or length > MAX_SERVER_TRANSFER_BYTES:
+                    raise ValueError("O pacote de transferência está vazio ou excede o limite de 256 MB.")
+                remaining = length
+                with temporary_path.open("wb") as destination:
+                    while remaining:
+                        chunk = self.rfile.read(min(1024 * 1024, remaining))
+                        if not chunk:
+                            raise ValueError("O envio do pacote foi interrompido.")
+                        destination.write(chunk)
+                        remaining -= len(chunk)
+                revision = self.store.restore_transfer_package(temporary_path)
+                try:
+                    self.central_advertiser.set_enabled(True)
+                except Exception:
+                    self.store.set_central_server(False)
+                    raise
+                self.send_json(
+                    200,
+                    {"success": True, "revision": revision, "nodeId": self.store.node_id},
+                    self.headers.get("Origin"),
+                )
+            except (ValueError, json.JSONDecodeError) as error:
+                self.send_json(400, {"error": str(error)}, self.headers.get("Origin"))
+            except Exception as error:
+                logging.exception("Não foi possível restaurar o pacote de transferência do servidor.")
+                self.send_json(
+                    500,
+                    {"error": f"Não foi possível restaurar o servidor: {error}"},
+                    self.headers.get("Origin"),
+                )
+            finally:
+                try:
+                    temporary_path.unlink()
+                except FileNotFoundError:
+                    pass
+            return
         if path == "/api/central-config":
             if not self.is_local_app_request():
                 self.send_error(403)

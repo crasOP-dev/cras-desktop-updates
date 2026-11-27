@@ -43,6 +43,8 @@ jobs:
             --collect-all truststore `
             --collect-all zeroconf `
             --add-data "CRAS.html;." `
+            --add-data "CRAS.css;." `
+            --add-data "CRAS.js;." `
             --add-data "dexie.min.js;." `
             --add-data "manifest.webmanifest;." `
             --add-data "sw.js;." `
